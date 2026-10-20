@@ -1951,7 +1951,7 @@ NI_INLINE void attn8m_partial_impl(const device float* q, const device half* kc,
 // tree's live rows (the size rule runs in kf_build), so every dispatch whose grid scales with the rows takes its
 // threadgroup counts from args (dispatchThreadgroups indirect), and this kernel, the verify's first, writes them from
 // the tree's live rows (kf_live_rows: rows = 8 nt, nt live 8-row tiles). desc[0].x: the grid count; desc[1 + j] =
-// {x, y, z, flags}, flags 1: x *= nt (GEMMs, the tree attention: tiles fastest along x), 2: y *= nt (row-tile grids:
+// {x, y, z, flags}, flags 16: x *= ceil(nt / 2) (the tile-pair qmm8t2), 1: x *= nt (GEMMs, the tree attention: tiles fastest along x), 2: y *= nt (row-tile grids:
 // X8 tables, SwiGLU, gated norm), 4: y = rows (per-row grids), 8: x = rows. args: 4 words per grid. grid: 1 x 64.
 [[kernel]] void v8_tree_plan(const device int* tree [[buffer(0)]], const device uint4* desc [[buffer(1)]],
                              device uint4* args [[buffer(2)]], constant uint& R [[buffer(3)]],
@@ -1961,6 +1961,7 @@ NI_INLINE void attn8m_partial_impl(const device float* q, const device half* kc,
     const uint4 d = desc[1 + j];
     uint x = d.x, y = d.y;
     if (d.w & 1u) x *= nt;
+    if (d.w & 16u) x *= (nt + 1) / 2;
     if (d.w & 2u) y *= nt;
     if (d.w & 4u) y = rows;
     if (d.w & 8u) x = rows;

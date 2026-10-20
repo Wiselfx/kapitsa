@@ -289,6 +289,7 @@ void Qwen35::v8_disp(Encoder& e, uint32_t x, uint32_t y, uint32_t z, uint32_t fl
   if (!v8w_R_ || v8w_host_nt_ >= 0) {  // the grid itself (one tile, or the live tiles NI_PROFILE read)
     const uint32_t nt = v8w_R_ ? uint32_t(v8w_host_nt_) : 1u, rows = v8w_R_ ? 8 * nt : 8u;
     if (flags & kV8wX) x *= nt;
+    if (flags & kV8wXpair) x *= (nt + 1) / 2;
     if (flags & kV8wY) y *= nt;
     if (flags & kV8wYrows) y = rows;
     if (flags & kV8wXrows) x = rows;
@@ -474,7 +475,10 @@ void Qwen35::enc_qmm8(Encoder& e, const std::vector<Seg8>& segs, int R, const Bu
     p.nseg = uint32_t(segs.size());
     p.ks = uint32_t(pl.ks);
     uint32_t tg = 0;
-    e.use(pipe8(std::string(pl.pf ? "qmm8tp" : "qmm8t") + "_b4_nt" + std::to_string(pl.nt)));
+    // a wide tree verify: the tile-pair kernel (one 16-row matmul per weight load) unless NI_V8T_PAIR=0
+    static const bool pair_env = env_int("NI_V8T_PAIR", 1) != 0;
+    const bool pair = v8w_R_ && pair_env;
+    e.use(pipe8(std::string(pl.pf ? (pair ? "qmm8t2p" : "qmm8tp") : (pair ? "qmm8t2" : "qmm8t")) + "_b4_nt" + std::to_string(pl.nt)));
     for (size_t i = 0; i < 4; ++i) {
       const Seg8& sg = segs[std::min(i, segs.size() - 1)];
       if (i < segs.size()) {
@@ -493,7 +497,7 @@ void Qwen35::enc_qmm8(Encoder& e, const std::vector<Seg8>& segs, int R, const Bu
     e.buf(16, *tt);
     e.buf(17, sums);
     e.val(18, p);
-    if (v8w_R_) v8_disp(e, tg, 1, 1, kV8wX, 32 * pl.ks);
+    if (v8w_R_) v8_disp(e, tg, 1, 1, pair ? kV8wXpair : kV8wX, 32 * pl.ks);
     else e.dispatch(tg, 1, 1, 32 * pl.ks);
     return;
   }

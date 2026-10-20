@@ -573,7 +573,7 @@ class Qwen35 : public Model {
   // a sequence's tape to kMaxTreeRows rows; v8_disp dispatches a grid that scales with the rows: flags kV8wX (x times
   // the live tiles), kV8wY (y times the tiles), kV8wYrows (y = the live rows), kV8wXrows (x = the live rows); outside a
   // wide verify (or under NI_PROFILE, from the tree the host read) the grid directly
-  static constexpr uint32_t kV8wX = 1, kV8wY = 2, kV8wYrows = 4, kV8wXrows = 8;
+  static constexpr uint32_t kV8wX = 1, kV8wY = 2, kV8wYrows = 4, kV8wXrows = 8, kV8wXpair = 16;
   void v8_wide_begin(Encoder& e, Seq& s, int R);
   void v8_wide_end();
   void v8_disp(Encoder& e, uint32_t x, uint32_t y, uint32_t z, uint32_t flags, uint32_t tx);
