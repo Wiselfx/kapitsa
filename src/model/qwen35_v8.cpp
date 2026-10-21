@@ -220,13 +220,13 @@ void Qwen35::grow_tape(Encoder& e, Seq& s, int rows) {
   Gpu& g = Gpu::get();
   const size_t C = 2 * size_t(cfg_.lin_hk) * cfg_.lin_dk + size_t(cfg_.lin_hv) * cfg_.lin_dv;
   const size_t Hv = size_t(cfg_.lin_hv);
+  // A wide verify's tape is kMaxTreeRows rows, allocated here once: nothing replaces a tape buffer afterwards, so a
+  // pass already encoded against the old one keeps reading it and no retired copy is needed.
   auto grow = [&](Buffer& b, size_t per_row, const char* label) {
     const size_t bytes = size_t(rows) * per_row;
     if (b.size >= bytes) return;
-    Buffer nb = g.alloc(bytes, label);
-    enc_copy(e, b, nb);  // the pending rows the next pass folds (in order with the work before it)
-    retired_.push_back(b);  // encoded passes may still read it
-    b = nb;
+    if (b) fatal("tape grow to %d rows: %s holds %zu bytes (a tape grows once)", rows, label, b.size);
+    b = g.alloc(bytes, label);
   };
   for (int i = 0; i < cfg_.layers; ++i) {
     if (!cfg_.is_linear[i]) continue;

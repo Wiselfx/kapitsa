@@ -6,12 +6,17 @@
 // target's tree verify of capacity 32, and compares every live row's logits with plain decoding of that row's root path
 // (encode_step token by token from the prefill's state): max |logit diff|, its share of the row's logit range, argmax
 // agreement (a differing argmax counts only when plain decoding's top two are further apart than the error). Also:
-//  - the first 8 rows against the same tree verified at capacity 8 (the 8-row tree verify): equal up to fp rounding (bit-equal with NI_V8_TREE_ATTN=0:
-//    the 8-row verify's default zone attention rounds differently);
+//  - the first 8 rows against the same tree verified at capacity 8 (the 8-row tree verify): equal up to fp rounding
+//    (bit-equal with NI_V8_TREE_ATTN=0: the 8-row verify's default zone attention rounds differently, which is why
+//    that comparison's bound is 2e-2);
 //  - the next pass after an accepted path through the later tiles (K/V compaction, the GDN tape and conv window fold
 //    of tape rows past 8): a plain step after encode_flush, and a second tree verify that folds the path itself
 //    (its live rows against plain decoding of path + their own root paths).
 // Exit code 0 when everything passes.
+// It loads a model and runs it for minutes: take the GPU lock first, i.e. run it under
+//   lockf -k -t 600000 "${BENCH_GPU_LOCK:-$HOME/.cache/nace-gpu.lock}" build/kflash_wide_check ...
+// or with NI_LOCK_HELD=1 (or NACE_GPU_LOCK_HELD=1) when the caller already holds it. A pass here is not the output gate
+// of AGENTS.md: the 8-row comparison's bound (2e-2) is wider than twice the 4B's noise floor.
 #include "kernels/kflash.h"
 #include "metal/gpu.h"
 #include "model/qwen35.h"

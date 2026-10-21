@@ -24,14 +24,31 @@ import os
 import subprocess
 import sys
 
+# the exclusive GPU lock of AGENTS.md ("GPU lock"): ni_run loads a model, so it runs under lockf -k unless the caller
+# already holds the lock (NI_LOCK_HELD=1 / NACE_GPU_LOCK_HELD=1, as tools/qwen4_exp_pack.py's GpuLock does)
+GPU_LOCK = os.environ.get("BENCH_GPU_LOCK") or os.path.expanduser("~/.cache/nace-gpu.lock")
+LOCK_TIMEOUT_MS = int(os.environ.get("BENCH_GPU_LOCK_TIMEOUT_MS", "600000"))
 
-def run(binary, model, prompt, n_gen, force, extra):
+
+def lock_held():
+    return bool(os.environ.get("NI_LOCK_HELD") or os.environ.get("NACE_GPU_LOCK_HELD"))
+
+
+def locked(cmd, lock=None, timeout_ms=None, held=None):
+    """cmd under `lockf -k -t <timeout_ms> <lock>` (nothing when the caller holds the lock already)."""
+    lock = GPU_LOCK if lock is None else lock
+    timeout_ms = LOCK_TIMEOUT_MS if timeout_ms is None else timeout_ms
+    held = lock_held() if held is None else held
+    return list(cmd) if held else ["lockf", "-k", "-t", str(timeout_ms), lock] + list(cmd)
+
+
+def run(binary, model, prompt, n_gen, force, extra, no_lock=False):
     env = dict(os.environ)
     env.pop("NI_KFLASH_FORCE", None)
     if str(force) != "auto":
         env["NI_KFLASH_FORCE"] = str(force)
     env.update(extra)
-    cmd = [binary, model, "@" + prompt, str(n_gen), "0", "--dflash", "auto"]
+    cmd = locked([binary, model, "@" + prompt, str(n_gen), "0", "--dflash", "auto"], held=no_lock)
     r = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if r.returncode != 0:
         sys.stderr.write(r.stderr[-2000:])
@@ -50,12 +67,18 @@ def main():
     ap.add_argument("--sizes", default="1,3,5,8,-1,auto")
     ap.add_argument("--env", action="append", default=[], metavar="NAME=VALUE")
     ap.add_argument("--bin", default="build/ni_run")
+    ap.add_argument("--no-lock", action="store_true", help="the caller holds the GPU lock (or the runs are not on it)")
+    ap.add_argument("--print-cmd", action="store_true", help="print one run's command line (lock included) and exit")
     a = ap.parse_args()
     extra = dict(kv.split("=", 1) for kv in a.env)
     sizes = [x if x == "auto" else int(x) for x in a.sizes.split(",")]
+    if a.print_cmd:
+        print(" ".join(locked([a.bin, a.model, "@" + a.prompt, str(sizes[0]), "0", "--dflash", "auto"],
+                              held=a.no_lock)))
+        return 0
     outs = {}
     for n in sizes:
-        outs[n] = run(a.bin, a.model, a.prompt, a.n_gen, n, extra)
+        outs[n] = run(a.bin, a.model, a.prompt, a.n_gen, n, extra, a.no_lock)
         print("force %4s: %d tokens" % (n, len(outs[n])), flush=True)
 
     def first_diff(x, y):

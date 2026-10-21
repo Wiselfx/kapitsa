@@ -30,13 +30,15 @@ they decode.
    not become committed recurrent history. KFlash (every drafter by default; `NI_KFLASH=0` keeps chains): the
    drafter's candidates are verified as a best-first tree instead of one chain: each verify row attends to its
    ancestors only, the recurrent layers run from its own branch's state, and the longest branch that agrees with the
-   target is kept, so the reply is plain decoding's. The tree's size follows this Mac's measured cost per verify row
-   count and the drafter's probabilities as calibrated against its own acceptances: whole 8-row tiles on the dense Qwen
-   models (27B, 4B), where each cycle verifies 8, 16 or 32 rows (the GPU runs the tiles the drafting pass chose, with
-   no host round trip), as many as pay in expected tokens per millisecond on this Mac; on MoE targets (the Qwen
-   35B-A3B, the Nemotron drafters), whose verify pays per row for its experts, 1 to 8 rows per pass, the GPU routing
-   experts (and running the recurrent step and the sampler) for those rows alone. Plain generation is available with
-   `--spec 0`.
+   target is kept. On the 35B-A3B that reply is plain decoding's; on the dense Qwen models a pass of 8 rows and the
+   same 8 rows inside a 16- or 32-row pass round differently (about 5e-3 of the 4B's logits), so a near-tie can give
+   a different greedy token from one tree size to another. The tree's size follows this Mac's measured cost per
+   verify row count and the drafter's probabilities as calibrated against its own acceptances: whole 8-row tiles
+   on the dense Qwen models (27B, 4B), where each cycle verifies 8, 16 or 32 rows (the GPU runs the tiles the
+   drafting pass chose, with no host round trip), as many as pay in expected tokens per millisecond on this Mac; on
+   MoE targets (the Qwen 35B-A3B, the Nemotron drafters), whose verify pays per row for its experts, 1 to 8 rows
+   per pass, the GPU routing experts (and running the recurrent step and the sampler) for those rows alone. Plain
+   generation is available with `--spec 0`.
 5. **Stream and retain state.** The output parser separates content, reasoning and complete tool calls. The engine
    retains the slot for follow-ups and can prefill the rendered assistant history while idle.
 
