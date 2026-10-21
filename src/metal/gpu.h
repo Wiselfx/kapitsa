@@ -62,6 +62,10 @@ class Gpu {
   // The event's value as the CPU sees it now (MTLSharedEvent signaledValue; a few ns, for spinning on)
   static uint64_t event_value(void* event);
   void release(Buffer& b);
+  void release(std::vector<Buffer>& bs) {
+    for (Buffer& b : bs) release(b);
+    bs.clear();
+  }
 
   // Compiles the embedded kernel library on first use. Extra source can be appended (tests).
   void compile(const std::string& extra_source = "");

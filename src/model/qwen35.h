@@ -631,6 +631,7 @@ class Qwen35 : public Model {
   int tree_rows_ = 8;
   int v8w_R_ = 0, v8w_region_ = 0, v8w_n_ = 0, v8w_host_nt_ = -1;
   Buffer v8w_desc_, v8w_args_;
+  std::vector<Buffer> retired_;  // the 8-row tape grow_tape replaced, released by the next grow_tape (never in flight)
   std::deque<Tensor> owned_;
   std::vector<Buffer> owned_bufs_;
 

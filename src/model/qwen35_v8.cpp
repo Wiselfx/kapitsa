@@ -220,13 +220,21 @@ void Qwen35::grow_tape(Encoder& e, Seq& s, int rows) {
   Gpu& g = Gpu::get();
   const size_t C = 2 * size_t(cfg_.lin_hk) * cfg_.lin_dk + size_t(cfg_.lin_hv) * cfg_.lin_dv;
   const size_t Hv = size_t(cfg_.lin_hv);
-  // A wide verify's tape is kMaxTreeRows rows, allocated here once: nothing replaces a tape buffer afterwards, so a
-  // pass already encoded against the old one keeps reading it and no retired copy is needed.
+  // A wide verify's tape is kMaxTreeRows rows. new_seq allocates it at kMaxVerify (8) rows, so the first wide verify
+  // of a sequence moves it once (the old buffer must stay alive for the passes already encoded against it, which this
+  // call's own encoder does not wait for). No buffer is replaced after that: every one of the sequence's linear
+  // layers moves in that first call. The previous sequence's or cycle's old tape is released here, where the earlier
+  // command buffer has been committed and waited on, never while it may still be in flight.
+  g.release(retired_);
   auto grow = [&](Buffer& b, size_t per_row, const char* label) {
     const size_t bytes = size_t(rows) * per_row;
     if (b.size >= bytes) return;
-    if (b) fatal("tape grow to %d rows: %s holds %zu bytes (a tape grows once)", rows, label, b.size);
-    b = g.alloc(bytes, label);
+    Buffer nb = g.alloc(bytes, label);
+    if (b) {
+      enc_copy(e, b, nb);  // the pending rows the next pass folds (in order with the work before it)
+      retired_.push_back(b);
+    }
+    b = nb;
   };
   for (int i = 0; i < cfg_.layers; ++i) {
     if (!cfg_.is_linear[i]) continue;

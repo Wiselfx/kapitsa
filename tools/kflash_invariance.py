@@ -48,7 +48,8 @@ def run(binary, model, prompt, n_gen, force, extra, no_lock=False):
     if str(force) != "auto":
         env["NI_KFLASH_FORCE"] = str(force)
     env.update(extra)
-    cmd = locked([binary, model, "@" + prompt, str(n_gen), "0", "--dflash", "auto"], held=no_lock)
+    cmd = locked([binary, model, "@" + prompt, str(n_gen), "0", "--dflash", "auto"],
+                   held=True if no_lock else None)
     r = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if r.returncode != 0:
         sys.stderr.write(r.stderr[-2000:])
@@ -74,7 +75,7 @@ def main():
     sizes = [x if x == "auto" else int(x) for x in a.sizes.split(",")]
     if a.print_cmd:
         print(" ".join(locked([a.bin, a.model, "@" + a.prompt, str(sizes[0]), "0", "--dflash", "auto"],
-                              held=a.no_lock)))
+                              held=True if a.no_lock else None)))
         return 0
     outs = {}
     for n in sizes:
