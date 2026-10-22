@@ -14,10 +14,14 @@ How to read it:
 
 <!-- BEGIN GENERATED: results (python3 bench/gen_readme.py; do not edit by hand) -->
 
-595 runs on 5 Macs (M1 Pro, 16 GB; M3 Pro, 36 GB; M4 Pro, 48 GB; M5 Max, 128 GB; M5 Pro, 48 GB), 2026-10-22 down to 2026-10-16, newest first.
+599 runs on 5 Macs (M1 Pro, 16 GB; M3 Pro, 36 GB; M4 Pro, 48 GB; M5 Max, 128 GB; M5 Pro, 48 GB), 2026-10-22 down to 2026-10-16, newest first.
 
 | Date | Submitted by | Mac | Model | Quant | Engine | Version | Decode tok/s | Greedy tok/s | Prefill 4K tok/s | Prefill 16K tok/s | TTFT 4K s | Agent tok/s | Flags | Record |
 | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| 2026-10-22 | – | M5 Pro, 48 GB | Qwen3.8 27B | 4-bit | mlx-serve + DFlash2 (draft tree, block 8) | 26.10.2 | 79.7 | 90.8 | 472 | 458 | 8.76 | – | – | [q38-27b-mlxserve-dflash2-20261022-210433](results/2026-10-22-m5pro-27b-ane-split/results/q38-27b-mlxserve-dflash2-20261022-210433.json) |
+| 2026-10-22 | – | M5 Pro, 48 GB | Qwen3.8 27B | 4-bit | Kapitsa (DFlash2 drafter) | a4a32b7 | 78.8 | 84.7 | 533 | 524 | 7.76 | – | – | [q38-27b-kapitsa-20261022-203441](results/2026-10-22-m5pro-27b-ane-split/results/q38-27b-kapitsa-20261022-203441.json) |
+| 2026-10-22 | – | M5 Pro, 48 GB | Qwen3.8 27B | 4-bit | Kapitsa (DFlash2 drafter) | a4a32b7 | 73.0 | 85.3 | 651 | 541 | 6.35 | – | contention | [q38-27b-kapitsa-20261022-203123](results/2026-10-22-m5pro-27b-ane-split/results/q38-27b-kapitsa-20261022-203123.json) |
+| 2026-10-22 | – | M5 Pro, 48 GB | Qwen3.8 27B | 4-bit | mlx-serve + DFlash2 (draft tree, block 8) | 26.10.2 | 91.4 | 91.0 | 463 | 455 | 8.93 | – | – | [q38-27b-mlxserve-dflash2-20261022-202754](results/2026-10-22-m5pro-27b-ane-split/results/q38-27b-mlxserve-dflash2-20261022-202754.json) |
 | 2026-10-22 | Alisher Amantay | M5 Pro, 48 GB | Qwen3.8 27B | 4-bit | Kapitsa (DFlash2 drafter) | 3f7f4c8 | 81.8 | 84.3 | 653 | 546 | 6.33 | – | – | [q38-27b-kapitsa-20261022-200236](results/2026-10-22-m5pro-27b-ane-split/results/q38-27b-kapitsa-20261022-200236.json) |
 | 2026-10-22 | Alisher Amantay | M5 Pro, 48 GB | Qwen3.8 27B | 4-bit | Kapitsa (DFlash2 drafter) | 3f7f4c8 | 76.6 | 86.2 | 583 | 536 | 7.09 | – | – | [q38-27b-kapitsa-20261022-195053](results/2026-10-22-m5pro-27b-ane-split/results/q38-27b-kapitsa-20261022-195053.json) |
 | 2026-10-22 | Alisher Amantay | M5 Pro, 48 GB | Nemotron Dory1.0-4B | NVFP4 | Kapitsa (NVFP4, 2 loops, per-loop KV, speculative decoding) | 3112b93 | 71.2 | 80.3 | 1656 | 1311 | 2.53 | – | – | [dory-kapitsa-perloop-20261022-185535](results/2026-10-22-m5pro-dory/results/dory-kapitsa-perloop-20261022-185535.json) |
