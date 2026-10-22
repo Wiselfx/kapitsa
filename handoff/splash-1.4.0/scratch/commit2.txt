@@ -1,0 +1,8 @@
+batch_check: rows per sequence in layouts (the batch budget's) and the split verify pass; no engine change (35B under MTL_SHADER_VALIDATION=1: 2-4 sequences, uneven rows, argmax equal in 288 of 288 rows)
+
+batch_check's R may now give each sequence its own rows, one layout per cycle in turn ("7,1;1,7;5,3"), as KfBatch
+allocates them, and NI_BATCH_SPLIT=1 commits the batched pass's first layer as a command buffer of its own, as the
+batch budget runs it. Run on the 35B with 2, 3 and 4 sequences, 12 cycles each, under MTL_SHADER_VALIDATION=1: no
+validation error, argmax equal in every row (max |logit diff| 1.17-1.65, the MoE's batched rounding, as before).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

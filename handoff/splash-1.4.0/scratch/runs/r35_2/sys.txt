@@ -1,0 +1,22 @@
+### build b 09:49:29
+ 9:49  up 5 days,  2:12, 1 user, load averages: 3.54 4.10 93.08
+Pages free:                                   912286.
+Pages active:                                 824891.
+Pages wired down:                             224914.
+Pages stored in compressor:                   522647.
+Pages occupied by compressor:                 305906.
+Pageouts:                                     846573.
+Swapouts:                                   30481281.
+System-wide memory free percentage: 82%
+### build b done 09:50:49
+### build a 09:50:49
+ 9:50  up 5 days,  2:13, 1 user, load averages: 4.74 4.22 85.13
+Pages free:                                    85245.
+Pages active:                                 575224.
+Pages wired down:                            1558330.
+Pages stored in compressor:                   546252.
+Pages occupied by compressor:                 305701.
+Pageouts:                                     846760.
+Swapouts:                                   30481281.
+System-wide memory free percentage: 39%
+### build a done 09:52:08

@@ -1,0 +1,110 @@
+[kapitsa] anthropic: tool web_search (web_search_20250305) left out: a server tool without an input_schema
+[kapitsa] anthropic: a base64 document left out of a request: this server reads only text documents
+[kapitsa] responses: tool web_search left out: a built-in tool this server does not run
+PASS anthropic: multi-turn mapping (billing header dropped, system first, mid-conversation system in place, thinking from our signature, tool results before the turn's text, images as image_url parts)
+PASS anthropic: tools as functions, the server tool left out
+PASS anthropic: adaptive thinking on, effort high = the template's default, keep:all = preserve_thinking
+PASS anthropic: stream, display omitted, max_tokens, stop_sequences, sampling
+PASS anthropic: no thinking parameter = thinking off
+PASS anthropic: thinking disabled
+PASS anthropic: thinking enabled
+PASS anthropic: effort low passes to the template
+PASS anthropic: tool_choice none = no tools
+PASS anthropic: a final assistant message (prefill) is refused with 400
+PASS anthropic: no messages is a 400
+PASS anthropic: max_tokens 0 is a 400
+PASS anthropic: count_tokens prompt
+PASS anthropic: tool_addition / tool_removal blocks change the tool list
+PASS responses: mapping (instructions + leading developer merged, reasoning from our encrypted_content else its summary, calls on the assistant turn, custom and namespaced calls, outputs as tool messages, a later developer message in place, images as image_url parts)
+PASS responses: function, custom and namespaced tools; built-in tools left out
+PASS responses: a custom tool is a function of one string, input, with its grammar
+PASS responses: custom and namespaced tools remembered for the output
+PASS responses: effort medium, stream, store false, default max_output_tokens
+PASS responses: effort none/minimal = thinking off, high = the template's default, low passes
+PASS responses: tool_choice none = no tools
+PASS responses: previous_response_id continues the stored conversation
+PASS responses: an unknown previous_response_id is a 400
+PASS responses: the store keeps the newest
+PASS anthropic stream: text only
+PASS anthropic stream: message_start carries the prompt's input and cached tokens
+PASS anthropic stream: text block
+PASS anthropic stream: message_delta end_turn with usage
+PASS anthropic stream: reasoning + text
+PASS anthropic stream: thinking block ends with a signature_delta that carries its text
+PASS anthropic stream: reasoning + 2 tool calls
+PASS anthropic stream: each call one block with one input_json_delta; stop_reason tool_use
+PASS anthropic stream: display omitted sends the thinking block with its signature only
+PASS anthropic stream: length = max_tokens
+PASS anthropic stream: the context running out = model_context_window_exceeded
+PASS anthropic stream: stop sequence
+PASS anthropic stream: an error after the start is an error event
+PASS anthropic stream: keepalive is a ping
+PASS anthropic: a prompt longer than the context is 400 "prompt is too long: N tokens > M maximum"
+PASS anthropic: a template error is a 400
+PASS anthropic: other errors are 500 api_error
+PASS anthropic: an image that cannot be read is a 400 invalid_request_error
+PASS anthropic: non-streamed response
+PASS anthropic: a reply of thinking only gets an empty text block; display omitted empties the thinking text
+PASS responses stream: text only
+PASS responses stream: sequence_number counts every event
+PASS responses stream: response.completed with the output and usage (cached tokens)
+PASS responses stream: reasoning + text
+PASS responses stream: the reasoning item has its text in content and encrypted_content
+PASS responses stream: reasoning + 2 tool calls
+PASS responses stream: function_call items (a namespaced one with its namespace)
+PASS responses stream: custom tool call
+PASS responses stream: the custom call's input is its one string argument
+PASS responses stream: a length cut ends with response.incomplete (max_output_tokens), the cut item incomplete
+PASS responses stream: an error after the start is response.failed
+PASS responses stream: keepalive is response.in_progress, before output and after it (an event Codex's idle timer counts), numbered in sequence
+PASS responses: a prompt longer than the context is 400 context_length_exceeded
+PASS responses: a request the engine cannot take (a video) is a 400 invalid_request_error
+PASS responses: [kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (288 ms)
+[kapitsa] chat: 1 image(s) left out: this model can't read images
+[kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (281 ms)
+non-streamed response
+PASS chat stream: role chunk, reasoning, text, tool calls indexed across deltas, finish with usage, [DONE]
+PASS chat stream: a delta's reasoning, text and calls are a chunk each, in that order
+PASS chat stream: a length cut, a looped model's loop count in usage
+PASS chat: a prompt the context cannot hold is a 400 context_length_exceeded, in OpenAI's words
+PASS chat: another failure is a 400 with the engine's message
+PASS chat stream: a failure after the start is chat_failure's error as an event, then [DONE]
+PASS chat stream: the keepalive is a chunk with an empty delta, finish_reason null
+PASS chat stream: keepalives between chunks add no text
+PASS chat stream: invalid UTF-8 at the end of a piece is replaced, not thrown
+PASS claude: environment
+PASS claude: arguments (the server's key through an apiKeyHelper)
+PASS claude: the --settings value is JSON
+PASS claude: a smaller window caps its replies at a quarter of it; the server's key
+PASS codex: provider settings, the user's -c moved before the subcommand
+PASS opencode: provider, model and agents merged into the user's OPENCODE_CONFIG_CONTENT
+PASS opencode 2: --standalone before --
+PASS opencode: no --standalone with --server, or before 2.0
+PASS opencode: an OPENCODE_CONFIG_CONTENT that is not an object is refused
+PASS pi: its provider as an extension for the run (pi -e, nothing in ~/.pi), the server in its environment
+PASS [qwen3.6-35b-a3b-4bit] anthropic: the streamed reply as Claude Code assembles it (thinking omitted: signature only; integer argument)
+PASS [qwen3.6-35b-a3b-4bit] anthropic: the tool loop's next prompt continues the generated turn token for token
+PASS [qwen3.6-35b-a3b-4bit] anthropic: after the final answer, the next question's prompt continues it too (keep:all)
+PASS [qwen3.6-35b-a3b-4bit] anthropic: the hook's system message is a system turn in place; no billing header in the prompt
+PASS [qwen3.6-35b-a3b-4bit] responses: the reply's items as Codex keeps them (reasoning, function_call, custom_tool_call)
+PASS [qwen3.6-35b-a3b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (calls, then outputs)
+PASS [qwen3.6-35b-a3b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (each call, then its output)
+PASS [qwen3.6-35b-a3b-4bit] responses: the reply's items as Codex keeps them (reasoning, function_call, custom_tool_call)
+PASS [qwen3.6-35b-a3b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (calls, then outputs; reasoning from encrypted_content only)
+PASS [qwen3.6-35b-a3b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (each call, then its output; reasoning from encrypted_content only)
+PASS [qwen3.6-35b-a3b-4bit] template: a later system message is a system turn in place; an image is a note
+PASS [qwen3.6-35b-a3b-4bit] template: with an image encoder, an image is the image placeholder (its data left out)
+PASS [qwen3.8-27b-4bit] anthropic: the streamed reply as Claude Code assembles it (thinking omitted: signature only; integer argument)
+PASS [qwen3.8-27b-4bit] anthropic: the tool loop's next prompt continues the generated turn token for token
+PASS [qwen3.8-27b-4bit] anthropic: after the final answer, the next question's prompt continues it too (keep:all)
+PASS [qwen3.8-27b-4bit] anthropic: the hook's system message is a system turn in place; no billing header in the prompt
+PASS [qwen3.8-27b-4bit] responses: the reply's items as Codex keeps them (reasoning, function_call, custom_tool_call)
+PASS [qwen3.8-27b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (calls, then outputs)
+PASS [qwen3.8-27b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (each call, then its output)
+PASS [qwen3.8-27b-4bit] responses: the reply's items as Codex keeps them (reasoning, function_call, custom_tool_call)
+PASS [qwen3.8-27b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (calls, [kapitsa] chat: 1 image(s) left out: this model can't read images
+then outputs; reasoning from encrypted_content only)
+PASS [qwen3.8-27b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (each call, then its output; reasoning from encrypted_content only)
+PASS [qwen3.8-27b-4bit] template: a later system message is a system turn in place; an image is a note
+PASS [qwen3.8-27b-4bit] template: with an image encoder, an image is the image placeholder (its data left out)
+102 passed, 0 failed

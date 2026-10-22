@@ -1,0 +1,14 @@
+== 2026-10-21 16:48:57 precheck
+uptime: 16:48  up 5 days,  9:12, 1 user, load averages: 3.40 3.65 4.25
+gpu users (4 s):
+Pages free:                                  1318050.
+Pages active:                                 678594.
+Pages inactive:                               678294.
+Pages speculative:                               139.
+Pages wired down:                             192063.
+Pages purgeable:                               13688.
+Pages occupied by compressor:                 235644.
+memory_pressure: System-wide memory free percentage: 86%
+swap: total = 3072.00M  used = 2008.62M  free = 1063.38M  (encrypted); memorystatus_level 86
+engines:
+disk: 24 GB free

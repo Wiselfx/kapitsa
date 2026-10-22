@@ -1,0 +1,204 @@
+{
+ "schema": 2,
+ "label": "t3-pf16",
+ "model": "flash-q20",
+ "base_url": "http://127.0.0.1:8391/v1",
+ "when": "2026-10-21 13:56:00",
+ "temperature": 0.6,
+ "args": {
+  "base_url": "http://127.0.0.1:8391/v1",
+  "model": "flash-q20",
+  "label": "t3-pf16",
+  "pid": 41153,
+  "decode_tokens": 512,
+  "decode_runs": 5,
+  "greedy_runs": 5,
+  "window_head": 16,
+  "window_tail": 4,
+  "rep_threshold": 0.5,
+  "sizes": "16000",
+  "corpus": null,
+  "ref_prompt_tokens": "",
+  "cached_samples": 3,
+  "turn_gap": 1.0,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0,
+  "sampling_overrides": "",
+  "extra_body": "{\"seed\": 1234}",
+  "reasoning_effort": "low",
+  "no_think_style": "both",
+  "warmup": "light",
+  "adaptive_warm": false,
+  "no_gpu_lock": true,
+  "skip": "decode,greedy,tools,agent",
+  "agent_trace": "/Users/flaminis/Desktop/kapitsa/.claude/worktrees/agent-a9a95c76c733c6cab/bench/harness/agent-traces/opencode-ledger.json",
+  "agent_tool_mode": "rendered",
+  "agent_gaps": "recorded",
+  "agent_max_turns": null,
+  "agent_timeout": 2400,
+  "out": "/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/runs/t3-pf16/result.json"
+ },
+ "sampling": {
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "sampling_greedy": {
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "top_k": 1,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "no_think": {
+  "chat_template_kwargs": {
+   "enable_thinking": false
+  },
+  "reasoning_effort": "none"
+ },
+ "corpus": {
+  "path": "corpus/bench_corpus.txt",
+  "sha256": "1a9bb103b3f6d39ee5b9f5bf7207e304c5ce92788c273685f597508c7d2bde28",
+  "frozen": true
+ },
+ "harness": {
+  "git_head": "303d763e5bc9372666da066d8836ca7b9a444ed6",
+  "dirty": false
+ },
+ "phases": {
+  "warmup": [
+   1792572960.662,
+   1792572962.095
+  ],
+  "prefill_16000": [
+   1792572962.21,
+   1792573051.479
+  ]
+ },
+ "memory": {
+  "warmup": {
+   "pids": [
+    {
+     "pid": 41153,
+     "name": "kapitsa",
+     "phys_footprint": 18847295024,
+     "phys_footprint_peak": 18847327792,
+     "mapped_file_dirty": 0,
+     "mapped_file_clean": 40681472,
+     "mapped_file_wired": 0
+    }
+   ],
+   "phys_footprint_mb": 17974.2,
+   "phys_footprint_peak_mb": 17974.2,
+   "mapped_file_clean_mb": 38.8,
+   "swap_used_mb": 2928.0,
+   "memorystatus_level": 48,
+   "swapouts_delta": 0
+  },
+  "prefill_16000": {
+   "pids": [
+    {
+     "pid": 41153,
+     "name": "kapitsa",
+     "phys_footprint": 19591302640,
+     "phys_footprint_peak": 19591335408,
+     "mapped_file_dirty": 0,
+     "mapped_file_clean": 4176052224,
+     "mapped_file_wired": 0
+    }
+   ],
+   "phys_footprint_mb": 18683.7,
+   "phys_footprint_peak_mb": 18683.8,
+   "mapped_file_clean_mb": 3982.6,
+   "swap_used_mb": 2928.0,
+   "memorystatus_level": 47,
+   "swapouts_delta": 0
+  }
+ },
+ "gpu_lock": {
+  "held_by": "caller",
+  "path": "/Users/flaminis/.cache/nace-gpu.lock",
+  "wait_s": null
+ },
+ "vm_start": {
+  "swap_used_mb": 2928.0,
+  "swapouts": 30665185,
+  "swapins": 24638018,
+  "pageouts": 869850,
+  "memorystatus_level": 51
+ },
+ "prefill": [
+  {
+   "target": 16000,
+   "invalid": [],
+   "flags": [],
+   "prompt_tokens": 16287,
+   "expected_prompt_tokens": 16286,
+   "ttft_s": 68.832672042,
+   "prefill_tps": 236.61728532145423,
+   "cold_cached_tokens": 0,
+   "first_event_chars": 3,
+   "timings": null,
+   "finish": "stop",
+   "answer": "The first file, `modeling_granite_speech.py`, defines the Granite Speech model architecture, which combines a conformer-based audio encoder, a QFormer projector, and a language model for speech processing.",
+   "reasoning_chars": 0,
+   "cached": {
+    "samples": [
+     {
+      "ttft_s": 0.7767843329999948,
+      "prompt_tokens": 16353,
+      "cached_tokens": 16330,
+      "finish": "stop",
+      "answer": "One function defined in that file is `get_audio_features`."
+     },
+     {
+      "ttft_s": 0.7039276669999879,
+      "prompt_tokens": 16393,
+      "cached_tokens": 16365,
+      "finish": "stop",
+      "answer": "One class defined in that file is `GraniteSpeechEncoderProjector`."
+     },
+     {
+      "ttft_s": 0.7386770000000098,
+      "prompt_tokens": 16429,
+      "cached_tokens": 16408,
+      "finish": "length",
+      "answer": "The file imports the following modules:\n\n- `math`\n- `dataclasses` (specifically `dataclass`)\n- `torch`\n- `torch.nn.functional` (as `F`)\n- `torch` (specifically `nn`)\n- `...initialization` (as `init`)\n- `...cache_utils` (specifically `Cache`)\n- `...generation` (specifically `GenerationMixin`)\n- `...modeling_outputs` (specifically `BaseModelOutputWithPast`, `BaseModelOutputWithPooling`, `ModelOutput`)\n- `...modeling_utils` (specifically `PreTrainedModel`)\n- `...processing_utils` (specifically `Unpack`)\n- `...utils` (specifically `TransformersKwargs`, `auto_docstring`, `can_return_tuple`, `is_peft_available`, `logging`, `torch_compilable_check`)\n- `...utils.generic` (specifically `merge_with_config_defaults`)\n- `...utils.output_capturing` (specifically `capture_outputs`)\n- `..auto` (specifically `AutoModel`)\n- `.configuration_granite_speech` (specifically `GraniteSpeechConfig"
+     }
+    ],
+    "invalid": [],
+    "flags": [],
+    "median_ttft_s": 0.7387
+   },
+   "turn2_ttft_s": 0.7387,
+   "turn2_cached_tokens": 16330,
+   "turn2_prompt_tokens": 16353,
+   "turn1_finish": "stop"
+  }
+ ],
+ "peak_rss_mb": 20506,
+ "peak_footprint_mb": 18684,
+ "invalid": [],
+ "flags": [],
+ "peak_memory_mb": 18683.8,
+ "mapped_file_clean_mb": 3982.6,
+ "vm_end": {
+  "swap_used_mb": 2928.0,
+  "swapouts": 30665185,
+  "swapins": 24638050,
+  "pageouts": 869851,
+  "memorystatus_level": 47
+ },
+ "when_end": "2026-10-21 13:57:31"
+}

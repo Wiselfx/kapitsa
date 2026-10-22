@@ -1,0 +1,274 @@
+{
+ "schema": 2,
+ "label": "t3-c4096",
+ "model": "flash-q20",
+ "base_url": "http://127.0.0.1:8391/v1",
+ "when": "2026-10-21 13:57:37",
+ "temperature": 0.6,
+ "args": {
+  "base_url": "http://127.0.0.1:8391/v1",
+  "model": "flash-q20",
+  "label": "t3-c4096",
+  "pid": 41523,
+  "decode_tokens": 512,
+  "decode_runs": 5,
+  "greedy_runs": 5,
+  "window_head": 16,
+  "window_tail": 4,
+  "rep_threshold": 0.5,
+  "sizes": "4000,16000",
+  "corpus": null,
+  "ref_prompt_tokens": "",
+  "cached_samples": 3,
+  "turn_gap": 1.0,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0,
+  "sampling_overrides": "",
+  "extra_body": "{\"seed\": 1234}",
+  "reasoning_effort": "low",
+  "no_think_style": "both",
+  "warmup": "light",
+  "adaptive_warm": false,
+  "no_gpu_lock": true,
+  "skip": "decode,greedy,tools,agent",
+  "agent_trace": "/Users/flaminis/Desktop/kapitsa/.claude/worktrees/agent-a9a95c76c733c6cab/bench/harness/agent-traces/opencode-ledger.json",
+  "agent_tool_mode": "rendered",
+  "agent_gaps": "recorded",
+  "agent_max_turns": null,
+  "agent_timeout": 2400,
+  "out": "/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/runs/t3-c4096/result.json"
+ },
+ "sampling": {
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "sampling_greedy": {
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "top_k": 1,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "no_think": {
+  "chat_template_kwargs": {
+   "enable_thinking": false
+  },
+  "reasoning_effort": "none"
+ },
+ "corpus": {
+  "path": "corpus/bench_corpus.txt",
+  "sha256": "1a9bb103b3f6d39ee5b9f5bf7207e304c5ce92788c273685f597508c7d2bde28",
+  "frozen": true
+ },
+ "harness": {
+  "git_head": "303d763e5bc9372666da066d8836ca7b9a444ed6",
+  "dirty": false
+ },
+ "phases": {
+  "warmup": [
+   1792573058.018,
+   1792573059.465
+  ],
+  "prefill_4000": [
+   1792573059.584,
+   1792573084.495
+  ],
+  "prefill_16000": [
+   1792573084.628,
+   1792573148.526
+  ]
+ },
+ "memory": {
+  "warmup": {
+   "pids": [
+    {
+     "pid": 41523,
+     "name": "kapitsa",
+     "phys_footprint": 20148119208,
+     "phys_footprint_peak": 20148151976,
+     "mapped_file_dirty": 0,
+     "mapped_file_clean": 40681472,
+     "mapped_file_wired": 0
+    }
+   ],
+   "phys_footprint_mb": 19214.7,
+   "phys_footprint_peak_mb": 19214.8,
+   "mapped_file_clean_mb": 38.8,
+   "swap_used_mb": 2928.0,
+   "memorystatus_level": 45,
+   "swapouts_delta": 0
+  },
+  "prefill_4000": {
+   "pids": [
+    {
+     "pid": 41523,
+     "name": "kapitsa",
+     "phys_footprint": 20527451704,
+     "phys_footprint_peak": 20527468088,
+     "mapped_file_dirty": 0,
+     "mapped_file_clean": 1784971264,
+     "mapped_file_wired": 0
+    }
+   ],
+   "phys_footprint_mb": 19576.5,
+   "phys_footprint_peak_mb": 19576.5,
+   "mapped_file_clean_mb": 1702.3,
+   "swap_used_mb": 2928.0,
+   "memorystatus_level": 46,
+   "swapouts_delta": 0
+  },
+  "prefill_16000": {
+   "pids": [
+    {
+     "pid": 41523,
+     "name": "kapitsa",
+     "phys_footprint": 20975062608,
+     "phys_footprint_peak": 21033209424,
+     "mapped_file_dirty": 0,
+     "mapped_file_clean": 4236001280,
+     "mapped_file_wired": 0
+    }
+   ],
+   "phys_footprint_mb": 20003.4,
+   "phys_footprint_peak_mb": 20058.8,
+   "mapped_file_clean_mb": 4039.8,
+   "swap_used_mb": 2928.0,
+   "memorystatus_level": 46,
+   "swapouts_delta": 0
+  }
+ },
+ "gpu_lock": {
+  "held_by": "caller",
+  "path": "/Users/flaminis/.cache/nace-gpu.lock",
+  "wait_s": null
+ },
+ "vm_start": {
+  "swap_used_mb": 2928.0,
+  "swapouts": 30665185,
+  "swapins": 24638050,
+  "pageouts": 869851,
+  "memorystatus_level": 51
+ },
+ "prefill": [
+  {
+   "target": 4000,
+   "invalid": [],
+   "flags": [],
+   "prompt_tokens": 4133,
+   "expected_prompt_tokens": 4133,
+   "ttft_s": 11.587165167,
+   "prefill_tps": 356.68776102119404,
+   "cold_cached_tokens": 0,
+   "first_event_chars": 3,
+   "timings": null,
+   "finish": "stop",
+   "answer": "The first file in the repository context is about the Granite Speech model, which consists of an audio encoder, projector, and language model.",
+   "reasoning_chars": 0,
+   "cached": {
+    "samples": [
+     {
+      "ttft_s": 0.7735385830000006,
+      "prompt_tokens": 4183,
+      "cached_tokens": 4160,
+      "finish": "stop",
+      "answer": "One function defined in that file is `get_audio_features`."
+     },
+     {
+      "ttft_s": 0.6856415829999989,
+      "prompt_tokens": 4223,
+      "cached_tokens": 4195,
+      "finish": "stop",
+      "answer": "One class defined in that file is `GraniteSpeechCTCEncoder`."
+     },
+     {
+      "ttft_s": 0.6044282080000016,
+      "prompt_tokens": 4259,
+      "cached_tokens": 4238,
+      "finish": "stop",
+      "answer": "The file imports the following modules:\n\n- `math`\n- `dataclasses`\n- `torch`\n- `torch.nn.functional`\n- `torch.nn`\n- `...initialization`\n- `...cache_utils`\n- `...generation`\n- `...modeling_outputs`\n- `...modeling_utils`\n- `...processing_utils`\n- `...utils`\n- `...utils.generic`\n- `...utils.output_capturing`\n- `..auto`\n- `.configuration_granite_speech`"
+     }
+    ],
+    "invalid": [],
+    "flags": [],
+    "median_ttft_s": 0.6856
+   },
+   "turn2_ttft_s": 0.6856,
+   "turn2_cached_tokens": 4160,
+   "turn2_prompt_tokens": 4183,
+   "turn1_finish": "stop"
+  },
+  {
+   "target": 16000,
+   "invalid": [],
+   "flags": [],
+   "prompt_tokens": 16284,
+   "expected_prompt_tokens": 16286,
+   "ttft_s": 40.012401958,
+   "prefill_tps": 406.97381819499117,
+   "cold_cached_tokens": 0,
+   "first_event_chars": 3,
+   "timings": null,
+   "finish": "stop",
+   "answer": "The first file, `modeling_granite_speech.py`, describes the Granite Speech model, which combines a conformer-based audio encoder, a QFormer projector, and a language model for multimodal speech processing.",
+   "reasoning_chars": 0,
+   "cached": {
+    "samples": [
+     {
+      "ttft_s": 0.814764083,
+      "prompt_tokens": 16351,
+      "cached_tokens": 16328,
+      "finish": "stop",
+      "answer": "One function defined in `modeling_granite_speech.py` is `get_audio_features`, which encodes audio input features through the encoder and projects them into the language model's embedding space."
+     },
+     {
+      "ttft_s": 0.9953847910000064,
+      "prompt_tokens": 16419,
+      "cached_tokens": 16391,
+      "finish": "stop",
+      "answer": "One class defined in `modeling_granite_speech.py` is `GraniteSpeechEncoderProjector`."
+     },
+     {
+      "ttft_s": 0.6718399579999925,
+      "prompt_tokens": 16463,
+      "cached_tokens": 16442,
+      "finish": "stop",
+      "answer": "The file `modeling_granite_speech.py` imports the following modules:\n\n- `math`\n- `dataclasses` (specifically `dataclass`)\n- `torch`\n- `torch.nn.functional` (as `F`)\n- `torch` `nn`\n- `transformers` initialization utilities (`... import initialization as init`)\n- `transformers` cache utilities (`Cache`)\n- `transformers` generation utilities (`GenerationMixin`)\n- `transformers` modeling outputs (`BaseModelOutputWithPast`, `BaseModelOutputWithPooling`, `ModelOutput`)\n- `transformers` modeling utils (`PreTrainedModel`)\n- `transformers` processing utils (`Unpack`)\n- `transformers` utils (`TransformersKwargs`, `auto_docstring`, `can_return_tuple`, `is_peft_available`, `logging`, `torch_compilable_check`)\n- `transformers` generic utils (`merge_with_config_defaults`)\n- `transformers` output capturing utils (`capture_outputs`)\n- `transformers` auto models (`AutoModel`)\n- The local configuration file (`configuration_granite_speech`)"
+     }
+    ],
+    "invalid": [],
+    "flags": [],
+    "median_ttft_s": 0.8148
+   },
+   "turn2_ttft_s": 0.8148,
+   "turn2_cached_tokens": 16328,
+   "turn2_prompt_tokens": 16351,
+   "turn1_finish": "stop"
+  }
+ ],
+ "peak_rss_mb": 20631,
+ "peak_footprint_mb": 20043,
+ "invalid": [],
+ "flags": [],
+ "peak_memory_mb": 20058.8,
+ "mapped_file_clean_mb": 4039.8,
+ "vm_end": {
+  "swap_used_mb": 2928.0,
+  "swapouts": 30665185,
+  "swapins": 24638054,
+  "pageouts": 869851,
+  "memorystatus_level": 46
+ },
+ "when_end": "2026-10-21 13:59:08"
+}

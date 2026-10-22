@@ -1,0 +1,36 @@
+16:35:26 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/kap_hold.sh k-mtp 2 11 --decode-runs 3 --greedy-runs 3 --sizes 4000 --skip tools,agent --warmup light
+16:35:26 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/kap_hold.sh k-mtp 2 11 --decode-runs 3 --greedy-runs 3 --sizes 4000 --skip tools,agent --warmup light
+16:39:42 deadline: end: exit 0 after 256 s
+16:39:42 launch: lock released, exit 0
+16:41:43 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/kap_hold.sh k-plain 0 11 --decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+16:41:43 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/kap_hold.sh k-plain 0 11 --decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+16:45:15 deadline: TERM to process group 24341
+16:45:15 deadline: end: exit 0 after 212 s
+16:45:15 launch: lock released, exit 0
+16:47:15 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/k_pf.sh
+16:47:15 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/k_pf.sh
+16:50:38 deadline: TERM to process group 25727
+16:50:38 deadline: end: exit 0 after 203 s
+16:50:38 launch: lock released, exit 0
+run_kap done 16:50:38
+16:52:39 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/round.sh kapitsa k-mtp-w 999|--warmup full --adaptive-warm --skip decode,greedy,prefill,tools,agent 11|--decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+16:52:39 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/round.sh kapitsa k-mtp-w 999|--warmup full --adaptive-warm --skip decode,greedy,prefill,tools,agent 11|--decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+16:58:36 deadline: TERM to process group 27238
+16:58:36 deadline: end: exit 0 after 357 s
+16:58:36 launch: lock released, exit 0
+17:00:36 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/round.sh kapitsa k-c4096-r2 44|--sizes 4000,16000 --skip decode,greedy,tools,agent --warmup light
+17:00:36 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/round.sh kapitsa k-c4096-r2 44|--sizes 4000,16000 --skip decode,greedy,tools,agent --warmup light
+17:02:39 deadline: TERM to process group 31451
+17:02:40 deadline: end: exit 0 after 123 s
+17:02:40 launch: lock released, exit 0
+17:04:43 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/round.sh kapitsa k-mtp-r2 11|--decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+17:04:43 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/round.sh kapitsa k-mtp-r2 11|--decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+17:08:28 deadline: TERM to process group 35692
+17:08:28 deadline: end: exit 0 after 225 s
+17:08:28 launch: lock released, exit 0
+17:10:28 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/round.sh kapitsa k-plain-r2 11|--decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+17:10:28 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/round.sh kapitsa k-plain-r2 11|--decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+17:14:25 deadline: TERM to process group 54392
+17:14:26 deadline: end: exit 0 after 237 s
+17:14:26 launch: lock released, exit 0
+run_kap2 done 17:14:26

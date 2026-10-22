@@ -1,0 +1,66 @@
+Flash-Next Q2_0 streamed on a 48 GB M4 Pro: the automatic expert store kept within 40% of the RAM (15-24 GB stores made every command buffer 0.5-3.5 s slower; at 12 GB decode runs 16-18 tok/s), each request's store reads in the log, sparse-table rows --stream
+
+What changed:
+- src/model/qwen4_exp.cpp: the automatic store size (NI_EXPERT_STORE unset) keeps the process's GPU
+  memory within 40% of the RAM (and at least three layers' experts), with a log line when it cuts the
+  budget's size. On this Mac the budget left a 29.9 GB store; the cap gives 12.0 GB. NI_EXPERT_STORE=<GB>
+  still sets any size.
+- src/engine/engine.cpp: with streamed experts, each request logs its prompt's and its decode's store work
+  (experts looked up, in memory, read ahead, read at the turn, GB read, MB a token).
+- src/model/expert_store.cpp: the load line names the largest buffer size. src/engine/doctor.cpp: the
+  streamed line names the cap.
+- tools/qwen4_exp_q20.py: `rows --stream` / `convert --stream` cut the sparse table's rows from whole
+  16 MB pieces of its tensors instead of three ~0.5 s CDN reads a row (test: the same file either way).
+- docs/usage.md: the cap, the log, and the numbers below (it said the 48 GB speed was not measured).
+
+Why the cap: a store short of all the experts waits on the CPU at every layer. ni_run, MTP depth 2, the
+harness's decode prompt, 16 tokens, GPU ms per cycle by store size: 4 GB 247, 6 GB 226, 8 GB 210,
+10 GB 197, 12 GB 187; 15 GB 743, 18 GB 2968 (two 9 GB buffers 1762), 24 GB (two 12 GB) 3696; plain
+decode at 18 GB 3004-5025 ms a step against 102-118 at 6-10 GB. The turn thread's own waits stayed at
+~1 ms a layer; a `sample` of the slow runs shows Metal's submission thread blocked in
+IOGPUCommandQueueSubmitCommandBuffers in 361 of 366 samples. The server's GPU memory of 18.9 GB (39% of
+48 GB) and 20.4 GB (4096-row chunks) ran at full speed; ni_run with a 15 GB store (~21-22 GB) did not.
+Not an interleaved A/B: the effect is 4-16x, measured in two sessions on one Mac; where the threshold
+lies on other Macs or under other memory loads is not known.
+
+Runs: MacBook Pro Mac16,7, M4 Pro (20-core GPU), 48 GB, macOS 27.0.1 (26A434), AC; kapitsa serve,
+32K context, 1 slot, --dflash none, the harness's protocol (bench/harness/bench.py, seeded nonces and
+"seed": 1234 so the prompts repeat), a 12 GB store, NI_MEM_BUDGET 23. The pack: tools/qwen4_exp_q20.py
+from nace-ai/Qwen3.8-Flash-Next-MLX-4bit @ 5d423f9f and ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF @
+ed59f920 (ranged reads; `check`: every layer's expert bytes equal the GGUF's), with a sparse n-gram table
+(rows of the prompts and of earlier runs' answers only).
+
+| | MTP depth 2 | plain |
+| --- | ---: | ---: |
+| decode, greedy, 512-token code answers (median of 3) | 16.8 tok/s | 16.1 tok/s |
+| decode, T = 0.6 | 17.8 tok/s | 16.4 tok/s |
+| prefill 4K / 16K, 2048-row chunks (default) | 265-284 / 237 tok/s | |
+| prefill 4K / 16K, --prefill-chunk 4096 | 357 / 407 tok/s | |
+| follow-up time to first token (4K / 16K) | 0.97 / 0.74 s | |
+| peak memory (phys_footprint) | 17.9-18.3 GB (19.6 with 4096-row chunks) | 17.4 GB |
+
+Decode found 88-92% of its experts in memory and read 105-200 MB a token; the least free memory in any
+timed run was 45% (21.6 GB). The decode answers matched their table rows for their first 70-158 tokens
+(76-95% of the positions had every row); rows the table lacks read as zero, so the tokens after the
+first such position are not the model's own, and the full table would add its rows' reads. An earlier pass with less of the
+answers' rows wrote 20.1 / 18.9 tok/s (MTP greedy / T = 0.6) and 18.8 / 16.7 plain, on more repetitive
+text that reused experts.
+
+Prefill profile (ni_run, NI_PROFILE=1, 12 GB store, the 4K prompt): 11.7 s of isolated GPU time, of it
+dense 4-bit GEMMs (DeltaNet, shared expert) 34%, Q2_0 expert GEMMs 28%, 6-bit GEMMs (attention,
+hyper-connections) 15%, attention 4%, DeltaNet scan 3%, hyper-connection mixes 4%; the n-gram gather
+35-39 ms a 2048-row chunk on the CPU. A chunk reads nearly every expert (38-41 GB), so 2048-row chunks
+wait on the SSD (20.0 s, 77 GB read) and 4096-row chunks are about GPU-bound (12.1 s, 41 GB). The
+decode test's 85-token prompts read every expert too (24-31 GB, 5.9-7.7 s to the first token): not
+changed here.
+
+Checked: the same 16 greedy tokens (8 from the 18 GB one-buffer run) from stores of 4, 6, 8, 10, 12, 15,
+18 and 24 GB, one or two buffers, MTP and plain, and from the automatic size; the final MTP and plain
+servers wrote the same 7 answers, greedy and T = 0.6 with the same seed. CPU: build/api_test (102),
+fn_store_test, tools/qwen4_exp_q20_test.py, tests/test_pr_size.py, ruff 0.15.21.
+
+Not verified: logits across store sizes (tokens only); the 40% threshold on any other Mac or memory
+load; the full n-gram table's cost (the disk could not hold it beside the pack); incoai's DFlash2 draft
+(not run).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

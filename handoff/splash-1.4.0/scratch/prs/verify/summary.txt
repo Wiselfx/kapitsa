@@ -1,0 +1,5 @@
+structured rc=0
+batch rc=0
+logit rc=0
+residency rc=0
+ssd rc=0

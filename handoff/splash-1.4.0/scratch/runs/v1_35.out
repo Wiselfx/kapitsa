@@ -1,0 +1,24 @@
+### debug layer + shader validation, 2 sequences 11:04:52
+[kapitsa] read 0.58 GB of weights in 226 ms (2.6 GB/s)
+[kapitsa] MTP head loaded in 264 ms (MoE, trunk hidden pre-norm, drafts over ids < 32768 + specials)
+[kapitsa] compiled kernels in 19 ms
+[kapitsa] prewarmed 92 prefill pipelines in 134 ms
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 40 layers, MoE, 19.5 GB mapped in 7307 ms; weights 4-bit group 64 100%, 8-bit group 64 0%
+validateComputeFunctionArguments:1272: failed assertion `Functon(attn_prefill11g): total used threadgroupMemoryLength(40960) must be <= 32768.'
+### shader validation, 2 sequences 11:04:59
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+[kapitsa] NI_QMM_GU: dense gate/up/SwiGLU fused (qmr_gu_k32_w14_m32_n64, m16_n64 / m8_n32 below 64 rows)
+/Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 2 sequences x 7,1;1,7;5,3;6,2;4,4;2,6 rows, 12 cycles (prompts of 256 tokens): 96 rows, 0 bitwise equal, max |logit diff| 1.312, argmax equal in 96
+GPU ms per cycle: 89.47 for the 2 single passes, 66.20 for the batched pass
+### shader validation, 3 sequences 11:05:10
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+[kapitsa] NI_QMM_GU: dense gate/up/SwiGLU fused (qmr_gu_k32_w14_m32_n64, m16_n64 / m8_n32 below 64 rows)
+/Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 3 sequences x 3,3,2;6,1,1;1,1,6;2,3,3;4,2,2;1,2,5 rows, 12 cycles (prompts of 256 tokens): 96 rows, 0 bitwise equal, max |logit diff| 1.168, argmax equal in 96
+GPU ms per cycle: 116.73 for the 3 single passes, 67.50 for the batched pass
+### shader validation, 4 sequences 11:05:23
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+[kapitsa] NI_QMM_GU: dense gate/up/SwiGLU fused (qmr_gu_k32_w14_m32_n64, m16_n64 / m8_n32 below 64 rows)
+/Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 4 sequences x 2,2,2,2;4,2,1,1;1,1,1,5;5,1,1,1;3,2,2,1;1,3,1,3 rows, 12 cycles (prompts of 256 tokens): 96 rows, 0 bitwise equal, max |logit diff| 1.65, argmax equal in 96
+GPU ms per cycle: 146.33 for the 4 single passes, 71.06 for the batched pass
+### done 11:05:36
+EXIT 0

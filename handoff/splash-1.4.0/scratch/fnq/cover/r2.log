@@ -1,0 +1,8 @@
+[kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (241 ms)
+[kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (241 ms)
+18 requests -> /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/cover/r2.ids: 24357 tokens (23..4528 a sequence)
+13:53:41 cover r2: before
+all: 22095/24357 positions present; replies 4212/6474
+/Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20/ple.safetensors: 57250 rows read by the sequences, 9266 written, 72 s
+13:55:02 cover r2: after (exit 0)
+all: 24357/24357 positions present; replies 6474/6474

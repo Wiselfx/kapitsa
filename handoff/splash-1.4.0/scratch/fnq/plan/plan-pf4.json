@@ -1,0 +1,154 @@
+{
+ "schema": 2,
+ "label": "plan-pf4",
+ "model": "flash-q20",
+ "base_url": "http://127.0.0.1:1/v1",
+ "when": "2026-10-21 11:49:09",
+ "temperature": 0.6,
+ "args": {
+  "base_url": "http://127.0.0.1:1/v1",
+  "model": "flash-q20",
+  "label": "plan-pf4",
+  "pid": 0,
+  "decode_tokens": 512,
+  "decode_runs": 5,
+  "greedy_runs": 5,
+  "window_head": 16,
+  "window_tail": 4,
+  "rep_threshold": 0.5,
+  "sizes": "4000",
+  "corpus": null,
+  "ref_prompt_tokens": "",
+  "cached_samples": 3,
+  "turn_gap": 1.0,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0,
+  "sampling_overrides": "",
+  "extra_body": "{\"seed\": 1234}",
+  "reasoning_effort": "low",
+  "no_think_style": "both",
+  "warmup": "light",
+  "adaptive_warm": false,
+  "no_gpu_lock": true,
+  "skip": "decode,greedy,tools,agent",
+  "agent_trace": "/Users/flaminis/Desktop/kapitsa/.claude/worktrees/agent-a9a95c76c733c6cab/bench/harness/agent-traces/opencode-ledger.json",
+  "agent_tool_mode": "rendered",
+  "agent_gaps": "recorded",
+  "agent_max_turns": null,
+  "agent_timeout": 2400,
+  "out": "plan-pf4.json"
+ },
+ "sampling": {
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "sampling_greedy": {
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "top_k": 1,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "no_think": {
+  "chat_template_kwargs": {
+   "enable_thinking": false
+  },
+  "reasoning_effort": "none"
+ },
+ "corpus": {
+  "path": "corpus/bench_corpus.txt",
+  "sha256": "1a9bb103b3f6d39ee5b9f5bf7207e304c5ce92788c273685f597508c7d2bde28",
+  "frozen": true
+ },
+ "harness": {
+  "git_head": "303d763e5bc9372666da066d8836ca7b9a444ed6",
+  "dirty": false
+ },
+ "phases": {
+  "warmup": [
+   1792565349.737,
+   1792565349.738
+  ],
+  "prefill_4000": [
+   1792565349.756,
+   1792565349.756
+  ]
+ },
+ "memory": {
+  "warmup": {
+   "swap_used_mb": 1383.06,
+   "memorystatus_level": 45,
+   "swapouts_delta": 0
+  },
+  "prefill_4000": {
+   "swap_used_mb": 1383.06,
+   "memorystatus_level": 45,
+   "swapouts_delta": 0
+  }
+ },
+ "gpu_lock": {
+  "held_by": "none",
+  "path": "/Users/flaminis/.cache/nace-gpu.lock",
+  "wait_s": null
+ },
+ "vm_start": {
+  "swap_used_mb": 1383.06,
+  "swapouts": 30528421,
+  "swapins": 24600221,
+  "pageouts": 858992,
+  "memorystatus_level": 45
+ },
+ "prefill": [
+  {
+   "target": 4000,
+   "invalid": [
+    "prompt_tokens 1 outside \u00b11% of 4133 (truncated or template drift)"
+   ],
+   "flags": [],
+   "prompt_tokens": 1,
+   "expected_prompt_tokens": 4133,
+   "ttft_s": 0.1,
+   "prefill_tps": 10.0,
+   "cold_cached_tokens": null,
+   "first_event_chars": null,
+   "timings": null,
+   "finish": "stop",
+   "answer": "",
+   "reasoning_chars": 0,
+   "cached": {
+    "samples": [],
+    "invalid": [
+     "turn 1 returned no content; not substituting text, cached test skipped"
+    ],
+    "flags": []
+   }
+  }
+ ],
+ "invalid": [
+  "prefill_4000: prompt_tokens 1 outside \u00b11% of 4133 (truncated or template drift)",
+  "cached_4000: turn 1 returned no content; not substituting text, cached test skipped"
+ ],
+ "flags": [],
+ "peak_memory_mb": null,
+ "mapped_file_clean_mb": null,
+ "vm_end": {
+  "swap_used_mb": 1383.06,
+  "swapouts": 30528421,
+  "swapins": 24600221,
+  "pageouts": 858992,
+  "memorystatus_level": 45
+ },
+ "when_end": "2026-10-21 11:49:09"
+}

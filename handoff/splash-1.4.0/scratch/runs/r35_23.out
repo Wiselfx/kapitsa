@@ -1,0 +1,19 @@
+ROUND_DONE
+Traceback (most recent call last):
+  File "/Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/harness/gpu_hogs.py", line 334, in <module>
+    sys.exit(main() or 0)
+  File "/Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/harness/gpu_hogs.py", line 323, in main
+    rows = usage(2, exclude_roots=roots)
+  File "/Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/harness/gpu_hogs.py", line 119, in usage
+    b = snap()
+  File "/Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/harness/gpu_hogs.py", line 92, in snap
+    out = subprocess.run(["ioreg", "-r", "-c", "AGXDeviceUserClient", "-l", "-w", "0"],
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/subprocess.py", line 505, in run
+    with Popen(*popenargs, **kwargs) as process:
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/subprocess.py", line 951, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/subprocess.py", line 1754, in _execute_child
+    self.pid = _posixsubprocess.fork_exec(
+BlockingIOError: [Errno 35] Resource temporarily unavailable
+ROUND_DONE
+EXIT 0

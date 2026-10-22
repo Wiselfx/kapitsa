@@ -1,0 +1,4 @@
+store auto, serve extra: --prefill-chunk 4096
+cmd: env  NI_LOG=1 /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/kap-main/build/kapitsa serve --model /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 --model-id flash-q20 --dflash none --spec 2 --host 127.0.0.1 --port 8391 --ctx 32768 --slots 1 --prefill-chunk 4096
+hbench exit 0
+hold done

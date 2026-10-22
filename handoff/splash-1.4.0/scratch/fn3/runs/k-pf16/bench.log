@@ -1,0 +1,4 @@
+== k-pf16
+  prefill 16000: 16287 tok (ref 16286), TTFT 70.56s -> 231 tok/s, cold cached=0 | cached TTFT median 0.57s over 3 turns (cached [16330, 16365, 16408])
+  memory: phys_footprint_peak 19.81 GB, resident mapped files 3.89 GB, swap used 2008.62 MB
+  -> /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/runs/k-pf16/result.json

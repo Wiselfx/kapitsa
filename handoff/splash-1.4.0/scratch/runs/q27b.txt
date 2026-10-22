@@ -1,0 +1,3 @@
+r27_t0_3||/Users/flaminis/.cache/kapitsa/models/qwen3.8-27b-4bit|a b|/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/runs/spec_27_t0m.txt
+r27_t06_3||/Users/flaminis/.cache/kapitsa/models/qwen3.8-27b-4bit|b a|/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/runs/spec_27_t06.txt
+f35||/Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit|b f|/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/runs/spec_35_floor.txt

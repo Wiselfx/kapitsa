@@ -1,0 +1,8 @@
+== k-mtp-r2-inv1
+  decode T=0.6: 24.59 tok/s (e2e 23.54; 512 tok, finish=length, d4=0.896)
+  decode T=0.6: 20.64 tok/s (e2e 20.27; 512 tok, finish=length, d4=0.8846)
+  decode T=0.6: 18.27 tok/s (e2e 17.93; 512 tok, finish=length, d4=0.9313)
+  decode median 20.64 (min 18.27, max 24.59) over 3/3 valid
+  decode T=0: median 20.25 (min 19.82, max 21.68) over 3/3 valid
+  memory: phys_footprint_peak 19.03 GB, resident mapped files 1.15 GB, swap used 1984.62 MB
+  -> /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/runs/k-mtp-r2/inv1-s11.json

@@ -1,0 +1,107 @@
+== k-mtp
+  hold: store auto, serve extra: none
+  hold: cmd: env  NI_LOG=1 /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/kap-main/build/kapitsa serve --model /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 --model-id flash-q20 --dflash no
+  [result.json] 2026-10-21 16:35:48 .. 2026-10-21 16:39:41
+    decode T=0.6: runs ['23.5', '20.9', '18.8'] tok/s, median 20.94; e2e ['22.4', '20.5', '18.4']; TTFT ['7.99', '5.90', '5.89'] s; tokens [512, 512, 512]; d4 [0.896, 0.8846, 0.9313]
+    decode greedy: runs ['20.8', '20.5', '20.4'] tok/s, median 20.46; e2e ['20.7', '20.1', '20.0']; TTFT ['6.20', '7.41', '5.82'] s; tokens [512, 512, 512]; d4 [0.9744, 0.9744, 0.896]
+    prefill 4000: 4132 tokens, TTFT 16.07 s = 257 tok/s (cold cached 0); follow-ups TTFT ['0.922', '1.061', '0.780'] s (prompt [4194, 4235, 4272], cached [4171, 4207, 4251]), median 0.9219
+    peak phys_footprint 19.43 GB (sampler 19.43 GB, RSS 20.06 GB), mapped files 2.63 GB, swap 2008.62 MB
+  foreign GPU 114 samples: mean 1.0%, max 13.1% (Claude Helper), longest run >5% by a non-ambient process: 0 samples
+  free memory level: min 44% (= 21.1 GB of 48), max 90% over 50 samples
+  precheck: load 3.75, memory free 90%, GPU users: none
+  | [kapitsa] expert store: 13.6 GB rather than the 30.1 GB the budget leaves (the process's GPU memory within 40% of the RAM: beyond ~45%, every command buffer of a streamed store took seconds longer on a 48 GB Mac)
+  | [kapitsa] expert store: 9737 slots of 1.39 MB (13.56 GB, 39.6% of the 24576 experts) in one buffer (up to 30.15 GB each); 9737 read at load in 4525 ms (3.16 GB/s)
+  | [kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+== k-mtp-r2
+  hold: 17:05:06 cmd: env NI_LOG=1 KAPITSA_NO_AUTO_UPDATE=1 KAPITSA_HOME=/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/home /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-s
+  hold: 17:05:12 ready after 6 s, model id: flash-q20
+  [inv1-s11.json] 2026-10-21 17:05:12 .. 2026-10-21 17:08:27
+    decode T=0.6: runs ['24.6', '20.6', '18.3'] tok/s, median 20.64; e2e ['23.5', '20.3', '17.9']; TTFT ['7.96', '5.93', '5.93'] s; tokens [512, 512, 512]; d4 [0.896, 0.8846, 0.9313]
+    decode greedy: runs ['21.7', '20.3', '19.8'] tok/s, median 20.25; e2e ['21.5', '19.8', '19.4']; TTFT ['5.91', '7.78', '7.15'] s; tokens [512, 512, 512]; d4 [0.9744, 0.9744, 0.896]
+    peak phys_footprint 19.03 GB (sampler 19.03 GB, RSS 18.69 GB), mapped files 1.15 GB, swap 1984.62 MB
+  foreign GPU 95 samples: mean 1.4%, max 13.9% (Google Chrome He), longest run >5% by a non-ambient process: 1 samples by {'Google Chrome He': 3}
+  free memory level: min 40% (= 19.2 GB of 48), max 81% over 41 samples
+  precheck: load 2.50, memory free 81%, GPU users: none
+  | [kapitsa] expert store: 13.6 GB rather than the 30.1 GB the budget leaves (the process's GPU memory within 40% of the RAM: beyond ~45%, every command buffer of a streamed store took seconds longer on a 48 GB Mac)
+  | [kapitsa] expert store: 9737 slots of 1.39 MB (13.56 GB, 39.6% of the 24576 experts) in one buffer (up to 30.15 GB each); 9737 read at load in 3778 ms (3.79 GB/s)
+  | [kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+== k-mtp-w
+  hold: 16:53:02 cmd: env NI_LOG=1 KAPITSA_NO_AUTO_UPDATE=1 KAPITSA_HOME=/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/home /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-s
+  hold: 16:53:09 ready after 7 s, model id: flash-q20
+  [inv1-s999.json] 2026-10-21 16:53:09 .. 2026-10-21 16:55:15
+    warm-up: [('prefill~2.9k+decode64', True, 25.73), ('tools', True, 9.16), ('decode512#1', True, 27.7), ('decode512#2', True, 30.97), ('decode512#3', True, 31.95)]
+    peak phys_footprint 19.27 GB (sampler 19.26 GB, RSS 19.57 GB), mapped files 1.97 GB, swap 2000.62 MB
+  [inv2-s11.json] 2026-10-21 16:55:15 .. 2026-10-21 16:58:35
+    decode T=0.6: runs ['17.7', '19.3', '18.2'] tok/s, median 18.2; e2e ['17.3', '18.9', '17.8']; TTFT ['5.81', '5.88', '5.91'] s; tokens [512, 512, 512]; d4 [0.896, 0.8846, 0.9313]
+    decode greedy: runs ['21.1', '19.6', '20.6'] tok/s, median 20.6; e2e ['20.9', '19.3', '20.2']; TTFT ['5.92', '5.92', '5.90'] s; tokens [512, 512, 512]; d4 [0.9744, 0.9744, 0.896]
+    peak phys_footprint 19.27 GB (sampler 19.26 GB, RSS 19.96 GB), mapped files 2.50 GB, swap 1992.62 MB
+  foreign GPU 97 samples: mean 1.5%, max 8.0% (Google Chrome He), longest run >5% by a non-ambient process: 4 samples by {'Google Chrome He': 8}
+  free memory level: min 41% (= 19.7 GB of 48), max 81% over 67 samples
+  precheck: load 3.58, memory free 85%, GPU users: none
+  | [kapitsa] expert store: 13.6 GB rather than the 30.1 GB the budget leaves (the process's GPU memory within 40% of the RAM: beyond ~45%, every command buffer of a streamed store took seconds longer on a 48 GB Mac)
+  | [kapitsa] expert store: 9737 slots of 1.39 MB (13.56 GB, 39.6% of the 24576 experts) in one buffer (up to 30.15 GB each); 9737 read at load in 4478 ms (3.19 GB/s)
+  | [kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+== k-plain
+  hold: store auto, serve extra: none
+  hold: cmd: env  NI_LOG=1 /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/kap-main/build/kapitsa serve --model /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 --model-id flash-q20 --dflash no
+  [result.json] 2026-10-21 16:41:53 .. 2026-10-21 16:45:14
+    decode T=0.6: runs ['22.0', '19.0', '17.9'] tok/s, median 18.97; e2e ['21.4', '18.9', '17.8']; TTFT ['7.99', '5.90', '5.99'] s; tokens [512, 512, 512]; d4 [0.896, 0.8846, 0.9313]
+    decode greedy: runs ['20.1', '18.7', '18.9'] tok/s, median 18.87; e2e ['20.0', '18.5', '18.8']; TTFT ['6.05', '5.91', '5.90'] s; tokens [512, 512, 512]; d4 [0.9744, 0.9744, 0.896]
+    peak phys_footprint 18.89 GB (sampler 18.89 GB, RSS 18.45 GB), mapped files 0.90 GB, swap 2008.62 MB
+  foreign GPU 98 samples: mean 0.6%, max 6.2% (Claude Helper), longest run >5% by a non-ambient process: 0 samples
+  free memory level: min 44% (= 21.1 GB of 48), max 84% over 42 samples
+  precheck: load 2.77, memory free 84%, GPU users: 7.7%  pid 93029 Claude Helper
+  | [kapitsa] expert store: 13.6 GB rather than the 30.1 GB the budget leaves (the process's GPU memory within 40% of the RAM: beyond ~45%, every command buffer of a streamed store took seconds longer on a 48 GB Mac)
+  | [kapitsa] expert store: 9737 slots of 1.39 MB (13.56 GB, 39.6% of the 24576 experts) in one buffer (up to 30.15 GB each); 9737 read at load in 3766 ms (3.80 GB/s)
+  | [kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+== k-plain-r2
+  hold: 17:10:51 cmd: env NI_LOG=1 KAPITSA_NO_AUTO_UPDATE=1 KAPITSA_HOME=/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/home /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-s
+  hold: 17:10:58 ready after 6 s, model id: flash-q20
+  [inv1-s11.json] 2026-10-21 17:10:58 .. 2026-10-21 17:14:24
+    decode T=0.6: runs ['21.8', '18.8', '17.8'] tok/s, median 18.76; e2e ['21.3', '18.7', '17.6']; TTFT ['7.90', '6.27', '6.02'] s; tokens [512, 512, 512]; d4 [0.896, 0.8846, 0.9313]
+    decode greedy: runs ['18.8', '17.5', '17.7'] tok/s, median 17.67; e2e ['18.7', '17.4', '17.6']; TTFT ['5.90', '5.97', '5.92'] s; tokens [512, 512, 512]; d4 [0.9744, 0.9744, 0.896]
+    peak phys_footprint 18.89 GB (sampler 18.89 GB, RSS 18.45 GB), mapped files 0.90 GB, swap 1984.62 MB
+  foreign GPU 101 samples: mean 3.6%, max 12.0% (Google Chrome He), longest run >5% by a non-ambient process: 1 samples by {'Google Chrome He': 3}
+  free memory level: min 41% (= 19.7 GB of 48), max 83% over 43 samples
+  precheck: load 3.66, memory free 83%, GPU users: 7.0%  pid 93029 Claude Helper
+  | [kapitsa] expert store: 13.6 GB rather than the 30.1 GB the budget leaves (the process's GPU memory within 40% of the RAM: beyond ~45%, every command buffer of a streamed store took seconds longer on a 48 GB Mac)
+  | [kapitsa] expert store: 9737 slots of 1.39 MB (13.56 GB, 39.6% of the 24576 experts) in one buffer (up to 30.15 GB each); 9737 read at load in 3759 ms (3.81 GB/s)
+  | [kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+== k-pf16
+  hold: store auto, serve extra: none
+  hold: cmd: env  NI_LOG=1 /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/kap-main/build/kapitsa serve --model /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 --model-id flash-q20 --dflash no
+  [result.json] 2026-10-21 16:47:26 .. 2026-10-21 16:48:56
+    prefill 16000: 16287 tokens, TTFT 70.56 s = 231 tok/s (cold cached 0); follow-ups TTFT ['0.575', '0.729', '0.484'] s (prompt [16353, 16393, 16429], cached [16330, 16365, 16408]), median 0.5746
+    peak phys_footprint 19.81 GB (sampler 19.81 GB, RSS 21.39 GB), mapped files 3.89 GB, swap 2008.62 MB
+  foreign GPU 44 samples: mean 3.2%, max 18.7% (Claude Helper), longest run >5% by a non-ambient process: 0 samples
+  free memory level: min 44% (= 21.1 GB of 48), max 85% over 20 samples
+  precheck: load 3.15, memory free 85%, GPU users: none
+  | [kapitsa] expert store: 13.6 GB rather than the 30.1 GB the budget leaves (the process's GPU memory within 40% of the RAM: beyond ~45%, every command buffer of a streamed store took seconds longer on a 48 GB Mac)
+  | [kapitsa] expert store: 9737 slots of 1.39 MB (13.56 GB, 39.6% of the 24576 experts) in one buffer (up to 30.15 GB each); 9737 read at load in 3754 ms (3.81 GB/s)
+  | [kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+== k-c4096
+  hold: store auto, serve extra: --prefill-chunk 4096
+  hold: cmd: env  NI_LOG=1 /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/kap-main/build/kapitsa serve --model /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 --model-id flash-q20 --dflash no
+  [result.json] 2026-10-21 16:49:07 .. 2026-10-21 16:50:37
+    prefill 4000: 4133 tokens, TTFT 11.33 s = 365 tok/s (cold cached 0); follow-ups TTFT ['0.737', '0.689', '0.613'] s (prompt [4183, 4223, 4259], cached [4160, 4195, 4238]), median 0.6889
+    prefill 16000: 16284 tokens, TTFT 38.73 s = 420 tok/s (cold cached 0); follow-ups TTFT ['0.818', '0.978', '0.678'] s (prompt [16351, 16419, 16463], cached [16328, 16391, 16442]), median 0.8178
+    peak phys_footprint 19.78 GB (sampler 19.78 GB, RSS 20.22 GB), mapped files 3.94 GB, swap 2008.62 MB
+  foreign GPU 43 samples: mean 2.9%, max 20.3% (Google Chrome He), longest run >5% by a non-ambient process: 3 samples by {'Google Chrome He': 6}
+  free memory level: min 43% (= 20.6 GB of 48), max 86% over 20 samples
+  precheck: load 3.40, memory free 86%, GPU users: none
+  | [kapitsa] expert store: 12.1 GB rather than the 28.6 GB the budget leaves (the process's GPU memory within 40% of the RAM: beyond ~45%, every command buffer of a streamed store took seconds longer on a 48 GB Mac)
+  | [kapitsa] expert store: 8671 slots of 1.39 MB (12.08 GB, 35.3% of the 24576 experts) in one buffer (up to 30.15 GB each); 8671 read at load in 3344 ms (3.81 GB/s)
+  | [kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+== k-c4096-r2
+  hold: 17:00:59 cmd: env NI_LOG=1 KAPITSA_NO_AUTO_UPDATE=1 KAPITSA_HOME=/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/home /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-s
+  hold: 17:01:04 ready after 5 s, model id: flash-q20
+  [inv1-s44.json] 2026-10-21 17:01:05 .. 2026-10-21 17:02:38
+    prefill 4000: 4133 tokens, TTFT 12.60 s = 328 tok/s (cold cached 0); follow-ups TTFT ['0.766', '0.723', '0.652'] s (prompt [4183, 4223, 4259], cached [4160, 4195, 4238]), median 0.7228
+    prefill 16000: 16284 tokens, TTFT 40.10 s = 406 tok/s (cold cached 0); follow-ups TTFT ['0.834', '0.997', '0.674'] s (prompt [16351, 16419, 16463], cached [16328, 16391, 16442]), median 0.8336
+    peak phys_footprint 19.78 GB (sampler 19.73 GB, RSS 20.01 GB), mapped files 3.94 GB, swap 1984.62 MB
+  foreign GPU 45 samples: mean 0.7%, max 13.8% (Google Chrome He), longest run >5% by a non-ambient process: 1 samples by {'Google Chrome He': 1}
+  free memory level: min 39% (= 18.7 GB of 48), max 83% over 20 samples
+  precheck: load 3.23, memory free 85%, GPU users: none
+  | [kapitsa] expert store: 12.1 GB rather than the 28.6 GB the budget leaves (the process's GPU memory within 40% of the RAM: beyond ~45%, every command buffer of a streamed store took seconds longer on a 48 GB Mac)
+  | [kapitsa] expert store: 8671 slots of 1.39 MB (12.08 GB, 35.3% of the 24576 experts) in one buffer (up to 30.15 GB each); 8671 read at load in 3390 ms (3.76 GB/s)
+  | [kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles

@@ -1,0 +1,61 @@
+Residency set off the command queue, kept wired by a heartbeat unless memory is under pressure: a request after a pause no longer waits for the model to be wired again (35B server, 10 s pause: first token 432-535 -> 49-118 ms; decode unchanged)
+
+A command buffer of a queue that holds a residency set waits until the whole set is wired, and Metal unwires a set
+about 2 s after the process's last command buffer, requested or not (M4 Pro, macOS 27.0.1: a requested 8 GB set was
+unwired 2-3 s after one command buffer, even one that bound nothing in it). With the set on the queue, the first
+command buffer after any pause of a few seconds waited for the whole model to be wired again. Kapitsa binds every
+buffer a kernel reads to its dispatches (no gpuAddress, argument buffers or useResource in src/ or tools/), so the
+queue does not need the set.
+
+The set now stays off the queue, and a heartbeat (a GCD timer, every 500 ms) requests it while command buffers are
+committed and for NI_RESIDENCY_KEEP_S seconds after the last one (default 600; 0 = for good); the first commit after
+that restarts it. NI_RESIDENCY=queue brings back the set on the queue, NI_RESIDENCY=0 runs without a set.
+NI_CB_LAT=<file> (diagnostic) writes the commit, GPU start and GPU end of every command buffer.
+
+Under memory pressure the heartbeat stops. A DISPATCH_SOURCE_TYPE_MEMORYPRESSURE source (warning, critical, normal),
+and the level read at each beat and at a commit while the heartbeat is off (kern.memorystatus_vm_pressure_level), tell
+the heartbeat's queue. At the warning or critical level the heartbeat stops and one small blit on a queue of its own
+lets Metal drop the set about 2 s later (a requested set with no GPU work after it stays wired, and an idle server's
+last command buffer is long gone). While the pressure lasts, a commit does not restart the heartbeat. Back at normal,
+the next commit restarts it. Each level change is logged once ("memory pressure warning: the weights are no longer
+kept wired while idle"). NI_RESIDENCY_PRESSURE_TEST=<file> (diagnostic) takes the level from a file ("warn",
+"critical", "normal") instead, to test this path without real pressure.
+
+Behaviour change: while memory pressure is normal, the weights stay wired between requests, for up to 10 minutes
+after the last command buffer (before: unwired about 2 s after it). At macOS's warning or critical level they are let
+go about 2 s after the level is seen, as before, so macOS can reclaim an idle model's memory, and each request pays
+the re-wire again until the level is back to normal.
+
+Measured on an M4 Pro (20-core GPU, 48 GB), macOS 27.0.1, Qwen3.6-35B-A3B 4-bit; base = origin/main 0553f55;
+interleaved under the GPU lock:
+- Server (DFlash2, 1 slot, 32K context, a 2170-token prompt, 16 greedy tokens), client time to the first streamed
+  token. Right after the previous request: 26.3-28.6 ms in every server. After 10 s idle: base 432, 535 ms;
+  NI_RESIDENCY=queue 457, 459 ms; this change 118, 54 ms before the pressure handling, 49-53 ms with it (5 requests
+  on two servers). After 20 s idle with a 6 GB memory hog: base 431, 456 ms; queue 477, 450 ms; this change 57,
+  46 ms. That pass's wait from commit to GPU start (server log): base 394-495 ms, queue 410-440 ms, this change
+  12-82 ms. First request after load: 1880-2023 ms in all (no first-use regression).
+- The pressure path, simulated with NI_RESIDENCY_PRESSURE_TEST (not real pressure: a 6 GB hog did not reach macOS's
+  warning level with the server loaded, in two tries): with "warn" written while idle, the warning was logged and the
+  set was unwired 3 s later (24.4 -> 3.5 GB wired). The next two requests, 10 s apart, took 556 and 567 ms (GPU
+  start +518, +527 ms), the second showing that the first had not restarted the heartbeat. With "normal" written,
+  the next request took 450 ms (+412 ms), logged the change and restarted the heartbeat; the one 10 s after it took
+  50 ms (+13 ms).
+- ni_run plain decode, 2047 tokens, no memory pressure: base 108.5, 103.5 tok/s; queue 108.7, 108.3; this change
+  (before the pressure handling) 108.9, 107.2. Per-step p99 9.79-9.96 ms for queue and this change; after the first
+  command buffer, none waited more than 0.8 ms with the queue idle.
+- The same with 2999 tokens and a memory hog holding 4.5-5.5 GB at the warning level (compressor up to 14 GB, swap
+  flat): queue 101.9, 97.6 tok/s; this change (before the pressure handling) 100.9, 98.4; base 100.0. After the first
+  command buffer, none waited more than 0.82 ms in either mode: Splash's symptom (1-2% of command buffers waiting
+  100-170 ms in continuous work, M5 Max 36 GB) did not reproduce in these runs.
+- Synthetic (a 20 GB set in 75 buffers; the first command buffer after 10 s idle, 6 rounds each): set on the queue
+  162-197 ms, off the queue with the heartbeat 1.7-8.1 ms.
+
+Not verified: the pressure handling under real memory pressure (simulated only, see above; the dispatch source's own
+events were not observed) and decode under pressure with it; other chips and macOS versions; memory pressure past the
+warning level or into swap (kept modest on a shared Mac; in one run swap grew 684 MB and the hog stopped); Nemotron-H,
+Dory and vision models (same code path, not run); the heartbeat's power cost; idle periods longer than the 600 s keep
+window. CPU tests: api_test, test_server --cli, test_sidecar, test_bench (all but its jsonschema case: jsonschema is not
+installed here), test_update, test_reasoning, test_pr_size; test_community not run (jsonschema). prek is not installed
+here: whitespace checked by hand.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

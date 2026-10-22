@@ -1,0 +1,46 @@
+/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/hold7.sh:11: no matches found: /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/r7/*
+==== hold 7 start 10:58:24
+---- state 10:58:24: before
+   5.0%  pid 93029 Claude Helper
+Pages free:                                  1287572.
+Pages inactive:                               686802.
+Pages speculative:                              1377.
+Pages wired down:                             147038.
+Pages occupied by compressor:                 290633.
+total = 3072.00M  used = 1386.50M  free = 1685.50M  (encrypted)
+System-wide memory free percentage: 85%
+10:58  up 5 days,  3:21, 1 user, load averages: 7.86 6.47 13.99
+==== server ready=1
+client R1 cold: first token 1880.0 ms, total 1976.4 ms, 14 chunks
+client R2 cached: first token 26.3 ms, total 79.2 ms, 14 chunks
+  [10:58:51] wired 23.9 GB, pressure level 1, swap 1386.50M
+client R3 cached after 10 s idle, pressure normal: first token 50.5 ms, total 104.4 ms, 14 chunks
+  [10:58:54] wired 23.9 GB, pressure level 1, swap 1386.50M
+memhog holding 6.00 GB (target reached), host_ms 397143990.5
+  [10:58:55] wired 23.9 GB, pressure level 1, swap 1386.50M
+  [10:58:59] wired 23.9 GB, pressure level 1, swap 1386.50M
+  [10:59:03] wired 23.8 GB, pressure level 1, swap 1386.50M
+client R4 cached, idle server after the hog reached the warning level: first token 46.7 ms, total 100.0 ms, 14 chunks
+memhog done after 10 s (freed at host_ms 397152396.0): swap 1386 MB (+0), pressure 1, free 6.59 GB, compressor 5.28 GB
+  [10:59:14] wired 23.1 GB, pressure level 1, swap 1386.50M
+client R5 cached after 10 s idle, hog gone: first token 48.7 ms, total 102.0 ms, 14 chunks
+  [10:59:24] wired 23.9 GB, pressure level 1, swap 1386.50M
+client R6 cached after 10 s idle: first token 49.6 ms, total 102.9 ms, 14 chunks
+chat: prompt 2170 (cached 0) in 1870 ms (+2.0 ms template/tokenize; last chunk: encoded by 1.7 ms, GPU start +1716.3 ms, GPU 151.3 ms, wake +0.2 ms), 16 tokens in 97 ms (155.0 tok/s), length, 7.50 tok/cycle
+chat: prompt 2170 (cached 2165) in 21 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +0.3 ms, GPU 19.9 ms, wake +0.2 ms), 16 tokens in 53 ms (283.5 tok/s), length, 7.50 tok/cycle
+chat: prompt 2170 (cached 2165) in 45 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +13.2 ms, GPU 31.7 ms, wake +0.1 ms), 16 tokens in 54 ms (278.2 tok/s), length, 7.50 tok/cycle
+chat: prompt 2170 (cached 2165) in 42 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +12.4 ms, GPU 28.8 ms, wake +0.2 ms), 16 tokens in 53 ms (282.0 tok/s), length, 7.50 tok/cycle
+chat: prompt 2170 (cached 2165) in 44 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +13.0 ms, GPU 30.3 ms, wake +0.1 ms), 16 tokens in 53 ms (280.8 tok/s), length, 7.50 tok/cycle
+chat: prompt 2170 (cached 2165) in 44 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +13.1 ms, GPU 30.9 ms, wake +0.1 ms), 16 tokens in 53 ms (281.2 tok/s), length, 7.50 tok/cycle
+largest start-ready waits (ms@n): 23.98@0 13.19@18 13.14@42 12.99@34 12.41@26 0.96@5 0.53@20 0.50@44
+---- state 10:59:25: after
+   7.9%  pid 93029 Claude Helper
+Pages free:                                  1695137.
+Pages inactive:                               471685.
+Pages speculative:                              5166.
+Pages wired down:                             152552.
+Pages occupied by compressor:                 309073.
+total = 3072.00M  used = 1386.50M  free = 1685.50M  (encrypted)
+System-wide memory free percentage: 85%
+10:59  up 5 days,  3:22, 1 user, load averages: 8.37 6.90 13.64
+==== hold 7 end 10:59:27

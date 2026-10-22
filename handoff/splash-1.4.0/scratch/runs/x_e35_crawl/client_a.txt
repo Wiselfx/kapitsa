@@ -1,0 +1,69 @@
+[kapitsa] DFlash2: reduced draft head, 98304 of 248320 ids (id order = BPE merge order), 113 MB
+[kapitsa] KFlash: tree drafting on the DFlash2 lattice (budget cache on)
+[kapitsa] DFlash2 drafter /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit/dflash2: 6 layers, hidden 2048, 4-bit projections, 0.62 GB resident (process footprint +0.59 GB), loaded in 1251 ms
+[kapitsa] DFlash2: prewarmed 105 pipelines in 9 ms
+[kapitsa] DFlash2: 0.624 GB allocated at load (planned 0.624 GB); 0.604 GB more for 4 slots' rings and 0.115 GB at the first prefill
+[kapitsa] memory: 22.89 GB allocated (model, buffers, 4 slots' state), budget 38.6 GB (recommended working set 40.2 GB): KV room 15.70 GB = 696907 tokens (22 KB per token), one conversation up to 32768 of 32768 tokens
+[kapitsa] engine ready: x, context 32768, 4 slots, KFlash speculative decoding (DFlash2 lattice, tree verify), images on
+== python3 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/batch/concurrency.py single --base BASE --reps 3 --tokens 512
+{"decode_tps": [189.17, 188.23, 158.24], "decode_median": 188.23, "ttft": {"4000": [3.6, 3.605], "16000": [16.737, 16.697]}, "ttft_median": {"4000": 3.605, "16000": 16.737}, "prompt_tokens": {"4000": [4134, 4134], "16000": [16288, 16288]}}
+== python3 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/batch/concurrency.py exact --base BASE --mode alone --out /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/runs/e35/exact_alone_a.json
+code_greedy_400          400 tok length  ttft   0.11 s   157.0 tok/s
+code_t06_seed7_400       400 tok length  ttft   0.12 s   152.5 tok/s
+ctx2k_greedy_stop         42 tok stop    ttft   1.95 s   106.7 tok/s
+ctx2k_t06_seed3          289 tok stop    ttft   1.72 s   187.2 tok/s
+ctx6k_greedy              40 tok stop    ttft   5.35 s   136.8 tok/s
+short_greedy_stop          8 tok stop    ttft   0.05 s   289.9 tok/s
+image_greedy              80 tok length  ttft   0.62 s   159.6 tok/s
+== python3 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/batch/concurrency.py exact --base BASE --mode together --out /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/runs/e35/exact_together_a.json
+code_greedy_400          400 tok length  ttft   0.25 s    25.1 tok/s
+code_t06_seed7_400       400 tok length  ttft   0.11 s    25.0 tok/s
+ctx2k_greedy_stop         45 tok stop    ttft   6.02 s    40.8 tok/s
+ctx2k_t06_seed3          251 tok stop    ttft   1.96 s    20.0 tok/s
+ctx6k_greedy              40 tok stop    ttft  12.72 s    45.4 tok/s
+short_greedy_stop          8 tok stop    ttft   7.21 s   295.7 tok/s
+image_greedy              80 tok length  ttft   2.18 s    42.5 tok/s
+== python3 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/batch/concurrency.py greedy --base BASE --mode alone --n 8 --tokens 300
+{"mode": "alone", "n": 8, "tokens": [300, 300, 300, 300, 300, 300, 300, 300], "span_s": 16.66, "total_tps": 144.05, "errors": []}
+== python3 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/batch/concurrency.py greedy --base BASE --mode together --n 8 --tokens 300
+{"mode": "together", "n": 8, "tokens": [300, 300, 300, 300, 300, 300, 300, 300], "span_s": 15.06, "total_tps": 159.42, "errors": []}
+[kapitsa] chat: prompt 81 (cached 0) in 111 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.5 ms, GPU 110.6 ms, wake +0.1 ms), 400 tokens in 15969 ms (25.0 tok/s), length, 2.23 tok/cycle; slot 1, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 177 cycles batched with other requests
+[kapitsa] chat: prompt 81 (cached 0) in 112 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 112.0 ms, wake +0.1 ms), 400 tokens in 15879 ms (25.1 tok/s), length, 2.20 tok/cycle; slot 2, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 177 cycles batched with other requests
+[kapitsa] chat: prompt 369 (cached 0) in 383 ms (+3.8 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +5.1 ms, GPU 377.9 ms, wake +0.1 ms), 8 tokens in 58 ms (120.0 tok/s), length, 3.50 tok/cycle
+[kapitsa] chat: prompt 145 (cached 0) in 179 ms (+4.1 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.1 ms, GPU 177.3 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 147 (cached 0) in 183 ms (+4.2 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +6.4 ms, GPU 176.0 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 147 (cached 0) in 186 ms (+5.9 ms template/tokenize; last chunk: encoded by 0.5 ms, GPU start +5.2 ms, GPU 180.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 146 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.9 ms, wake +0.2 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 145 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.0 ms, wake +0.2 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 144 (cached 0) in 176 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 176.0 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 145 (cached 0) in 178 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 177.5 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 146 (cached 0) in 176 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +0.4 ms, GPU 175.1 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 80 (cached 0) in 105 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.5 ms, GPU 104.1 ms, wake +0.1 ms), 300 tokens in 1864 ms (160.4 tok/s), length, 3.32 tok/cycle
+[kapitsa] chat: prompt 27 (cached 0) in 62 ms (+0.7 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +11.5 ms, GPU 49.8 ms, wake +0.1 ms), 300 tokens in 1626 ms (183.8 tok/s), length, 3.83 tok/cycle
+[kapitsa] chat: prompt 1769 (cached 0) in 1496 ms (+0.7 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +7.2 ms, GPU 1488.3 ms, wake +0.1 ms), 300 tokens in 1971 ms (151.7 tok/s), length, 3.44 tok/cycle
+[kapitsa] chat: prompt 28 (cached 0) in 59 ms (+1.8 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +8.7 ms, GPU 49.6 ms, wake +0.1 ms), 300 tokens in 2503 ms (119.5 tok/s), length, 2.32 tok/cycle
+[kapitsa] chat: prompt 27 (cached 0) in 61 ms (+1.7 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +10.8 ms, GPU 49.9 ms, wake +0.1 ms), 300 tokens in 1693 ms (176.7 tok/s), length, 3.83 tok/cycle
+[kapitsa] chat: prompt 38 (cached 0) in 70 ms (+1.5 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +11.9 ms, GPU 58.0 ms, wake +0.1 ms), 300 tokens in 1239 ms (241.4 tok/s), length, 5.86 tok/cycle
+[kapitsa] chat: prompt 80 (cached 0) in 111 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +7.4 ms, GPU 102.9 ms, wake +0.2 ms), 300 tokens in 1976 ms (151.3 tok/s), length, 3.05 tok/cycle
+[kapitsa] chat: prompt 27 (cached 0) in 59 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +8.2 ms, GPU 50.5 ms, wake +0.1 ms), 300 tokens in 1751 ms (170.7 tok/s), length, 3.44 tok/cycle
+[kapitsa] chat: prompt 371 (cached 0) in 386 ms (+1.0 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +9.3 ms, GPU 376.4 ms, wake +0.1 ms), 8 tokens in 56 ms (125.5 tok/s), length, 3.50 tok/cycle
+[kapitsa] chat: prompt 145 (cached 0) in 186 ms (+3.8 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +5.3 ms, GPU 180.2 ms, wake +0.1 ms), 1 tokens in 5 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 146 (cached 0) in 180 ms (+1.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +3.5 ms, GPU 176.5 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 147 (cached 0) in 177 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.0 ms, GPU 175.1 ms, wake +0.2 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 145 (cached 0) in 179 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 178.5 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 146 (cached 0) in 178 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 178.0 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 147 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 143 (cached 0) in 176 ms (+0.8 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +0.5 ms, GPU 174.6 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: prompt 146 (cached 0) in 176 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.5 ms, wake +0.2 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] chat: all 4 slots are busy: a request waits for one (1 waiting; --slots sets how many requests run at once)
+[kapitsa] chat: all 4 slots are busy: a request waits for one (2 waiting; --slots sets how many requests run at once)
+[kapitsa] chat: all 4 slots are busy: a request waits for one (3 waiting; --slots sets how many requests run at once)
+[kapitsa] chat: all 4 slots are busy: a request waits for one (4 waiting; --slots sets how many requests run at once)
+[kapitsa] chat: prompt 27 (cached 0) in 52 ms (+0.9 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +0.6 ms, GPU 50.4 ms, wake +0.1 ms), 300 tokens in 6346 ms (47.1 tok/s), length, 1.88 tok/cycle; slot 3, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 157 cycles batched with other requests
+[kapitsa] chat: prompt 27 (cached 0) in 49 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 48.8 ms, wake +0.1 ms), 300 tokens in 6346 ms (47.1 tok/s), length, 1.83 tok/cycle; slot 2, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 162 cycles batched with other requests
+[kapitsa] chat: prompt 80 (cached 0) in 104 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 103.3 ms, wake +0.2 ms), 300 tokens in 6727 ms (44.5 tok/s), length, 1.79 tok/cycle; slot 0, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 166 cycles batched with other requests
+[kapitsa] chat: prompt 28 (cached 0) in 50 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 49.3 ms, wake +0.2 ms), 300 tokens in 8964 ms (33.4 tok/s), length, 1.61 tok/cycle; slot 1, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 185 cycles batched with other requests
+[kapitsa] chat: prompt 38 (cached 0) in 64 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +4.6 ms, GPU 58.9 ms, wake +0.1 ms), 300 tokens in 7585 ms (39.4 tok/s), length, 2.02 tok/cycle; slot 3, waited 6086 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 147 cycles batched with other requests
+[kapitsa] chat: prompt 1769 (cached 0) in 1495 ms (+0.8 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.1 ms, GPU 1494.0 ms, wake +0.1 ms), 300 tokens in 6397 ms (46.7 tok/s), length, 1.85 tok/cycle; slot 0, waited 6591 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 161 cycles batched with other requests
+[kapitsa] chat: prompt 80 (cached 0) in 106 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.1 ms, GPU 104.9 ms, wake +0.1 ms), 300 tokens in 8057 ms (37.1 tok/s), length, 1.79 tok/cycle; slot 2, waited 6353 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 166 cycles batched with other requests
+[kapitsa] chat: prompt 27 (cached 0) in 52 ms (+3.3 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +1.4 ms, GPU 50.7 ms, wake +0.1 ms), 300 tokens in 5753 ms (52.0 tok/s), length, 1.93 tok/cycle; slot 1, waited 8900 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 144 cycles batched with other requests

@@ -1,0 +1,38 @@
+PASS identical dumps: bitwise, and no floor for the model means a report only
+PASS noise: no flips, no margin halved
+PASS KL mean and max as defined (fp64)
+PASS p99 and median by linear interpolation
+PASS max |logit diff|
+PASS NLL change (candidate minus reference)
+PASS a near-tie flip passes
+PASS under a smaller bound it does not
+PASS the flip's record and reference margin
+PASS tie_margin: the flip's margin
+PASS tie_margin: a margin moved by half of it
+PASS --min-top1
+PASS a confident flip fails
+PASS --max-mean-kl
+PASS --no-gate only reports
+PASS --floor FILE
+PASS a flag overrides the floor's bound
+PASS the same comparison whatever the order
+PASS and the other way round
+PASS a candidate without some prefixes
+PASS another vocabulary
+PASS a logits file that is not one row per record
+PASS a record past its sequence
+PASS non-finite logits fail
+PASS a directory of paths: each compared, any failure fails
+PASS --json
+PASS raw files with --vocab
+PASS raw files of another row size
+(numpy not installed: the standard library's numbers only)
+PASS bounds round up
+PASS the floor's own gate
+PASS --against a stricter source
+PASS --against a source the floor lacks
+PASS the same prefill: the decode paths held to the decode gate
+PASS another prefill: the whole floor's gate
+PASS a flag overrides the decode gate's bound too
+
+ALL PASSED

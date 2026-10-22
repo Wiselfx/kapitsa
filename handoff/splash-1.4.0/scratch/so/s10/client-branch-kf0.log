@@ -1,0 +1,15 @@
+alone 0: 468 tokens, stop
+alone 1: 512 tokens, length
+round 0 request 0 (schema): 136 tokens in 3.1 s, stop, valid
+round 0 request 1 (schema): 178 tokens in 3.6 s, stop, valid
+round 0 request 2 (free): 73 tokens in 1.5 s, stop
+round 0 request 3 (free): 311 tokens in 4.1 s, stop
+round 1 request 0 (schema): 106 tokens in 2.0 s, stop, valid
+round 1 request 1 (schema): 137 tokens in 2.4 s, stop, valid
+round 1 request 2 (free): 73 tokens in 1.4 s, stop
+round 1 request 3 (free): 311 tokens in 3.4 s, stop
+round 2 request 0 (free): 73 tokens in 1.4 s, stop
+round 2 request 1 (free): 311 tokens in 6.0 s, stop
+round 2 request 2 (free): 384 tokens in 7.1 s, length
+round 2 request 3 (free): 384 tokens in 7.1 s, length
+ALL VALID

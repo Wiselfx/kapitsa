@@ -1,0 +1,58 @@
+{
+ "code_greedy_400": {
+  "text": "```python\n\"\"\"\nLRU Cache with TTL Expiry and Thread-Safe Wrapper\n\nThis module implements a Least Recently Used (LRU) cache with the following features:\n1. TTL (Time-To-Live) expiry for cache entries\n2. Thread-safe operations using locks\n3. Comprehensive pytest test suite\n\nThe implementation includes:\n- LRUCache: Core LRU cache with TTL support\n- ThreadSafeLRUCache: Thread-safe wrapper around LRUCache\n- Test suite: Comprehensive tests for all functionality\n\"\"\"\n\nimport time\nimport threading\nimport heapq\nfrom collections import OrderedDict\nfrom typing import Any, Optional, Callable, Hashable\nfrom dataclasses import dataclass, field\nfrom enum import Enum\nimport pytest\n\n\nclass CacheStatus(Enum):\n    \"\"\"Enumeration representing the status of a cache entry.\"\"\"\n    ACTIVE = \"active\"\n    EXPIRED = \"expired\"\n    REMOVED = \"removed\"\n\n\n@dataclass\nclass CacheEntry:\n    \"\"\"\n    Represents a single entry in the cache.\n    \n    Attributes:\n        key: The key for the cache entry.\n        value: The value stored in the cache.\n        created_at: Timestamp when the entry was created.\n        expires_at: Timestamp when the entry will expire.\n        last_accessed: Timestamp of the last access to this entry.\n        status: Current status of the entry.\n    \"\"\"\n    key: Hashable\n    value: Any\n    created_at: float\n    expires_at: float\n    last_accessed: float\n    status: CacheStatus = CacheStatus.ACTIVE\n\n    def is_expired(self, current_time: Optional[float] = None) -> bool:\n        \"\"\"\n        Check if the entry has expired.\n        \n        Args:\n            current_time: Current timestamp. If None, uses time.time().\n            \n        Returns:\n            True if the entry has",
+  "tokens": 400,
+  "finish": "length",
+  "error": null,
+  "ttft": 0.8055326250000014,
+  "decode_tps": 6.773705962311483
+ },
+ "code_t06_seed7_400": {
+  "text": "```python\n\"\"\"\nLRU Cache with TTL Expiry, Thread-Safe Wrapper, and Pytest Test Suite.\n\nThis module provides:\n1. A base LRU cache implementation with TTL (Time To Live) support.\n2. A thread-safe wrapper around the LRU cache.\n3. A comprehensive pytest test suite for both implementations.\n\"\"\"\n\nimport time\nimport threading\nimport collections\nimport pytest\nfrom typing import Any, Optional, Callable, Hashable\nfrom dataclasses import dataclass, field\nfrom enum import Enum\n\n\nclass CacheStatus(Enum):\n    \"\"\"Enumeration representing the status of a cache entry.\"\"\"\n    ACTIVE = \"active\"\n    EXPIRED = \"expired\"\n    REMOVED = \"removed\"\n\n\n@dataclass\nclass CacheEntry:\n    \"\"\"\n    Represents a single entry in the cache.\n    \n    Attributes:\n        key: The hashable key for the cache entry.\n        value: The value stored in the cache entry.\n        created_at: Timestamp when the entry was created.\n        accessed_at: Timestamp of the last access to the entry.\n        ttl: Time to live in seconds. None means no expiration.\n        status: Current status of the cache entry.\n    \"\"\"\n    key: Hashable\n    value: Any\n    created_at: float\n    accessed_at: float\n    ttl: Optional[float] = None\n    status: CacheStatus = CacheStatus.ACTIVE\n\n    def is_expired(self, now: Optional[float] = None) -> bool:\n        \"\"\"\n        Check if the cache entry has expired.\n        \n        Args:\n            now: Current timestamp. If None, uses time.time().\n            \n        Returns:\n            True if the entry has expired, False otherwise.\n        \"\"\"\n        if self.ttl is None:\n            return False\n        if now is None:\n            now = time",
+  "tokens": 400,
+  "finish": "length",
+  "error": null,
+  "ttft": 1.7325663329999994,
+  "decode_tps": 6.940135225508692
+ },
+ "ctx2k_greedy_stop": {
+  "text": "The first file in the repository context is a Python module that defines the `ModernVBert` model class, which is a modernized version of the VBert (Vision-BERT) architecture for multimodal image-text processing.",
+  "tokens": 46,
+  "finish": "stop",
+  "error": null,
+  "ttft": 16.061217792,
+  "decode_tps": 10.636756528366881
+ },
+ "ctx2k_t06_seed3": {
+  "text": "## Classes Defined in `modeling_xcodec.py`\n\n| Class | Brief Description |\n|---|---|\n| `XcodecOutput` | Dataclass for the model's top-level output: `audio_codes` + `audio_values`. |\n| `XcodecEncoderOutput` | Dataclass for encoder-only output: `audio_codes`. |\n| `XcodecDecoderOutput` | Dataclass for decoder-only output: `audio_values`. |\n| `XcodecResidualUnit` | Residual block (ELU \u2192 dilated Conv1d \u2192 ELU \u2192 1\u00d71 Conv1d + skip) used by both semantic encoder and decoder. |\n| `XcodecSemanticEncoderBlock` | Module of residual units + a strided Conv1d (kernel 2\u00b7stride or 3 if stride=1). |\n| `SemanticEncoder` | Stacks `XcodecSemanticEncoderBlock`s with channel-expanding ratios; produces a latent representation. |\n| `SemanticDecoderBlock` | ConvTranspose1d (or Conv1d for stride=1) + residual units; upsampled by a factor of `stride`. |\n| `SemanticDecoder` | Stacks `SemanticDecoderBlock`s with channel-shrinking ratios; reconstructs the waveform. |\n| `XcodecEuclideanCodebook` | Codebook with Euclidean-distance lookup; uses EMA buffers (`cluster_size`, `embed_avg`). |\n|",
+  "tokens": 300,
+  "finish": "length",
+  "error": null,
+  "ttft": 7.828113917,
+  "decode_tps": 5.96323822693995
+ },
+ "ctx6k_greedy": {
+  "text": "The first file in the repository context is a documentation snippet describing the `input_values` and `bandwidth` parameters for an audio model, specifically noting that `input_values` is a tensor of shape `(batch_size, channels, num_samples)` containing float values of an audio waveform.",
+  "tokens": 58,
+  "finish": "stop",
+  "error": null,
+  "ttft": 47.951284917,
+  "decode_tps": 13.969538807930265
+ },
+ "short_greedy_stop": {
+  "text": "2, 3, 5",
+  "tokens": 8,
+  "finish": "stop",
+  "error": null,
+  "ttft": 21.245617707999997,
+  "decode_tps": 71.78468720432667
+ },
+ "image_greedy": {
+  "text": "The image displays a square divided into four equal quadrants, each filled with a solid color: red in the top-left, green in the top-right, blue in the bottom-left, and yellow in the bottom-right. A thick white diagonal line runs from the top-left corner to the bottom-right corner, bisecting the square and separating the red and blue quadrants from the green and yellow ones",
+  "tokens": 80,
+  "finish": "length",
+  "error": null,
+  "ttft": 22.512971667,
+  "decode_tps": 14.446474639832037
+ }
+}

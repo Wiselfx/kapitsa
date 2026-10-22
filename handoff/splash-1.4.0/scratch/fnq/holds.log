@@ -1,0 +1,55 @@
+12:43:42 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh r1-mtp 2 11 auto 0 --decode-runs 3 --greedy-runs 3 --sizes 4000 --skip tools,agent --warmup light
+12:46:43 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh r1-mtp 2 11 auto 0 --decode-runs 3 --greedy-runs 3 --sizes 4000 --skip tools,agent --warmup light
+12:53:49 deadline: TERM to process group 15195
+12:53:50 deadline: end: exit 0 after 426 s
+12:53:50 launch: lock released, exit 0
+12:55:54 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh r1-plain 0 11 18 29 --decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+13:03:26 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh r1-plain 0 11 18 29 --decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+13:12:56 deadline: limit of 570 s reached
+13:12:56 deadline: TERM to process group 19703
+13:12:57 deadline: end: exit -15 after 570 s
+13:12:57 launch: lock released, exit 143
+13:18:29 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/dbg.sh dbg1 18
+13:22:12 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/dbg.sh dbg1 18
+13:27:17 deadline: end: exit 0 after 306 s
+13:27:17 launch: lock released, exit 0
+13:29:48 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/sweep.sh sweep1
+13:31:26 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/sweep.sh sweep1
+13:34:37 deadline: end: exit 0 after 191 s
+13:34:37 launch: lock released, exit 0
+13:36:40 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/sweep2.sh sweep2
+13:38:45 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/sweep2.sh sweep2
+13:41:21 deadline: end: exit 0 after 156 s
+13:41:21 launch: lock released, exit 0
+13:43:24 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh t-mtp 2 11 12 23 --decode-runs 3 --greedy-runs 3 --sizes 4000 --skip tools,agent --warmup light
+13:43:24 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh t-mtp 2 11 12 23 --decode-runs 3 --greedy-runs 3 --sizes 4000 --skip tools,agent --warmup light
+13:47:39 deadline: TERM to process group 31751
+13:47:39 deadline: end: exit 0 after 255 s
+13:47:39 launch: lock released, exit 0
+13:49:43 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh t-plain 0 11 12 23 --decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+13:49:43 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh t-plain 0 11 12 23 --decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+13:53:22 deadline: TERM to process group 40186
+13:53:22 deadline: end: exit 0 after 218 s
+13:53:22 launch: lock released, exit 0
+13:55:54 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/t3.sh
+13:55:54 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/t3.sh
+13:59:09 deadline: TERM to process group 41139
+13:59:10 deadline: end: exit 0 after 196 s
+13:59:10 launch: lock released, exit 0
+14:01:12 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/prof.sh prof1
+14:01:12 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/prof.sh prof1
+14:02:34 deadline: end: exit 0 after 82 s
+14:02:34 launch: lock released, exit 0
+14:04:37 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/prof2.sh prof2
+14:04:37 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/prof2.sh prof2
+14:06:07 deadline: end: exit 0 after 90 s
+14:06:07 launch: lock released, exit 0
+14:08:08 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh f-mtp 2 11 12 23 --decode-runs 3 --greedy-runs 3 --sizes 4000 --skip tools,agent --warmup light
+14:08:09 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh f-mtp 2 11 12 23 --decode-runs 3 --greedy-runs 3 --sizes 4000 --skip tools,agent --warmup light
+14:12:39 deadline: TERM to process group 42803
+14:12:39 deadline: end: exit 0 after 270 s
+14:12:39 launch: lock released, exit 0
+14:14:41 launch: waiting for the GPU lock: /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh f-plain 0 11 12 23 --decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+14:14:42 deadline: start (limit 570 s): /bin/zsh /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/hold.sh f-plain 0 11 12 23 --decode-runs 3 --greedy-runs 3 --skip prefill,tools,agent --warmup light
+14:18:38 deadline: end: exit 0 after 236 s
+14:18:38 launch: lock released, exit 0

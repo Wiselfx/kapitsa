@@ -1,0 +1,33 @@
+1792558855 2.2 Claude Helper
+1792558858 2.4 Claude Helper
+1792558861 3.2 Google Chrome He
+1792558863 3.6 Google Chrome He
+1792558865 3.4 Google Chrome He
+1792558867 4.5 ControlCenter
+1792558869 2.6 Claude Helper
+1792558871 4.7 Claude Helper
+1792558873 3.0 Claude Helper
+1792558875 2.0 Claude Helper
+1792558877 2.7 Claude Helper
+1792558879 2.6 Claude Helper
+1792558881 2.9 Claude Helper
+1792558883 1.8 Claude Helper
+1792558885 1.9 Claude Helper
+1792558888 5.4 Google Chrome He
+1792558890 10.4 Claude Helper
+1792558892 9.7 Claude Helper
+1792558894 4.1 Google Chrome He
+1792558896 3.2 Claude Helper
+1792558898 4.9 Google Chrome He
+1792558900 4.4 Google Chrome He
+1792558902 3.2 Claude Helper
+1792558904 9.1 Google Chrome He
+1792558906 7.8 Google Chrome He
+1792558908 8.1 Google Chrome He
+1792558910 7.1 Google Chrome He
+1792558912 7.3 Google Chrome He
+1792558914 3.2 Claude Helper
+1792558917 5.3 Google Chrome He
+1792558919 6.0 Google Chrome He
+1792558921 4.3 Google Chrome He
+1792558923 4.9 Claude Helper

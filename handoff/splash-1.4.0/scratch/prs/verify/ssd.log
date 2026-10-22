@@ -1,0 +1,528 @@
+== ssd 080187f 15:04:52
+-- Configuring done (0.1s)
+-- Generating done (0.2s)
+-- Build files have been written to: /Users/flaminis/Desktop/kapitsa/.claude/worktrees/agent-a6f34d21761077bfc/build
+[  2%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/ane/ane.mm.o
+[  2%] Building CXX object CMakeFiles/naceinfer.dir/src/ane/ffn_split.cpp.o
+[  2%] Building CXX object CMakeFiles/naceinfer.dir/src/api/anthropic.cpp.o
+[  5%] Building CXX object CMakeFiles/naceinfer.dir/src/api/chat_completions.cpp.o
+[  5%] Building CXX object CMakeFiles/naceinfer.dir/src/api/clients.cpp.o
+[  8%] Building CXX object CMakeFiles/naceinfer.dir/src/api/common.cpp.o
+[  8%] Building CXX object CMakeFiles/naceinfer.dir/src/api/responses.cpp.o
+[ 11%] Building CXX object CMakeFiles/naceinfer.dir/src/bench/monitor.cpp.o
+[ 11%] Building CXX object CMakeFiles/naceinfer.dir/src/bench/protocol.cpp.o
+[ 14%] Building CXX object CMakeFiles/naceinfer.dir/src/bench/result.cpp.o
+[ 14%] Building CXX object CMakeFiles/naceinfer.dir/src/bench/submit.cpp.o
+[ 17%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/bench/system.mm.o
+[ 17%] Building CXX object CMakeFiles/naceinfer.dir/src/engine/doctor.cpp.o
+[ 20%] Building CXX object CMakeFiles/naceinfer.dir/src/engine/engine.cpp.o
+[ 20%] Building CXX object CMakeFiles/naceinfer.dir/src/engine/engine_disk.cpp.o
+[ 20%] Building CXX object CMakeFiles/naceinfer.dir/src/engine/prefix_cache.cpp.o
+[ 22%] Building CXX object CMakeFiles/naceinfer.dir/src/gguf/gguf.cpp.o
+[ 22%] Building CXX object CMakeFiles/naceinfer.dir/src/gguf/import.cpp.o
+[ 25%] Building CXX object CMakeFiles/naceinfer.dir/src/gguf/quant.cpp.o
+[ 25%] Building CXX object CMakeFiles/naceinfer.dir/src/hub/catalog.cpp.o
+[ 28%] Building CXX object CMakeFiles/naceinfer.dir/src/hub/fetch.cpp.o
+[ 28%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/hub/http.mm.o
+[ 31%] Building CXX object CMakeFiles/naceinfer.dir/src/hub/resolve.cpp.o
+[ 31%] Building CXX object CMakeFiles/naceinfer.dir/src/loader/safetensors.cpp.o
+[ 34%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/metal/gpu.mm.o
+[ 34%] Building CXX object CMakeFiles/naceinfer.dir/src/model/dflash2.cpp.o
+[ 37%] Building CXX object CMakeFiles/naceinfer.dir/src/model/dory.cpp.o
+[ 37%] Building CXX object CMakeFiles/naceinfer.dir/src/model/dspark.cpp.o
+[ 40%] Building CXX object CMakeFiles/naceinfer.dir/src/model/kflash_budget.cpp.o
+[ 40%] Building CXX object CMakeFiles/naceinfer.dir/src/model/lilicorr.cpp.o
+[ 42%] Building CXX object CMakeFiles/naceinfer.dir/src/model/nemotron_ane.cpp.o
+[ 42%] Building CXX object CMakeFiles/naceinfer.dir/src/model/nemotron_h.cpp.o
+[ 45%] Building CXX object CMakeFiles/naceinfer.dir/src/model/ngram.cpp.o
+[ 45%] Building CXX object CMakeFiles/naceinfer.dir/src/model/nh_drafter.cpp.o
+[ 48%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35.cpp.o
+[ 48%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35_ane.cpp.o
+[ 51%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35_iq.cpp.o
+[ 51%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35_spec.cpp.o
+[ 54%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35_v8.cpp.o
+[ 54%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen4_exp.cpp.o
+[ 57%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen4_exp_spec.cpp.o
+[ 57%] Building CXX object CMakeFiles/naceinfer.dir/src/tokenizer/tokenizer.cpp.o
+[ 60%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/update/update.mm.o
+[ 60%] Building CXX object CMakeFiles/naceinfer.dir/src/util/term.cpp.o
+[ 62%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/encoder.cpp.o
+[ 62%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/vision/image.mm.o
+[ 65%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/qwen_vit.cpp.o
+[ 65%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/radio_vit.cpp.o
+[ 68%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/vit_common.cpp.o
+[ 68%] Building CXX object CMakeFiles/naceinfer.dir/generated/kernels_embed.cpp.o
+[ 71%] Building CXX object CMakeFiles/naceinfer.dir/generated/nh_kernels_embed.cpp.o
+[ 71%] Building CXX object CMakeFiles/naceinfer.dir/generated/dory_kernels_embed.cpp.o
+[ 74%] Building CXX object CMakeFiles/naceinfer.dir/generated/tensor_kernels_embed.cpp.o
+[ 74%] Building CXX object CMakeFiles/naceinfer.dir/generated/bench_corpus.cpp.o
+[ 77%] Building CXX object CMakeFiles/naceinfer.dir/generated/mac_models.cpp.o
+[ 77%] Linking CXX static library libnaceinfer.a
+[ 85%] Built target naceinfer
+[ 88%] Building CXX object CMakeFiles/kapitsa.dir/src/server/main.cpp.o
+[ 91%] Building CXX object CMakeFiles/kapitsa.dir/src/server/ui.cpp.o
+[ 91%] Building CXX object CMakeFiles/kapitsa.dir/src/server/launch.cpp.o
+[ 91%] Building CXX object CMakeFiles/kapitsa.dir/src/server/beam.cpp.o
+[ 94%] Building CXX object CMakeFiles/kapitsa.dir/src/server/picker.cpp.o
+[ 94%] Building CXX object CMakeFiles/kapitsa.dir/src/server/bench_cmd.cpp.o
+[ 97%] Building CXX object CMakeFiles/kapitsa.dir/src/server/update_cmd.cpp.o
+[ 97%] Building CXX object CMakeFiles/kapitsa.dir/generated/chat_page.cpp.o
+[100%] Linking CXX executable kapitsa
+[100%] Built target kapitsa
+[ 96%] Built target naceinfer
+[100%] Building CXX object CMakeFiles/api_test.dir/tools/api_test.cpp.o
+[100%] Linking CXX executable api_test
+[100%] Built target api_test
+[ 96%] Built target naceinfer
+[100%] Building CXX object CMakeFiles/bench_test.dir/tools/bench_test.cpp.o
+[100%] Linking CXX executable bench_test
+[100%] Built target bench_test
+[ 96%] Built target naceinfer
+[ 96%] Building CXX object CMakeFiles/update_test.dir/tools/update_test.cpp.o
+[100%] Linking CXX executable update_test
+[100%] Built target update_test
+[ 96%] Built target naceinfer
+[ 96%] Building CXX object CMakeFiles/prefix_cache_test.dir/tools/prefix_cache_test.cpp.o
+[100%] Linking CXX executable prefix_cache_test
+[100%] Built target prefix_cache_test
+== build ok 15:05:55
+[kapitsa] anthropic: tool web_search (web_search_20250305) left out: a server tool without an input_schema
+[kapitsa] anthropic: a base64 document left out of a request: this server reads only text documents
+[kapitsa] responses: tool web_search left out: a built-in tool this server does not run
+PASS anthropic: multi-turn mapping (billing header dropped, system first, mid-conversation system in place, thinking from our signature, tool results before the turn's text, images as image_url parts)
+PASS anthropic: tools as functions, the server tool left out
+PASS anthropic: adaptive thinking on, effort high = the template's default, keep:all = preserve_thinking
+PASS anthropic: stream, display omitted, max_tokens, stop_sequences, sampling
+PASS anthropic: no thinking parameter = thinking off
+PASS anthropic: thinking disabled
+PASS anthropic: thinking enabled
+PASS anthropic: effort low passes to the template
+PASS anthropic: tool_choice none = no tools
+PASS anthropic: a final assistant message (prefill) is refused with 400
+PASS anthropic: no messages is a 400
+PASS anthropic: max_tokens 0 is a 400
+PASS anthropic: count_tokens prompt
+PASS anthropic: tool_addition / tool_removal blocks change the tool list
+PASS responses: mapping (instructions + leading developer merged, reasoning from our encrypted_content else its summary, calls on the assistant turn, custom and namespaced calls, outputs as tool messages, a later developer message in place, images as image_url parts)
+PASS responses: function, custom and namespaced tools; built-in tools left out
+PASS responses: a custom tool is a function of one string, input, with its grammar
+PASS responses: custom and namespaced tools remembered for the output
+PASS responses: effort medium, stream, store false, default max_output_tokens
+PASS responses: effort none/minimal = thinking off, high = the template's default, low passes
+PASS responses: tool_choice none = no tools
+PASS responses: previous_response_id continues the stored conversation
+PASS responses: an unknown previous_response_id is a 400
+PASS responses: the store keeps the newest
+PASS anthropic stream: text only
+PASS anthropic stream: message_start carries the prompt's input and cached tokens
+PASS anthropic stream: text block
+PASS anthropic stream: message_delta end_turn with usage
+PASS anthropic stream: reasoning + text
+PASS anthropic stream: thinking block ends with a signature_delta that carries its text
+PASS anthropic stream: reasoning + 2 tool calls
+PASS anthropic stream: each call one block with one input_json_delta; stop_reason tool_use
+PASS anthropic stream: display omitted sends the thinking block with its signature only
+PASS anthropic stream: length = max_tokens
+PASS anthropic stream: the context running out = model_context_window_exceeded
+PASS anthropic stream: stop sequence
+PASS anthropic stream: an error after the start is an error event
+PASS anthropic stream: keepalive is a ping
+PASS anthropic: a prompt longer than the context is 400 "prompt is too long: N tokens > M maximum"
+PASS anthropic: a template error is a 400
+PASS anthropic: other errors are 500 api_error
+PASS anthropic: an image that cannot be read is a 400 invalid_request_error
+PASS anthropic: non-streamed response
+PASS anthropic: a reply of thinking only gets an empty text block; display omitted empties the thinking text
+PASS responses stream: text only
+PASS responses stream: sequence_number counts every event
+PASS responses stream: response.completed with the output and usage (cached tokens)
+PASS responses stream: reasoning + text
+PASS responses stream: the reasoning item has its text in content and encrypted_content
+PASS responses stream: reasoning + 2 tool calls
+PASS responses stream: function_call items (a namespaced one with its namespace)
+PASS responses stream: custom tool call
+PASS responses stream: the custom call's input is its one string argument
+PASS responses stream: a length cut ends with response.incomplete (max_output_tokens), the cut item incomplete
+PASS responses stream: an error after the start is response.failed
+PASS responses stream: keepalive is response.in_progress, before output and after it (an event Codex's idle timer counts), numbered in sequence
+PASS responses: a prompt longer than the context is 400 context_length_exceeded
+PASS responses: a request the engine cannot take (a video) is a 400 invalid_request_error
+PASS responses: [kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (259 ms)
+[kapitsa] chat: 1 image(s) left out: this model can't read images
+[kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (243 ms)
+non-streamed response
+PASS chat stream: role chunk, reasoning, text, tool calls indexed across deltas, finish with usage, [DONE]
+PASS chat stream: a delta's reasoning, text and calls are a chunk each, in that order
+PASS chat stream: a length cut, a looped model's loop count in usage
+PASS chat: a prompt the context cannot hold is a 400 context_length_exceeded, in OpenAI's words
+PASS chat: another failure is a 400 with the engine's message
+PASS chat stream: a failure after the start is chat_failure's error as an event, then [DONE]
+PASS chat stream: the keepalive is a chunk with an empty delta, finish_reason null
+PASS chat stream: keepalives between chunks add no text
+PASS chat stream: invalid UTF-8 at the end of a piece is replaced, not thrown
+PASS claude: environment
+PASS claude: arguments (the server's key through an apiKeyHelper)
+PASS claude: the --settings value is JSON
+PASS claude: a smaller window caps its replies at a quarter of it; the server's key
+PASS codex: provider settings, the user's -c moved before the subcommand
+PASS opencode: provider, model and agents merged into the user's OPENCODE_CONFIG_CONTENT
+PASS opencode 2: --standalone before --
+PASS opencode: no --standalone with --server, or before 2.0
+PASS opencode: an OPENCODE_CONFIG_CONTENT that is not an object is refused
+PASS pi: its provider as an extension for the run (pi -e, nothing in ~/.pi), the server in its environment
+PASS [qwen3.6-35b-a3b-4bit] anthropic: the streamed reply as Claude Code assembles it (thinking omitted: signature only; integer argument)
+PASS [qwen3.6-35b-a3b-4bit] anthropic: the tool loop's next prompt continues the generated turn token for token
+PASS [qwen3.6-35b-a3b-4bit] anthropic: after the final answer, the next question's prompt continues it too (keep:all)
+PASS [qwen3.6-35b-a3b-4bit] anthropic: the hook's system message is a system turn in place; no billing header in the prompt
+PASS [qwen3.6-35b-a3b-4bit] responses: the reply's items as Codex keeps them (reasoning, function_call, custom_tool_call)
+PASS [qwen3.6-35b-a3b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (calls, then outputs)
+PASS [qwen3.6-35b-a3b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (each call, then its output)
+PASS [qwen3.6-35b-a3b-4bit] responses: the reply's items as Codex keeps them (reasoning, function_call, custom_tool_call)
+PASS [qwen3.6-35b-a3b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (calls, then outputs; reasoning from encrypted_content only)
+PASS [qwen3.6-35b-a3b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (each call, then its output; reasoning from encrypted_content only)
+PASS [qwen3.6-35b-a3b-4bit] template: a later system message is a system turn in place; an image is a note
+PASS [qwen3.6-35b-a3b-4bit] template: with an image encoder, an image is the image placeholder (its data left out)
+PASS [qwen3.8-27b-4bit] anthropic: the streamed reply as Claude Code assembles it (thinking omitted: signature only; integer argument)
+PASS [qwen3.8-27b-4bit] anthropic: the tool loop's next prompt continues the generated turn token for token
+PASS [qwen3.8-27b-4bit] anthropic: after the final answer, the next question's prompt continues it too (keep:all)
+PASS [qwen3.8-27b-4bit] anthropic: the hook's system message is a system turn in place; no billing header in the prompt
+PASS [qwen3.8-27b-4bit] responses: the reply's items as Codex keeps them (reasoning, function_call, custom_tool_call)
+PASS [qwen3.8-27b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (calls, then outputs)
+PASS [qwen3.8-27b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (each call, then its output)
+PASS [qwen3.8-27b-4bit] responses: the reply's items as Codex keeps them (reasoning, function_call, custom_tool_call)
+PASS [qwen3.8-27b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (calls, [kapitsa] chat: 1 image(s) left out: this model can't read images
+then outputs; reasoning from encrypted_content only)
+PASS [qwen3.8-27b-4bit] responses: the tool loop's next prompt continues the generated turn token for token (each call, then its output; reasoning from encrypted_content only)
+PASS [qwen3.8-27b-4bit] template: a later system message is a system turn in place; an image is a note
+PASS [qwen3.8-27b-4bit] template: with an image encoder, an image is the image placeholder (its data left out)
+102 passed, 0 failed
+PASS cli: list --json on an empty store
+PASS cli: 35b:4bit -> qwen3.6-35b-a3b:4bit at the app's pinned revisions
+PASS cli: QWEN3.6-35B-A3B:4bit -> qwen3.6-35b-a3b:4bit at the app's pinned revisions
+PASS cli: Youssofal/Qwen3.6-35B-A3B-MTPLX-Optimized-Speed -> qwen3.6-35b-a3b:4bit at the app's pinned revisions
+PASS cli: 27b:4bit -> qwen3.8-27b:4bit at the app's pinned revisions
+PASS cli: 27B:4BIT -> qwen3.8-27b:4bit at the app's pinned revisions
+PASS cli: lmstudio-community/Qwen3.8-27B-MLX-4bit -> qwen3.8-27b:4bit at the app's pinned revisions
+PASS cli: hf.co/lmstudio-community/Qwen3.8-27B-MLX-4bit -> qwen3.8-27b:4bit at the app's pinned revisions
+PASS cli: 4b:4bit -> qwen3.5-4b:4bit at the app's pinned revisions
+PASS cli: qwen3.5-4b:4bit -> qwen3.5-4b:4bit at the app's pinned revisions
+PASS cli: lmstudio-community/Qwen3.5-4B-MLX-4bit@c43ee1d65576a5d98de1e8405cac93c371a655c1 -> qwen3.5-4b:4bit at the app's pinned revisions
+PASS cli: 9b:4bit -> qwen3.5-9b:4bit at the app's pinned revisions
+PASS cli: QWEN3.5-9B:4bit -> qwen3.5-9b:4bit at the app's pinned revisions
+PASS cli: lmstudio-community/Qwen3.5-9B-MLX-4bit -> qwen3.5-9b:4bit at the app's pinned revisions
+PASS cli: 35b -> qwen3.6-35b-a3b:4bit, the default
+PASS cli: qwen3.6-35b -> qwen3.6-35b-a3b:4bit, the default
+PASS cli: QWEN3.6-35B-A3B -> qwen3.6-35b-a3b:4bit, the default
+PASS cli: 27b -> qwen3.8-27b:4bit, the default
+PASS cli: 4b -> qwen3.5-4b:4bit, the default
+PASS cli: qwen3.5-4b -> qwen3.5-4b:4bit, the default
+PASS cli: 9b -> qwen3.5-9b:4bit, the default
+PASS cli: qwen3.5-9b -> qwen3.5-9b:4bit, the default
+PASS cli: bolt -> nemotron-3.5-bolt:24gb with its lilicorr drafter
+PASS cli: nemotron-bolt -> nemotron-3.5-bolt:24gb with its lilicorr drafter
+PASS cli: super -> nemotron-3.5-super-vl:nvfp4 with its lilicorr drafter
+PASS cli: super-vl -> nemotron-3.5-super-vl:nvfp4 with its lilicorr drafter
+PASS cli: nemotron-super -> nemotron-3.5-super-vl:nvfp4 with its lilicorr drafter
+PASS cli: NEMOTRON-3.5-SUPER-VL:nvfp4 -> nemotron-3.5-super-vl:nvfp4 with its lilicorr drafter
+PASS cli: nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-NVFP4 -> nemotron-3.5-super-vl:nvfp4 with its lilicorr drafter
+PASS cli: lightning -> nemotron-3.5-lightning:nvfp4 with its dspark drafter
+PASS cli: nemotron-lightning -> nemotron-3.5-lightning:nvfp4 with its dspark drafter
+PASS cli: nemotron-3.5-lightning:nvfp4 -> nemotron-3.5-lightning:nvfp4 with its dspark drafter
+PASS cli: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 -> nemotron-3.5-lightning:nvfp4 with its dspark drafter
+PASS cli: dory -> nemotron-labs-dory1.0-4b:nvfp4, no drafter
+PASS cli: nemotron-labs-dory1.0-4b -> nemotron-labs-dory1.0-4b:nvfp4, no drafter
+PASS cli: dory:bf16 -> nemotron-labs-dory1.0-4b:bf16, no drafter
+PASS cli: nvidia/NVIDIA-Nemotron-Labs-Dory1.0-4B-BF16 -> nemotron-labs-dory1.0-4b:bf16, no drafter
+PASS cli: nano-4b -> nemotron-3-nano-4b:fp8, no drafter
+PASS cli: nemotron-nano-4b -> nemotron-3-nano-4b:fp8, no drafter
+PASS cli: nano-4b:bf16 -> nemotron-3-nano-4b:bf16, no drafter
+PASS cli: nano-9b -> nemotron-nano-9b-v2:nvfp4, no drafter
+PASS cli: nvidia/NVIDIA-Nemotron-Nano-9B-v2-NVFP4 -> nemotron-nano-9b-v2:nvfp4, no drafter
+PASS cli: 35b:16gb -> qwen3.6-35b-a3b:16gb, one pinned GGUF file to import, no drafter
+PASS cli: QWEN3.6-35B-A3B:16GB -> qwen3.6-35b-a3b:16gb, one pinned GGUF file to import, no drafter
+PASS cli: unsloth/Qwen3.6-35B-A3B-GGUF -> qwen3.6-35b-a3b:16gb, one pinned GGUF file to import, no drafter
+PASS cli: 35b:16gb checks the disk before its download, keeping 6 GB for the import
+PASS cli: 35b on a 12.2 GB budget -> 35b:16gb
+PASS cli: 35b on a 48 GB budget -> 35b:4bit
+PASS cli: a downloaded 16gb says its size on disk
+PASS cli: a finished 16gb is reused offline
+PASS cli: list shows 16gb complete, with its variant
+PASS cli: rm 35b:16gb deletes it
+PASS cli: rm 35b:4bit deletes it
+PASS cli: an unknown variant is refused with the model's variants
+PASS cli: org/name@rev is a Hugging Face repo
+PASS cli: a huggingface.co URL is a repo
+PASS cli: a folder is used as is
+PASS cli: 'llama-70b' is refused with the choices
+PASS cli: './no-such-folder' is refused with the choices
+PASS cli: 'org/' is refused with the choices
+PASS cli: a failed first pull leaves no folder behind
+PASS cli: a finished download is reused offline
+PASS cli: list shows it complete, with its variant and MTP head
+PASS cli: a missing file makes it incomplete
+PASS cli: completing it needs the Hub (offline here: a clear error)
+PASS cli: a failed repair keeps what is there
+PASS cli: rm deletes it
+PASS cli: rm leaves a folder of yours alone
+PASS cli: rm of a clone frees nothing, and says so
+PASS cli: rm of the last copy frees its size
+PASS cli: a busy port fails at once, before loading
+PASS cli: serve --context 131072 is taken
+PASS cli: serve --ctx 131072 is taken
+PASS cli: serve --context 128k is taken
+PASS cli: serve --ctx 128k is taken
+PASS cli: serve --context 256K is taken
+PASS cli: serve --ctx 256K is taken
+PASS cli: serve --context 1m is taken
+PASS cli: serve --ctx 1m is taken
+PASS cli: serve --context max is taken
+PASS cli: serve --ctx max is taken
+PASS cli: serve --context '12q' is refused
+PASS cli: claude --context '12q' is refused
+PASS cli: serve --context '0' is refused
+PASS cli: claude --context '0' is refused
+PASS cli: serve --context '-5' is refused
+PASS cli: claude --context '-5' is refused
+PASS cli: serve --context '128kb' is refused
+PASS cli: claude --context '128kb' is refused
+PASS cli: serve --context '1.5m' is refused
+PASS cli: claude --context '1.5m' is refused
+PASS cli: serve --context '99999999999' is refused
+PASS cli: claude --context '99999999999' is refused
+PASS cli: serve --context '' is refused
+PASS cli: claude --context '' is refused
+PASS cli: doctor --context max asks for a size
+PASS cli: serve with an unknown model
+PASS cli: flash-next:4bit -> qwen3.8-flash-next:4bit at the app's pinned revision
+PASS cli: flash:4bit -> qwen3.8-flash-next:4bit at the app's pinned revision
+PASS cli: nace-ai/Qwen3.8-Flash-Next-MLX-4bit -> qwen3.8-flash-next:4bit at the app's pinned revision
+PASS cli: serve with no model, offline and nothing downloaded: a clear error
+PASS cli: --help names the commands and models
+ALL PASSED
+PASS mtp-sidecar == tools/mtp_sidecar.py (post_norm, 131704 bytes, every finite bf16 value + 1)
+PASS mtp-sidecar == tools/mtp_sidecar.py (pre_norm, 131704 bytes, every finite bf16 value + 1)
+ALL PASSED
+PASS update_test: versions, release names, kinds of install
+PASS fixture: the 0.2.1 binary is a kapitsa 0.2.1 through and through
+PASS fixture: a kapitsa 0.2.2
+PASS fixture: a kapitsa 0.1.0
+PASS --check, latest 0.2.0: exit 0, nothing downloaded
+PASS --check, latest 0.2.1: exit 100, nothing downloaded
+PASS --check, latest 0.1.0: exit 0, nothing downloaded
+PASS --check, latest 0.2.0-rc.1: exit 0, nothing downloaded
+PASS --check, latest 0.2.1-rc.1: exit 100, nothing downloaded
+PASS --check, latest 0.2.10: exit 100, nothing downloaded
+PASS --check with no release: exit 1
+PASS --check, nothing answering: exit 1
+PASS plain http is refused but to this Mac
+PASS --check changes nothing, not even the state
+PASS kapitsa update installs 0.2.1
+PASS a new file renamed into place; the old binary kept, the same inode, as the rollback copy
+PASS the binary ran throughout: the old version, then the new one, nothing in between
+PASS a process holding the old binary keeps it unchanged
+PASS a kapitsa running the old binary keeps running
+PASS the license files updated where install.sh put them
+PASS no temporary folder left beside the binary
+PASS the state: updated, from and to, checked now, nothing left to say
+PASS run again: up to date, nothing downloaded
+PASS refused: a wrong sha256
+PASS refused: an unsigned binary
+PASS refused: a signature broken by a change
+PASS refused: another identifier
+PASS refused: another version inside
+PASS refused: no license files
+PASS refused: kapitsa a symlink
+PASS refused: a download redirected away from GitHub (not followed)
+PASS a release without its tarball: exit 1
+PASS after all of them: the same binary, no rollback copy, the same license files, nothing left over
+PASS the state says why, with nothing left to say (it was said)
+PASS --rollback: back to 0.2.0, 0.2.1 kept in its place
+PASS automatic updates skip 0.2.1 from now on
+PASS --rollback again: forward to the newer one, and nothing skipped
+PASS rolled back from 0.2.1: the automatic update leaves 0.2.1 alone
+PASS and installs the next one, 0.2.2
+PASS --version 0.1.0: an older release when asked for; automatic updates skip 0.2.0
+PASS the 0.1.0 binary knows it is 0.1.0
+PASS latest 0.2.0, the version moved away from: left alone
+PASS --version of no release: exit 1, nothing changed
+PASS --version of the version installed: nothing to do
+PASS usage error: --version x.y
+PASS usage error: --version 1.2.3/../../x
+PASS usage error: --auto maybe
+PASS usage error: --check --rollback
+PASS usage error: --nope
+PASS --rollback with nothing kept: exit 1
+PASS Homebrew --check names brew upgrade
+PASS Homebrew, not in a terminal: says brew upgrade, runs nothing, downloads nothing
+PASS Homebrew in a terminal: runs brew upgrade
+PASS Homebrew: --version 0.2.1 refused
+PASS Homebrew: --rollback refused
+PASS Homebrew's files untouched
+PASS a --HEAD install: brew upgrade --fetch-HEAD
+PASS in an app: the app updates it
+PASS in an app: --check says the same
+PASS in an app: nothing asked of the network, no state, the binary untouched
+PASS a source build: how to rebuild it, never replaced
+PASS a source build's --check
+PASS a source build at the latest: up to date
+PASS the command returns at once (0.01 s; the release page answers in 2 s), its output unchanged
+PASS one child, detached: launchd's, a session of its own, background priority, no terminal
+PASS the child installs 0.2.1, keeping 0.2.0
+PASS a run that is not in a terminal says nothing
+PASS the next run in a terminal: one line, first
+PASS and only once
+PASS checked today: no other check
+PASS 23 hours later: still none
+PASS 25 hours later: a check, which finds it up to date
+PASS a clock set back: a check, which finds it up to date
+PASS KAPITSA_NO_AUTO_UPDATE=1: no check
+PASS CI=true: no check
+PASS CI=1: no check
+PASS --auto off: kept in update.json
+PASS --auto off: no check
+PASS --auto on
+PASS help, the version, bench, update and unknown commands start no check
+PASS CI=false is not CI: a check
+PASS a check that hangs ends at its time limit, silently, nothing changed
+PASS while kapitsa bench holds the binary, kapitsa update leaves it (and downloads nothing)
+PASS and so does the automatic update, which tries again in an hour
+PASS a running kapitsa bench holds its binary
+PASS after it: updated
+PASS a binary replaced meanwhile is not this kapitsa: left as it is
+PASS two installs, one home: only the one that ran is updated
+PASS then the other, when it runs
+PASS run through a symlink: the file it points to is updated, the symlink kept
+PASS a bad sha256 in the background: refused
+PASS the next run in a terminal says why
+PASS nothing answering: recorded
+PASS and never said
+PASS kapitsa update: the sudo command
+PASS not in a terminal: no check (it could only tell)
+PASS in a terminal: a check, which only tells
+PASS the next run says the command
+PASS and the binary is untouched
+PASS brew upgrade nace-ai/tap/kapitsa: not in a terminal, no check
+PASS brew upgrade nace-ai/tap/kapitsa: in a terminal, a check that only records the release
+PASS brew upgrade nace-ai/tap/kapitsa: the next run in a terminal says so
+PASS git -C '/private/var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-update-test-b4xxrusc/my src' pull && cmake --build '/private/var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-update-test-b4xxrusc/my src/build': not in a terminal, no check
+PASS git -C '/private/var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-update-test-b4xxrusc/my src' pull && cmake --build '/private/var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-update-test-b4xxrusc/my src/build': in a terminal, a check that only records the release
+PASS git -C '/private/var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-update-test-b4xxrusc/my src' pull && cmake --build '/private/var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-update-test-b4xxrusc/my src/build': the next run in a terminal says so
+PASS kapitsa update: not in a terminal, no check
+PASS kapitsa update: in a terminal, a check that only records the release
+PASS kapitsa update: the next run in a terminal says so
+PASS none of them replaced
+PASS kapitsa update replaces a binary built from source when asked
+PASS 132 requests: GET or HEAD, no query, User-Agent kapitsa, Accept-Language en, no cookies or anything else
+
+ok: 0 failed
+PASS grader: 52 pairs written differently are the same
+PASS grader: 28 near misses are not
+PASS grader: the last box, braces balanced; none when cut or empty
+PASS grader: an answer only in the thinking
+PASS grader: no reply, no answer
+PASS sets/math500-quick.txt: 50 problems, no repeats
+PASS sets/math500-hard.txt: 150 problems, no repeats
+PASS select: 20 of 60/30/10 by subject are 12/6/2
+PASS select: the same draw whatever the order of the rows
+PASS select: only the levels asked for
+PASS seeds: one per sample, the same every run
+PASS run: 4 problems x 2 samples, the HTTP error recorded and the run exit 1
+PASS run: thinking on, Qwen's thinking sampling, the math instruction, max_tokens 32768
+PASS run: a seed of its own for every sample
+PASS run: right, right written differently, and wrong
+PASS run: a reply cut short is not graded on the box in its unfinished thinking
+PASS run: the header records the server and the GPU lock (a test lock file)
+PASS run: a resumed run redoes only the failed sample
+PASS run: max_tokens fits the server's context
+PASS run --serve: the server started under the lock, used once it answers, and stopped after
+PASS run --serve: a server that dies is an error
+PASS run: a second label
+PASS report: accuracy is the mean of per-problem accuracy
+PASS report: replies cut short and without an answer counted
+PASS report: the interval holds the accuracy
+PASS report: the second label against the baseline, problem by problem
+PASS report: the markdown table
+PASS report: McNemar's exact test
+PASS report --regrade: saved replies graded again with the current grader
+PASS check: every MATH-500 reference solution graded right, every AIME answer an integer
+PASS sets: the frozen lists are the draw
+
+all passed
+[kapitsa] SSD prefix cache: /var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-pcache-test-Oc7aYw/5d3b8f87123db00cb6b0e1cb19f3be5d/kv/dff1ef3409ecd0a1d4b902ec4f4920d0 is damaged (its CRC does not match); the entries that need it are dropped
+[kapitsa] SSD prefix cache: /var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-pcache-test-Oc7aYw/5d3b8f87123db00cb6b0e1cb19f3be5d/kv/99bfa361d16cd279029bee144573e8d3 is damaged (its header or length is wrong); the entries that need it are dropped
+[kapitsa] SSD prefix cache: removed /var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-pcache-test-Oc7aYw/fb3049078ca2a10c4eddc50772cf5798 (0 MiB), the oldest cache of another model, to keep within 1 MiB
+[kapitsa] SSD prefix cache: removed /var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-pcache-test-Oc7aYw/5d3b8f87123db00cb6b0e1cb19f3be5d (0 MiB), the oldest cache of another model, to keep within 1 MiB
+[kapitsa] SSD prefix cache: removed /var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-pcache-test-Oc7aYw/6687ac8a0091ac60347d36bcf1f0c6fe (0 MiB), the oldest cache of another model, to keep within 1 MiB
+[kapitsa] SSD prefix cache: removed /var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-pcache-test-Oc7aYw/ns-root/a9c8dfa342da4fbfd26e395df5e0d5ea (0 MiB), unused for 15 days
+[kapitsa] SSD prefix cache: removed /var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-pcache-test-Oc7aYw/ns-root/2452e66b790a06364215e4e1a89dc066 (3 MiB), the oldest cache of another model, to keep within 3 MiB
+[kapitsa] SSD prefix cache: removed /var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-pcache-test-Oc7aYw/ns-root/659e21b14faf6b29746436e46ded6d00 (0 MiB), unused for 30 days
+[kapitsa] SSD prefix cache: another server holds /var/folders/3y/m838nz5x7_5gfvq4s7tjwx_80000gn/T/kapitsa-pcache-test-Oc7aYw/ns-root/1b2a7e9142e6a5d5abf8238865dff8a1; waiting up to 0 s for it
+PASS CRC-32C of "123456789" is 0xE3069283
+PASS CRC-32C continues across calls
+PASS keys: the same tokens give the same key, others another
+PASS keys: 32 hex digits and back
+PASS --disk-cache auto
+PASS --disk-cache 0 / off
+PASS --disk-cache sizes: 16G, 4GiB, 512m, 1.5T, bytes
+PASS --disk-cache refuses what is not a size
+PASS auto: a quarter of the free space beyond the 10 GiB floor (28 GiB free: 4.5 GiB)
+PASS auto: nothing below the floor
+PASS the cache's own files count as free space (its writes do not shrink its limit)
+PASS auto: at most 32 GiB
+PASS a size caps it
+PASS a small volume keeps 5% of itself free
+PASS open a namespace
+PASS write an entry: 7 KV blocks and 2 states
+PASS lookup: a prompt that extends the conversation hits its deepest state (100)
+PASS lookup: one that diverges at 70 hits the state at 48
+PASS lookup: one that diverges at 10 misses
+PASS lookup: only states before the prompt's last token (below 100: 48)
+PASS lookup: an entry is found for its own tag only (Dory: the loop count)
+PASS ... a tagged entry: found with its tag, not without
+PASS read back: every piece's bytes and header data as written
+PASS the entry's record: tokens, fills, restore points, draft rows
+PASS held: the bytes of the namespace's files
+PASS open again (a restart)
+PASS the entries are taken back, with their tags
+PASS its pieces read back as written after the restart
+PASS three entries written
+PASS a damaged piece fails its CRC: the entry that needs it is dropped with it
+PASS the other entries stay
+PASS a leftover temporary file is removed at open
+PASS an entry whose state was cut short is dropped at open
+PASS a block cut inside its payload passes the open (its size is a header's)
+PASS ... and fails when read: its entry is dropped
+PASS no piece is left that no entry needs
+PASS a damaged entry record is dropped at open, with its pieces
+PASS a quota of 1 MiB
+PASS two conversations fit
+PASS a third one is written
+PASS the least recently used entry went to make room
+PASS within the limit
+PASS a conversation sharing c's blocks
+PASS only its new state was written (the shared blocks were not)
+PASS the volume fills: the limit shrinks to a quarter of what is left beyond the floor (its own files counted)
+PASS entries go to fit, least recently used first; a pinned one stays
+PASS unpinned, it goes too when it does not fit
+PASS c and c2 again
+PASS an entry with all of two others' restore points replaces them
+PASS its restore points are all still found
+PASS a piece larger than the limit is refused
+PASS a piece written by a job
+PASS kept after its job ends without an entry
+PASS threads at once: no read of a pinned entry fails
+PASS ... and the index counts the bytes the files take
+PASS ... and a reopen takes back whole entries only
+PASS open beside other namespaces
+PASS a namespace unused for 14 days is removed at open
+PASS one used yesterday stays, counted against the limit
+PASS one another server holds is left alone, however old
+PASS a folder that is not a namespace is left alone
+PASS an entry in the new namespace
+PASS over the limit: another model's cache nobody holds goes before this one's entries
+PASS the namespace's lock: the first server takes it
+PASS a second one waits for it (here 0.3 s), then gives up
+PASS once the first lets it go, it opens
+PASS the root is kept out of Time Machine
+67 passed, 0 failed
+== tests ok 15:15:35

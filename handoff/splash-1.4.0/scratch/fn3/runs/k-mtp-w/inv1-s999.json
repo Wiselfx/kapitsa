@@ -1,0 +1,189 @@
+{
+ "schema": 2,
+ "label": "k-mtp-w-inv1",
+ "model": "flash-q20",
+ "base_url": "http://127.0.0.1:8391/v1",
+ "when": "2026-10-21 16:53:09",
+ "temperature": 0.6,
+ "args": {
+  "base_url": "http://127.0.0.1:8391/v1",
+  "model": "flash-q20",
+  "label": "k-mtp-w-inv1",
+  "pid": 27306,
+  "decode_tokens": 512,
+  "decode_runs": 5,
+  "greedy_runs": 5,
+  "window_head": 16,
+  "window_tail": 4,
+  "rep_threshold": 0.5,
+  "sizes": "4000,16000",
+  "corpus": null,
+  "ref_prompt_tokens": "",
+  "cached_samples": 3,
+  "turn_gap": 1.0,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0,
+  "sampling_overrides": "",
+  "extra_body": "{\"seed\": 1234}",
+  "reasoning_effort": "low",
+  "no_think_style": "both",
+  "warmup": "full",
+  "adaptive_warm": true,
+  "no_gpu_lock": true,
+  "skip": "decode,greedy,prefill,tools,agent",
+  "agentic": false,
+  "sweep_sizes": "1000,2000,4000,8000,16000,max",
+  "sweep_repeats": 2,
+  "max_ctx": 32768,
+  "cache_tokens": 8000,
+  "sustain_s": 300,
+  "agent_trace": "/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/kap-main/bench/harness/agent-traces/opencode-ledger.json",
+  "agent_tool_mode": "rendered",
+  "agent_gaps": "recorded",
+  "agent_max_turns": null,
+  "agent_timeout": 2400,
+  "out": "/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/runs/k-mtp-w/inv1-s999.json"
+ },
+ "sampling": {
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "sampling_greedy": {
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "top_k": 1,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "no_think": {
+  "chat_template_kwargs": {
+   "enable_thinking": false
+  },
+  "reasoning_effort": "none"
+ },
+ "corpus": {
+  "path": "corpus/bench_corpus.txt",
+  "sha256": "1a9bb103b3f6d39ee5b9f5bf7207e304c5ce92788c273685f597508c7d2bde28",
+  "frozen": true
+ },
+ "harness": {
+  "git_head": "37eeb94e637f2f5a78bd173f907309a81fcad4f5",
+  "dirty": false
+ },
+ "phases": {
+  "warmup": [
+   1792583590.035,
+   1792583715.548
+  ]
+ },
+ "memory": {
+  "warmup": {
+   "pids": [
+    {
+     "pid": 27306,
+     "name": "kapitsa",
+     "phys_footprint": 20673761808,
+     "phys_footprint_peak": 20686311952,
+     "mapped_file_dirty": 0,
+     "mapped_file_clean": 2119106560,
+     "mapped_file_wired": 0
+    }
+   ],
+   "phys_footprint_mb": 19716.0,
+   "phys_footprint_peak_mb": 19728.0,
+   "mapped_file_clean_mb": 2020.9,
+   "swap_used_mb": 2000.62,
+   "memorystatus_level": 47,
+   "swapouts_delta": 0
+  }
+ },
+ "gpu_lock": {
+  "held_by": "caller",
+  "path": "/Users/flaminis/.cache/nace-gpu.lock",
+  "wait_s": null
+ },
+ "vm_start": {
+  "swap_used_mb": 2000.62,
+  "swapouts": 30671949,
+  "swapins": 24690648,
+  "pageouts": 869897,
+  "memorystatus_level": 47
+ },
+ "warmup": {
+  "adaptive": true,
+  "steps": [
+   {
+    "name": "prefill~2.9k+decode64",
+    "ok": true,
+    "s": 25.73,
+    "prompt_tokens": 2924,
+    "completion_tokens": 64,
+    "finish": "length",
+    "thinking_leak": []
+   },
+   {
+    "name": "tools",
+    "ok": true,
+    "s": 9.16,
+    "prompt_tokens": 430,
+    "completion_tokens": 27,
+    "finish": "tool_calls",
+    "thinking_leak": []
+   },
+   {
+    "name": "decode512#1",
+    "ok": true,
+    "s": 27.7,
+    "prompt_tokens": 85,
+    "completion_tokens": 512,
+    "finish": "length",
+    "thinking_leak": []
+   },
+   {
+    "name": "decode512#2",
+    "ok": true,
+    "s": 30.97,
+    "prompt_tokens": 85,
+    "completion_tokens": 512,
+    "finish": "length",
+    "thinking_leak": []
+   },
+   {
+    "name": "decode512#3",
+    "ok": true,
+    "s": 31.95,
+    "prompt_tokens": 85,
+    "completion_tokens": 512,
+    "finish": "length",
+    "thinking_leak": []
+   }
+  ],
+  "ok": true
+ },
+ "peak_rss_mb": 20044,
+ "peak_footprint_mb": 19727,
+ "invalid": [],
+ "flags": [],
+ "peak_memory_mb": 19728.0,
+ "mapped_file_clean_mb": 2020.9,
+ "vm_end": {
+  "swap_used_mb": 2000.62,
+  "swapouts": 30671949,
+  "swapins": 24690700,
+  "pageouts": 869897,
+  "memorystatus_level": 47
+ },
+ "when_end": "2026-10-21 16:55:15"
+}

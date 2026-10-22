@@ -1,0 +1,30 @@
+1792558927 1.8 Claude Helper
+1792558929 1.9 Claude Helper
+1792558931 2.9 Claude Helper
+1792558933 3.9 Google Chrome He
+1792558935 4.9 Google Chrome He
+1792558937 2.2 Claude Helper
+1792558939 1.8 Claude Helper
+1792558941 1.7 Claude Helper
+1792558943 1.8 Claude Helper
+1792558945 1.7 Claude Helper
+1792558947 1.8 Claude Helper
+1792558949 1.7 Claude Helper
+1792558951 1.8 Claude Helper
+1792558953 5.7 Claude Helper
+1792558956 5.5 Claude Helper
+1792558958 3.2 Claude Helper
+1792558960 2.2 Claude Helper
+1792558962 1.7 Claude Helper
+1792558964 1.0 Claude Helper
+1792558966 2.5 Claude Helper
+1792558968 2.2 Claude Helper
+1792558970 1.8 Claude Helper
+1792558972 1.8 Claude Helper
+1792558974 4.4 Google Chrome He
+1792558976 5.9 Google Chrome He
+1792558978 5.1 Google Chrome He
+1792558981 1.8 Claude Helper
+1792558983 8.3 Google Chrome He
+1792558985 4.3 Claude Helper
+1792558987 15.1 Google Chrome He

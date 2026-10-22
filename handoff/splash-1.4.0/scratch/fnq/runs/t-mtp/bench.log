@@ -1,0 +1,9 @@
+== t-mtp
+  decode T=0.6: 22.37 tok/s (e2e 21.27; 512 tok, finish=length, d4=0.669)
+  decode T=0.6: 17.11 tok/s (e2e 16.65; 512 tok, finish=length, d4=0.7005)
+  decode T=0.6: 18.89 tok/s (e2e 18.68; 512 tok, finish=length, d4=0.7027)
+  decode median 18.89 (min 17.11, max 22.37) over 3/3 valid
+  decode T=0: median 20.06 (min 19.46, max 20.54) over 3/3 valid
+  prefill 4000: 4132 tok (ref 4133), TTFT 15.58s -> 265 tok/s, cold cached=0 | cached TTFT median 0.96s over 3 turns (cached [4171, 4207, 4251])
+  memory: phys_footprint_peak 17.86 GB, resident mapped files 2.59 GB, swap used 2936.0 MB
+  -> /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/runs/t-mtp/result.json

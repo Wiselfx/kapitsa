@@ -1,0 +1,42 @@
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+[kapitsa] read 2.37 GB of weights in 149 ms (15.8 GB/s)
+[kapitsa] converted 24 parameter tensors to bf16 at load (0 values not exactly representable)
+[kapitsa] read 0.24 GB of weights in 13 ms (18.4 GB/s)
+[kapitsa] MTP head loaded in 210 ms (dense, trunk hidden post-norm, drafts over ids < 32768 + specials)
+[kapitsa] NI_QMM8=1: 8-bit prefill GEMMs on qmr8 (all but the MoE router)
+[kapitsa] compiled kernels in 8 ms
+[kapitsa] prewarmed 90 prefill pipelines in 12 ms
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.5-4b-4bit: 32 layers, dense, 2.4 GB mapped in 413 ms; weights 4-bit group 64 100%
+[kapitsa] NI_ANE: compiling the Neural Engine program in the background; prefill uses the GPU alone until it is ready
+[kapitsa] NI_ANE: Neural Engine program ready in the background (program was cached, 0.1 s)
+[kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (244 ms)
+[kapitsa] GPU: Apple M4 Pro, 20 cores
+[kapitsa] memory: 3.21 GB allocated (model, buffers, 1 slots' state), budget 38.6 GB (recommended working set 40.2 GB): KV room 35.39 GB = 959909 tokens (36 KB per token), one conversation up to 32768 of 32768 tokens
+[kapitsa] images: Qwen3.5 ViT (24 blocks, width 1024, 16-pixel patches; images of 65536 to 1200000 pixels), 0.67 GB loaded on the first image
+[kapitsa] engine ready: qwen3.5-4b-4bit, context 32768, 1 slots, plain decoding, images on
+[kapitsa] listening on http://127.0.0.1:8476
+Ready: chat at http://127.0.0.1:8476, API at http://127.0.0.1:8476/v1 (model "qwen3.5-4b-4bit"). Ctrl+C stops.
+[kapitsa] NI_ANE: Neural Engine FFN split (wavefront): 18/18 units (9216 channels; GPU 0) from the default for this chip, chunks >= 512 rows; row scales 0 ms, program cached 1 ms + load 27 ms (13 functions, MIL 89 KB); 187.6 MB Metal; ready in 0.0 s
+[kapitsa] NI_ANE: startup check 2.11% of the ANE's part from the GPU alone (2 functions, 187 ms)
+[kapitsa] prefill: Neural Engine busy 73% of 1437 ms over 2 split chunks (128 evaluations)
+[kapitsa] chat: prompt 2890 (cached 0) in 1437 ms (+1.0 ms template/tokenize; last chunk: encoded by 1420.5 ms, GPU start +1.6 ms, GPU 15.3 ms, wake +0.1 ms), 3 tokens in 37 ms (54.3 tok/s), stop
+[kapitsa] chat: prompt 37 (cached 0) in 51 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.1 ms, GPU 50.5 ms, wake +0.1 ms), 512 tokens in 5652 ms (90.4 tok/s), length
+[kapitsa] grammar: 248044 tokens in a 591554-node trie (70 ms)
+[kapitsa] chat: structured output (JSON, 9 nodes), plain steps: 511 masks (batched passes' not counted), 33.3 us each
+[kapitsa] chat: prompt 37 (cached 30) in 17 ms (+100.1 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.4 ms, GPU 14.8 ms, wake +0.1 ms), 512 tokens in 5675 ms (90.0 tok/s), length
+[kapitsa] chat: structured output (JSON, 9 nodes), plain steps: 511 masks (batched passes' not counted), 46.7 us each
+[kapitsa] chat: prompt 34 (cached 0) in 53 ms (+0.8 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +2.3 ms, GPU 50.2 ms, wake +0.1 ms), 512 tokens in 5692 ms (89.8 tok/s), length
+[kapitsa] chat: prompt 34 (cached 27) in 19 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +3.7 ms, GPU 14.6 ms, wake +0.1 ms), 512 tokens in 5710 ms (89.5 tok/s), length
+[kapitsa] chat: prompt 38 (cached 0) in 52 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +1.4 ms, GPU 50.9 ms, wake +0.1 ms), 512 tokens in 5709 ms (89.5 tok/s), length
+[kapitsa] chat: structured output (JSON, 9 nodes), plain steps: 511 masks (batched passes' not counted), 15.4 us each
+[kapitsa] chat: prompt 38 (cached 31) in 17 ms (+0.1 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +1.4 ms, GPU 14.9 ms, wake +0.1 ms), 512 tokens in 5699 ms (89.7 tok/s), length
+[kapitsa] chat: structured output (JSON, 9 nodes), plain steps: 511 masks (batched passes' not counted), 41.5 us each
+[kapitsa] chat: prompt 31 (cached 0) in 43 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +1.5 ms, GPU 41.4 ms, wake +0.1 ms), 512 tokens in 5676 ms (90.0 tok/s), length
+[kapitsa] chat: prompt 31 (cached 24) in 20 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.5 ms, GPU start +4.2 ms, GPU 14.7 ms, wake +0.1 ms), 512 tokens in 5680 ms (90.0 tok/s), length
+[kapitsa] NI_QMM_GU: dense gate/up/SwiGLU fused (qmr_gu_k32_w14_m32_n64, m16_n64 / m8_n32 below 64 rows)
+[kapitsa] chat: prompt 356 (cached 0) in 419 ms (+1.8 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +2.8 ms, GPU 415.2 ms, wake +0.1 ms), 328 tokens in 3651 ms (89.6 tok/s), tool_calls
+[kapitsa] chat: structured output (tool calls (add_contacts), 12 nodes), plain steps: 327 masks (batched passes' not counted), 130.8 us each
+[kapitsa] chat: prompt 356 (cached 349) in 17 ms (+0.2 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +1.3 ms, GPU 15.2 ms, wake +0.1 ms), 328 tokens in 3694 ms (88.5 tok/s), tool_calls
+[kapitsa] chat: structured output (tool calls (add_contacts), 12 nodes), plain steps: 788 masks (batched passes' not counted), 50.3 us each
+[kapitsa] chat: prompt 356 (cached 0) in 418 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.9 ms, GPU 415.7 ms, wake +0.1 ms), 789 tokens in 8919 ms (88.4 tok/s), tool_calls
+[kapitsa] chat: prompt 356 (cached 349) in 18 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +2.5 ms, GPU 15.2 ms, wake +0.1 ms), 1024 tokens in 11422 ms (89.6 tok/s), length

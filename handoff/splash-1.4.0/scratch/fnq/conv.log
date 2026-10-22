@@ -1,0 +1,38 @@
+11:51:58 conv: convert --out /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 --table sparse --verify 2 --conns 32 (64 GB free)
+11:52:05 pack nace-ai/Qwen3.8-Flash-Next-MLX-4bit@5d423f9f563c1f1b7ca7945b268e65c0b92b0eae: 3649 tensors; GGUF ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF@ed59f92082b1e93c0e96d60a8b11aab089b52f09:Q2_0/Qwen3.8-Flash-Next-GSQ-RCO-Q2_0-00001-of-00002.gguf: 1223 tensors
+11:52:05 48 layers x 3 expert tensors in Q2_0, e.g. layer 0 gate [(512, 640, 2560)]
+11:52:47 model-00001-of-00050.safetensors: 13 tensors copied, 0 expert tensors in Q2_0 (1.04 GB, 42 s)
+11:53:45 model-00002-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 58 s); worst row correlation 0.753
+11:54:53 model-00003-of-00050.safetensors: 63 tensors copied, 3 expert tensors in Q2_0 (0.79 GB, 68 s); worst row correlation 0.753
+11:56:26 model-00004-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 92 s); worst row correlation 0.753
+11:57:51 model-00005-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.77 GB, 85 s); worst row correlation 0.753
+11:59:33 model-00006-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 103 s); worst row correlation 0.753
+12:01:00 model-00007-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 87 s); worst row correlation 0.753
+12:02:30 model-00008-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 90 s); worst row correlation 0.753
+12:04:11 model-00009-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.77 GB, 100 s); worst row correlation 0.753
+12:05:40 model-00010-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 89 s); worst row correlation 0.753
+12:07:06 model-00011-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 86 s); worst row correlation 0.753
+12:09:37 model-00012-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 151 s); worst row correlation 0.753
+12:10:57 model-00013-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.77 GB, 81 s); worst row correlation 0.753
+12:12:35 model-00014-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 98 s); worst row correlation 0.753
+12:13:45 model-00015-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 70 s); worst row correlation 0.753
+12:15:23 model-00016-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 98 s); worst row correlation 0.753
+12:17:04 model-00017-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.77 GB, 101 s); worst row correlation 0.753
+12:18:17 model-00018-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 74 s); worst row correlation 0.753
+12:19:27 model-00019-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 69 s); worst row correlation 0.753
+12:20:48 model-00020-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 81 s); worst row correlation 0.753
+12:22:10 model-00021-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.77 GB, 82 s); worst row correlation 0.753
+12:23:53 model-00022-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 103 s); worst row correlation 0.753
+12:25:15 model-00023-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 82 s); worst row correlation 0.753
+12:26:36 model-00024-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 81 s); worst row correlation 0.753
+12:27:54 model-00025-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.77 GB, 79 s); worst row correlation 0.753
+12:29:26 model-00026-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 91 s); worst row correlation 0.753
+12:30:54 model-00027-of-00050.safetensors: 50 tensors copied, 3 expert tensors in Q2_0 (0.76 GB, 88 s); worst row correlation 0.753
+12:31:06 conv: exit 143 (25 GB free)
+12:31:37 conv: convert --out /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 --table sparse --verify 2 --conns 32 (25 GB free)
+12:31:43 pack nace-ai/Qwen3.8-Flash-Next-MLX-4bit@5d423f9f563c1f1b7ca7945b268e65c0b92b0eae: 3649 tensors; GGUF ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF@ed59f92082b1e93c0e96d60a8b11aab089b52f09:Q2_0/Qwen3.8-Flash-Next-GSQ-RCO-Q2_0-00001-of-00002.gguf: 1223 tensors
+12:31:43 48 layers x 3 expert tensors in Q2_0, e.g. layer 0 gate [(512, 640, 2560)]
+12:32:28 mtp.safetensors: copied
+12:32:32 ple.safetensors: sparse, 0 of 320001536 rows written (32.0 GB apparent)
+12:32:51 done: /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 (38.3 GB of model files)
+12:32:57 conv: exit 0 (24 GB free)

@@ -1,0 +1,63 @@
+PASS the catalog's models, in order
+PASS the 35B's precisions
+PASS Bolt's precision and the 4B's title
+PASS the Mac table
+PASS a known version from CMakeLists.txt
+PASS a full result passes
+PASS its contention flag is a warning, not an error (full)
+PASS a quick result passes
+PASS its contention flag is a warning, not an error (quick)
+PASS refused: a version never released
+PASS refused: a model outside the catalog
+PASS refused: a precision the model has not
+PASS refused: a precision that is not its variant's
+PASS refused: a wrong title
+PASS DSpark decoding (Lightning) passes
+PASS refused: DSpark decoding without its drafter
+PASS a title from an earlier release passes (Dory's, until 0.1.35)
+PASS the table names a model as the catalog does now
+PASS refused: a Mac name that is not its identifier's
+PASS refused: a name for an identifier the table does not have
+PASS refused: invalid measurements
+PASS refused: a median that is not its runs'
+PASS refused: too few runs for the mode
+PASS refused: a prompt 4% off the reference
+PASS refused: a rate that is not tokens / time
+PASS refused: follow-ups and a median that disagree
+PASS refused: a protocol that is not its mode's
+PASS refused: prompts from another corpus
+PASS refused: more memory than the Mac has
+PASS refused: a run in the future
+PASS refused: an impossible rate
+PASS refused: a copy of a result already in the table
+PASS refused: an extra field (a serial number)
+PASS refused: a chip that is not Apple's
+PASS refused: a phase name that is not a phase
+PASS an unknown Mac (no name) passes, with a warning
+PASS a failed tool check passes, with a warning
+PASS labels: a quick run with contention
+PASS labels: flagged, and invalid when a check fails
+PASS the table is written; a file that is not a result is skipped
+PASS grouped by Mac, the newest first, an M5 Mac named with its year
+PASS the table names MacBook Pro (14-inch, M5) MacBook Pro (14-inch, 2025)
+PASS the table names Mac mini (M6) Mac mini (2026)
+PASS the table names MacBook Air (15-inch, M4, 2025) MacBook Air (15-inch, M4, 2025)
+PASS the table names MacBook Pro (16-inch, M5 Pro or M5 Max) MacBook Pro (16-inch, 2026)
+PASS then by model and precision
+PASS a row per run
+PASS every number with its unit
+PASS a disturbed measurement is marked, and its flag listed
+PASS a quick run says so
+PASS --check: up to date
+PASS --check: a result removed, the table is out of date
+PASS no results: says how to add the first
+PASS --github: one bad file fails the check
+PASS --github: the report names the passing file and why the other fails
+PASS --github: other files the pull request changes are mentioned
+PASS --github: the result files read as data at the head commit
+PASS --github: labels benchmark, invalid, quick, contention
+PASS --github: a stale label it manages is removed
+PASS --from-issue: the form's JSON, checked and written as a result file
+PASS --from-issue: the result unchanged
+
+ok: 0 failed

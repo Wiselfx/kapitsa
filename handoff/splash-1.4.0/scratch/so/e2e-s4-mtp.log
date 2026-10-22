@@ -1,0 +1,45 @@
+model qwen3.5-4b-4bit
+PASS person prompt 0 greedy: valid
+PASS person prompt 0 T=0.7 seed 7: valid
+PASS person prompt 1 greedy: valid
+PASS person prompt 1 T=0.7 seed 7: valid
+PASS weather prompt 0 greedy: valid
+PASS weather prompt 0 T=0.7 seed 7: valid
+PASS weather prompt 1 greedy: valid
+PASS weather prompt 1 T=0.7 seed 7: valid
+PASS review prompt 0 greedy: valid
+PASS review prompt 0 T=0.7 seed 7: valid
+PASS review prompt 1 greedy: valid
+PASS review prompt 1 T=0.7 seed 7: valid
+PASS recipe prompt 0 greedy: valid
+PASS recipe prompt 0 T=0.7 seed 7: valid
+PASS recipe prompt 1 greedy: valid
+PASS recipe prompt 1 T=0.7 seed 7: valid
+PASS result prompt 0 greedy: valid
+PASS result prompt 0 T=0.7 seed 7: valid
+PASS result prompt 1 greedy: valid
+PASS result prompt 1 T=0.7 seed 7: valid
+PASS tree prompt 0 greedy: valid
+PASS tree prompt 0 T=0.7 seed 7: valid
+PASS tree prompt 1 greedy: valid
+PASS tree prompt 1 T=0.7 seed 7: valid
+PASS schema-valid replies: 24 of 24 (48 s)
+PASS greedy: the streamed reply equals the reply
+PASS json_object 0: a JSON object
+PASS json_object 1: a JSON object
+PASS json_object 2: a JSON object
+FAIL reasoning on: reasoning, then the JSON (391 = 17 x 23)  {"id": "chatcmpl-179256290095335", "object": "chat.completion", "created": 1792562900, "model": "qwen3.5-4b-4bit", "choices": [{"index": 0, "message": {"role": "assistant", "content": "", "reasoning_content": "Thinking Process:\n\n1.  **Analyze the Request:** The user is asking whether the number 391 is prime and wants the answer to include the factorization.\n\n2.  **Determine Primality of 391:**\n    *   I need to check if 391 has any divisors other than 1 and itself.\n    *   $\\sqrt{391} \\approx 19.77$. So, I need to test prime factors up to 19.\n    *   Primes to test: 2, 3, 5, 7, 11, 13
+PASS responses: text.format json_schema
+PASS chat tool_choice "required" (Hello! How are you today?): one valid call
+PASS chat tool_choice {"type": "function", "function": {"name": "get_weather"}} (What's 2+2?): one valid call
+PASS chat tool_choice "required" (I need the forecast for Paris for the next 3 days.): one valid call
+PASS reasoning on + tool_choice required: a valid call
+PASS messages tool_choice {"type": "any"}: valid tool_use
+PASS messages tool_choice {"type": "tool", "name": "get_weather"}: valid tool_use
+PASS responses tool_choice required: a valid function_call
+PASS strict tool, tool_choice auto: a call it makes is valid
+PASS a schema the server cannot hold: 400 with the field
+PASS at once with free requests: request 0 under the schema is valid
+PASS at once with free requests: request 1 under the schema is valid
+PASS at once: the free requests answer
+FAILED: 1

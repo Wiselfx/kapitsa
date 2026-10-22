@@ -1,0 +1,58 @@
+{
+ "code_greedy_400": {
+  "text": "```python\n\"\"\"\nAdvanced LRU Cache with Time-To-Live (TTL) Expiry and Thread Safety.\n\nThis module provides a robust, production-ready implementation of a Least Recently Used (LRU)\ncache that supports Time-To-Live (TTL) expiration for cached items. It includes a thread-safe\nwrapper to ensure concurrent access integrity and a comprehensive pytest test suite to verify\ncorrectness under various conditions including concurrency, expiration, and eviction policies.\n\nFeatures:\n1. LRU Eviction Policy: Removes the least recently used item when capacity is exceeded.\n2. TTL Expiry: Items automatically expire after a specified duration.\n3. Thread Safety: All operations are protected by fine-grained locking mechanisms.\n4. Async Support: Optional async interface for non-blocking operations.\n5. Statistics Tracking: Monitors hits, misses, evictions, and expirations.\n6. Configurable Parameters: Customizable capacity, default TTL, and cleanup intervals.\n\nArchitecture:\n- LruCacheCore: The underlying data structure using a doubly-linked list and a hash map.\n- ThreadSafeLruCache: A wrapper that adds synchronization primitives.\n- CacheStats: A data class to track performance metrics.\n- Test Suite: Comprehensive unit and integration tests using pytest.\n\nDependencies:\n- Python 3.7+\n- pytest\n- threading\n- time\n- collections\n- typing\n- dataclasses\n- functools\n- asyncio\n\"\"\"\n\nimport threading\nimport time\nimport collections\nimport dataclasses\nimport functools\nimport asyncio\nimport random\nimport string\nimport logging\nfrom typing import (\n    Any,\n    Callable,\n    Dict,\n    Generic,\n    Hashable,\n    List,\n    Optional,\n    Tuple,\n    TypeVar,\n    Union,\n)\nfrom collections import OrderedDict\nfrom dataclasses import dataclass, field\nfrom enum import",
+  "tokens": 400,
+  "finish": "length",
+  "error": null,
+  "ttft": 0.11402033400000011,
+  "decode_tps": 157.00628753124138
+ },
+ "code_t06_seed7_400": {
+  "text": "```python\n\"\"\"\nAdvanced LRU Cache with Time-To-Live (TTL) Expiry and Thread Safety.\n\nThis module provides a robust implementation of a Least Recently Used (LRU) cache\nthat supports configurable Time-To-Live (TTL) for keys. It is designed to be\nthread-safe, making it suitable for concurrent environments. The implementation\nincludes a comprehensive test suite using pytest.\n\nFeatures:\n    - LRU Eviction: Automatically removes the least recently used item when the\n      cache reaches its maximum capacity.\n    - TTL Expiry: Items automatically expire after a specified duration. Expired\n      items are lazily removed upon access or eagerly removed during maintenance.\n    - Thread Safety: All operations are protected by a reentrant lock to ensure\n      data consistency in multi-threaded applications.\n    - Configurable Parameters: Users can adjust max size, TTL, and eviction\n      strategy (though LRU is fixed in this implementation).\n    - Performance Optimizations: Uses a doubly-linked list and a hash map for\n      O(1) average time complexity for get and put operations.\n\nClasses:\n    _Node: Represents a node in the doubly-linked list.\n    LRUCacheWithTTL: The main cache class implementing the logic.\n    ThreadSafeLRUCache: A wrapper class providing thread-safe access.\n\nFunctions:\n    create_cache: Factory function to create instances of the cache.\n\nTests:\n    A comprehensive pytest test suite covering edge cases, concurrency,\n    expiration logic, and capacity constraints.\n\"\"\"\n\nimport time\nimport threading\nimport random\nimport string\nfrom collections import OrderedDict\nfrom typing import Any, Optional, Callable, Dict, List, Tuple\nfrom dataclasses import dataclass, field\nfrom enum import Enum\nimport pytest\n\n\n# ============================================================================\n# Constants and Enums\n# ============================================================================\n\nclass EvictionPolicy(Enum):\n    \"\"\"",
+  "tokens": 400,
+  "finish": "length",
+  "error": null,
+  "ttft": 0.12104191600000025,
+  "decode_tps": 152.53453668438445
+ },
+ "ctx2k_greedy_stop": {
+  "text": "The provided repository context does not contain a first file, as the text begins with a code snippet from an `__init__` method and proceeds directly to the contents of `modeling_altclip.py`.",
+  "tokens": 42,
+  "finish": "stop",
+  "error": null,
+  "ttft": 1.952879042000001,
+  "decode_tps": 106.655336436156
+ },
+ "ctx2k_t06_seed3": {
+  "text": "Here are the classes defined in `modeling_xcodec.py`:\n\n**Output Dataclasses:**\n*   `XcodecOutput`: Base output class containing `audio_codes` and `audio_values`.\n*   `XcodecEncoderOutput`: Output class containing only `audio_codes`.\n*   `XcodecDecoderOutput`: Output class containing only `audio_values`.\n\n**Neural Network Modules:**\n*   `XcodecResidualUnit`: A residual block using ELU activation and two Conv1d layers (one with dilation).\n*   `XcodecSemanticEncoderBlock`: An encoder block containing a list of `XcodecResidualUnit`s and a strided Conv1d layer.\n*   `SemanticEncoder`: The main encoder module, consisting of an initial Conv1d and a list of `XcodecSemanticEncoderBlock`s.\n*   `SemanticDecoderBlock`: A decoder block using either Conv1d (if stride=1) or ConvTranspose1d (if stride>1), followed by a list of `XcodecResidualUnit`s.\n*   `SemanticDecoder`: The main decoder module, consisting of an initial Conv1d, a list of `SemanticDecoderBlock`s, and a final Conv1d layer.\n*   `XcodecEuclideanCodebook`: A codebook class using Euclidean distance, managing an embed buffer, cluster size, and initialization status.",
+  "tokens": 289,
+  "finish": "stop",
+  "error": null,
+  "ttft": 1.717264708,
+  "decode_tps": 187.2028185724371
+ },
+ "ctx6k_greedy": {
+  "text": "The first file, `modeling_t5.py`, implements the PyTorch T5 model architecture, including its core components like layer normalization, feed-forward networks, and multi-head attention mechanisms.",
+  "tokens": 40,
+  "finish": "stop",
+  "error": null,
+  "ttft": 5.3497197079999985,
+  "decode_tps": 136.79872566725584
+ },
+ "short_greedy_stop": {
+  "text": "2, 3, 5",
+  "tokens": 8,
+  "finish": "stop",
+  "error": null,
+  "ttft": 0.05375512499999857,
+  "decode_tps": 289.91959908259116
+ },
+ "image_greedy": {
+  "text": "This image displays a square divided into four equal quadrants, each filled with a solid primary or secondary color: red in the top-left, green in the top-right, blue in the bottom-left, and yellow in the bottom-right. A thick white diagonal line runs from the top-left corner to the bottom-right corner, bisecting the square and creating two large triangular sections that each contain parts of",
+  "tokens": 80,
+  "finish": "length",
+  "error": null,
+  "ttft": 0.622918791,
+  "decode_tps": 159.64749542008232
+ }
+}

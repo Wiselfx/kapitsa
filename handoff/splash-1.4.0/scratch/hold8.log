@@ -1,0 +1,54 @@
+/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/hold8.sh:11: no matches found: /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/r8/*
+==== hold 8 start 11:15:09
+---- state 11:15:09: before
+   2.8%  pid 93029 Claude Helper
+   1.5%  pid 53159 Google Chrome He
+Pages free:                                  1135941.
+Pages inactive:                               865695.
+Pages wired down:                             224108.
+Pages occupied by compressor:                 169008.
+total = 3072.00M  used = 1371.00M  free = 1701.00M  (encrypted)
+System-wide memory free percentage: 87%
+11:15  up 5 days,  3:38, 1 user, load averages: 4.52 4.32 7.57
+==== server ready=1
+client R1 cold: first token 2022.6 ms, total 2126.7 ms, 14 chunks
+client R2 cached: first token 28.6 ms, total 84.9 ms, 14 chunks
+  [11:15:36] wired 24.0 GB, file says normal
+client R3 normal, 10 s after R2: first token 52.7 ms, total 111.2 ms, 14 chunks
+  [11:15:38] wrote warn
+  [11:15:39] wired 24.3 GB, file says warn
+  [11:15:40] wired 24.4 GB, file says warn
+  [11:15:41] wired 3.5 GB, file says warn
+  [11:15:42] wired 3.7 GB, file says warn
+  [11:15:43] wired 3.7 GB, file says warn
+[kapitsa] memory pressure warning: the weights are no longer kept wired while idle
+  [11:15:46] wired 3.8 GB, file says warn
+client R4 warn, 10 s after R3: first token 555.8 ms, total 623.7 ms, 14 chunks
+  [11:15:57] wired 4.0 GB, file says warn
+client R5 still warn, 10 s after R4: first token 567.3 ms, total 634.4 ms, 14 chunks
+  [11:16:00] wired 4.1 GB, file says warn
+  [11:16:00] wrote normal
+client R6 normal again, 4 s after R5: first token 450.0 ms, total 507.3 ms, 14 chunks
+  [11:16:13] wired 24.6 GB, file says normal
+client R7 normal, 10 s after R6: first token 50.4 ms, total 111.2 ms, 14 chunks
+chat: prompt 2170 (cached 0) in 2012 ms (+3.6 ms template/tokenize; last chunk: encoded by 1.3 ms, GPU start +1846.8 ms, GPU 163.6 ms, wake +0.2 ms), 16 tokens in 104 ms (143.6 tok/s), length, 7.50 to
+chat: prompt 2170 (cached 2165) in 23 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.4 ms, GPU 22.1 ms, wake +0.1 ms), 16 tokens in 56 ms (266.1 tok/s), length, 7.50 tok/cy
+chat: prompt 2170 (cached 2165) in 47 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +15.1 ms, GPU 31.7 ms, wake +0.2 ms), 16 tokens in 59 ms (256.0 tok/s), length, 7.50 tok/c
+[kapitsa] memory pressure warning: the weights are no longer kept wired while idle
+chat: prompt 2170 (cached 2165) in 550 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +517.6 ms, GPU 32.2 ms, wake +0.2 ms), 16 tokens in 68 ms (220.6 tok/s), length, 7.50 tok
+chat: prompt 2170 (cached 2165) in 561 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +527.2 ms, GPU 33.7 ms, wake +0.2 ms), 16 tokens in 67 ms (223.0 tok/s), length, 7.50 tok
+[kapitsa] memory pressure normal: the weights are kept wired again
+chat: prompt 2170 (cached 2165) in 444 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +412.3 ms, GPU 31.7 ms, wake +0.1 ms), 16 tokens in 57 ms (261.2 tok/s), length, 7.50 tok
+chat: prompt 2170 (cached 2165) in 45 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +13.0 ms, GPU 31.7 ms, wake +0.1 ms), 16 tokens in 61 ms (246.7 tok/s), length, 7.50 tok/c
+largest start-ready waits (ms@n): 527.23@34 517.61@26 412.27@42 25.36@0 15.07@18 13.04@50 8.40@28 7.56@36
+---- state 11:16:14: after
+   5.5%  pid 93029 Claude Helper
+   1.2%  pid 53882 Slack Helper
+Pages free:                                  1345635.
+Pages inactive:                               680747.
+Pages wired down:                             241594.
+Pages occupied by compressor:                 286764.
+total = 3072.00M  used = 1371.00M  free = 1701.00M  (encrypted)
+System-wide memory free percentage: 82%
+11:16  up 5 days,  3:39, 1 user, load averages: 3.46 4.08 7.25
+==== hold 8 end 11:16:16

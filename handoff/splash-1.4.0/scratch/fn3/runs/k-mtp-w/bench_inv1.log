@@ -1,0 +1,8 @@
+== k-mtp-w-inv1
+  warm-up prefill~2.9k+decode64: ok (25.73s)
+  warm-up tools: ok (9.16s)
+  warm-up decode512#1: ok (27.7s)
+  warm-up decode512#2: ok (30.97s)
+  warm-up decode512#3: ok (31.95s)
+  memory: phys_footprint_peak 19.27 GB, resident mapped files 1.97 GB, swap used 2000.62 MB
+  -> /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/runs/k-mtp-w/inv1-s999.json

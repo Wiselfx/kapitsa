@@ -1,0 +1,58 @@
+{
+ "code_greedy_400": {
+  "text": "```python\n\"\"\"\nAdvanced LRU Cache with Time-To-Live (TTL) Expiry and Thread Safety.\n\nThis module provides a robust, production-ready implementation of a Least Recently Used (LRU)\ncache that supports Time-To-Live (TTL) expiration for cached items. It includes a thread-safe\nwrapper to ensure concurrent access integrity and a comprehensive pytest test suite to verify\ncorrectness under various conditions including concurrency, expiration, and eviction policies.\n\nKey Features:\n1. LRU Eviction Policy: When the cache reaches its maximum capacity, the least recently used\n   item is evicted to make room for new items.\n2. TTL Expiry: Each cached item can have an associated Time-To-Live (TTL). If an item is\n   accessed after its TTL has expired, it is treated as non-existent and removed from the cache.\n3. Thread Safety: All public methods are protected by a reentrant lock to ensure thread-safe\n   operations in multi-threaded environments.\n4. Configurable Parameters: Users can configure max size, default TTL, and eviction callbacks.\n5. Comprehensive Testing: Includes unit tests for basic operations, edge cases, concurrency\n   stress tests, and TTL expiration logic.\n\nArchitecture:\n- The core cache uses a doubly linked list combined with a hash map (dictionary) to achieve\n  O(1) time complexity for get, put, and delete operations.\n- The doubly linked list maintains the order of usage (most recent at the head, least recent\n  at the tail).\n- The hash map maps keys to nodes in the doubly linked list for O(1) lookup.\n- TTL is handled by storing an expiration timestamp with each node.\n- A threading.Lock (or RLock for reentrancy) protects all state mutations.\n\nUsage Example:\n    from lru_cache_ttl import LRUCacheWithTTL\n\n    # Create a cache",
+  "tokens": 400,
+  "finish": "length",
+  "error": null,
+  "ttft": 0.2472933340000001,
+  "decode_tps": 25.368865383366174
+ },
+ "code_t06_seed7_400": {
+  "text": "```python\n\"\"\"\nAdvanced LRU Cache with Time-To-Live (TTL) Expiry and Thread Safety.\n\nThis module implements a high-performance, thread-safe Least Recently Used (LRU)\ncache that supports Time-To-Live (TTL) expiration policies. It is designed for\nuse in concurrent Python applications where cache coherence and memory efficiency\nare critical.\n\nFeatures:\n    1. Thread-Safe Operations: All read/write operations are protected by fine-grained\n       locking mechanisms to prevent race conditions without sacrificing performance.\n    2. LRU Eviction Policy: When the cache reaches its maximum capacity, the least\n       recently used item is automatically evicted to make room for new entries.\n    3. TTL Expiry: Each entry can have a configurable time-to-live. Expired entries\n       are lazily removed upon access or eagerly during maintenance cycles.\n    4. Callback Support: Optional callbacks for hit/miss/eviction events for observability.\n    5. Comprehensive Test Suite: Includes unit tests, integration tests, and stress tests.\n\nArchitecture:\n    - The core data structure uses a doubly-linked list (via OrderedDict) for O(1)\n      LRU operations.\n    - A separate dictionary maps keys to metadata (timestamps, TTL values).\n    - A background thread handles aggressive eviction of stale entries if configured.\n\nUsage Example:\n    >>> from lru_cache_ttl import LRUCacheWithTTL\n    >>> cache = LRUCacheWithTTL(max_size=100, default_ttl=60)\n    >>> cache.set('key', 'value')\n    >>> value = cache.get('key')\n\nAuthor: AI Assistant\nVersion: 1.0.0\n\"\"\"\n\nimport time\nimport threading\nimport logging\nimport sys\nfrom typing import Any, Optional, Callable, Dict, Tuple, List, Set\nfrom collections import",
+  "tokens": 400,
+  "finish": "length",
+  "error": null,
+  "ttft": 0.11270825000000029,
+  "decode_tps": 25.526608114745077
+ },
+ "ctx2k_greedy_stop": {
+  "text": "The provided repository context does not contain a first file, as the text begins with a code snippet from `modeling_altclip.py` and explicitly states that the file was automatically generated from `modular_altclip.py`.",
+  "tokens": 45,
+  "finish": "stop",
+  "error": null,
+  "ttft": 2.2540767079999995,
+  "decode_tps": 29.798806403256105
+ },
+ "ctx2k_t06_seed3": {
+  "text": "Here are the classes defined in `modeling_xcodec.py`:\n\n1.  **Data Classes (Output Types):**\n    *   `XcodecOutput`: Main output containing `audio_codes` and `audio_values`.\n    *   `XcodecEncoderOutput`: Output containing only `audio_codes`.\n    *   `XcodecDecoderOutput`: Output containing only `audio_values`.\n\n2.  **Model Components:**\n    *   `XcodecResidualUnit`: Residual block with dilated convolutions (used in SemanticEncoder/Decoder).\n    *   `XcodecSemanticEncoderBlock`: Encoder block combining residual units and a strided convolution.\n    *   `SemanticEncoder`: The full encoder module, consisting of an initial convolution and a list of `XcodecSemanticEncoderBlock`s.\n    *   `SemanticDecoderBlock`: Decoder block combining a transposed convolution (upsampling) and residual units.\n    *   `SemanticDecoder`: The full decoder module, consisting of an initial convolution, a list of `SemanticDecoderBlock`s, and a final convolution.\n    *   `XcodecEuclideanCodebook`: Codebook class with Euclidean distance, managing codebook embeddings and initialization buffers.",
+  "tokens": 252,
+  "finish": "stop",
+  "error": null,
+  "ttft": 11.155809625,
+  "decode_tps": 85.63640628974531
+ },
+ "ctx6k_greedy": {
+  "text": "The first file, `modeling_t5.py`, implements the PyTorch T5 model architecture, including its core components like layer normalization, feed-forward networks, and multi-head attention mechanisms.",
+  "tokens": 40,
+  "finish": "stop",
+  "error": null,
+  "ttft": 9.220193958,
+  "decode_tps": 15.09722832791664
+ },
+ "short_greedy_stop": {
+  "text": "2, 3, 5",
+  "tokens": 8,
+  "finish": "stop",
+  "error": null,
+  "ttft": 0.31352,
+  "decode_tps": 288.4872962558454
+ },
+ "image_greedy": {
+  "text": "This image displays a square divided into four equal quadrants, each filled with a solid primary or secondary color: red in the top-left, green in the top-right, blue in the bottom-left, and yellow in the bottom-right. A thick white diagonal line runs from the top-left corner to the bottom-right corner, bisecting the square and creating two large triangular sections that each contain parts of",
+  "tokens": 80,
+  "finish": "length",
+  "error": null,
+  "ttft": 2.5730952919999996,
+  "decode_tps": 11.6020744013812
+ }
+}

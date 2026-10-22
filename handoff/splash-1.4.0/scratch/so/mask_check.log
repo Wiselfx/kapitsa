@@ -1,0 +1,37 @@
+2026-10-21 09:58:29.545 logit_mask_check[37294:20524347] Metal API Validation Enabled
+2026-10-21 09:58:29.546 logit_mask_check[37294:20524347] Metal GPU Validation Enabled
+[kapitsa] compiled kernels in 3474 ms
+PASS masked rows: vocabulary 1, 1 rows, stride 1, mask rows from 0
+PASS masked rows: vocabulary 1, 3 rows, stride 1, mask rows from 2
+PASS masked rows: vocabulary 1, 8 rows, stride 1, mask rows from 0
+PASS masked rows: vocabulary 31, 1 rows, stride 31, mask rows from 0
+PASS masked rows: vocabulary 31, 3 rows, stride 31, mask rows from 2
+PASS masked rows: vocabulary 31, 8 rows, stride 31, mask rows from 0
+PASS masked rows: vocabulary 32, 1 rows, stride 32, mask rows from 0
+PASS masked rows: vocabulary 32, 3 rows, stride 32, mask rows from 2
+PASS masked rows: vocabulary 32, 8 rows, stride 32, mask rows from 0
+PASS masked rows: vocabulary 33, 1 rows, stride 38, mask rows from 0
+PASS masked rows: vocabulary 33, 3 rows, stride 38, mask rows from 2
+PASS masked rows: vocabulary 33, 8 rows, stride 38, mask rows from 0
+PASS masked rows: vocabulary 100, 1 rows, stride 100, mask rows from 0
+PASS masked rows: vocabulary 100, 3 rows, stride 100, mask rows from 2
+PASS masked rows: vocabulary 100, 8 rows, stride 100, mask rows from 0
+PASS masked rows: vocabulary 257, 1 rows, stride 257, mask rows from 0
+PASS masked rows: vocabulary 257, 3 rows, stride 257, mask rows from 2
+PASS masked rows: vocabulary 257, 8 rows, stride 257, mask rows from 0
+PASS a sequence without masks: logits untouched
+PASS the event: the pass waits for the host's signal
+PASS the event: the masks written after the commit are the ones applied
+PASS greedy after a mask (508 allowed): the best allowed token
+PASS sampling after a mask (508 allowed): 200 draws, all allowed
+PASS greedy after a mask (481 allowed): the best allowed token
+PASS sampling after a mask (481 allowed): 200 draws, all allowed
+PASS greedy after a mask (524 allowed): the best allowed token
+PASS sampling after a mask (524 allowed): 200 draws, all allowed
+PASS greedy after a mask (520 allowed): the best allowed token
+PASS sampling after a mask (520 allowed): 200 draws, all allowed
+PASS greedy after a mask (489 allowed): the best allowed token
+PASS sampling after a mask (489 allowed): 200 draws, all allowed
+PASS greedy after a mask (1 allowed): the best allowed token
+PASS sampling after a mask (1 allowed): 200 draws, all allowed
+33 passed, 0 failed

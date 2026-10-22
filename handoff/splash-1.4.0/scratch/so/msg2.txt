@@ -1,0 +1,49 @@
+Structured output 2/3: sampling under grammar masks in the engine: the first token, plain steps, DFlash2/KFlash verify rows and batched passes (4B: a reply under a JSON schema decodes as fast as the same tokens unconstrained, 168 vs 167 tok/s with KFlash and 90 vs 90 without; unconstrained prefill and decode unchanged against origin/main, the same replies)
+
+GPU: logit_mask_rows (src/kernels/sample.metal) sets a row's logits of the tokens its mask leaves out to -inf before
+the top-k stage, so every sampler and acceptance after it reads the masked distribution unchanged: greedy is the
+argmax over allowed tokens, sampling draws from the allowed tokens renormalized (after top-k / top-p), DFlash2's exact
+speculative acceptance and KFlash's tree acceptance see masked rows. enc_logit_mask (src/model/logit_mask.cpp) is called
+by every sampler a constrained reply uses (Qwen35 enc_sample and verify rows, encode_verify_multi per group, Nemotron-H
+and Dory steps); with no masks on the sequence (Seq::mask_rows 0) it encodes nothing. A pass whose masks the host has not
+written yet waits on a shared event: the host computes them while the pass's layers run and signals it.
+
+Engine: the prompt's last chunk samples the first token under the grammar's first mask. With a DFlash2 drafter each
+cycle verifies under masks: after the drafting half, the host computes every verify row's mask from the drafted chain or
+tree (row r: the grammar's state after row r's path) while the verify runs, so the reply is masked plain decoding's.
+Batched passes do the same per member (batch_cycle from the chains, batch_plain_run pass by pass). Other drafters run
+the reasoning in their loop and stop at </think>; the formatted part decodes as masked plain steps (pipelined: the next
+step is queued before the host reads the token). Reasoning stays free: the grammar starts after </think>. Masked cycles
+do not feed KFlash's budget (its calibration is saved and shared; the grammar's rejections would skew it).
+NI_GRAMMAR_SPEC=0 takes masked plain steps with DFlash2 too.
+
+tools/logit_mask_check (GPU, small sizes first): masked rows against the CPU, the event wait, greedy and sampled draws
+after a mask at Qwen's vocabulary size. Run with MTL_SHADER_VALIDATION=1 MTL_DEBUG_LAYER=1: 33 of 33, no validation
+error.
+
+Runs: MacBook Pro M4 Pro (20-core GPU, 48 GB), macOS 27.0.1, Qwen3.5 4B 4-bit, one slot, 32K context, under the GPU
+lock with no other GPU load but the desktop's 1-6%; configurations in M B B M order, 2 rounds each; rates from the
+server's log (decode: tokens / decode time; prefill: prompt tokens / prefill time). "On": KFlash (the DFlash drafter);
+"off": --dflash none --spec 0.
+- Unconstrained, origin/main (4e0154f) vs this branch, 4 replies of 512 tokens (3 greedy, 1 sampled) and a cold prompt
+  of ~4K and ~16K tokens: decode on 246.6 / 246.2 vs 245.9 / 246.5 tok/s, off 89.0 / 88.8 vs 88.8 / 88.7; prefill 4K
+  on 1987 / 1984 vs 1980 / 1982 tok/s, off 1983 / 1982 vs 1986 / 1985; 16K on 1580 / 1525 vs 1578 / 1580, off
+  1579 / 1579 vs 1580 / 1578. Every reply the same tokens as main's, the sampled one too.
+- The same request unconstrained and constrained, where the constrained reply is the same tokens (4 JSON replies of
+  512 tokens; json_object, and a closed schema made from the unconstrained reply; a 328-token call under tool_choice
+  required that auto makes too): the derived schema on 168.6 / 167.7 vs 167.2 / 166.7 tok/s, off 89.7 / 90.0 vs
+  90.0 / 90.3; json_object on 161.1 / 168.3 vs 160.6 / 168.0, off 90.1 / 89.9 vs 90.0 / 90.1; required on
+  364.2 / 368.7 vs 364.1 / 364.0, off 88.5 / 88.2 vs 89.6 / 88.3.
+- Where the format changes the reply (4 prompts under schemas the model would not follow on its own; a heap module
+  written through write_file under required, as text under auto): schema on 191.1 / 180.5 tok/s vs 164.0 / 156.4
+  unconstrained, off 84.2 / 84.3 vs 86.1 / 85.4 (a noisier session: 78-89 tok/s per reply off, a CPU load average of
+  4); the heap on 293.1 / 296.9 vs 240.5 / 261.8, off 85.3 / 87.1 vs 87.7 / 86.3: other tokens, other acceptance.
+- Masked KFlash cycles vs masked plain steps (NI_GRAMMAR_SPEC=0) under schemas, 4 greedy replies and 1 sampled:
+  177.6 / 177.0 vs 88.5 / 87.6 tok/s; the greedy replies the same (4 of 4), the sampled one not (speculative sampling
+  draws other numbers than plain sampling, both from the masked distribution).
+- Masks, host time (mean per request): a JSON reply 5-25 us per verify row (17-55 us per token of the reply), 11-85
+  us per plain step; a tool call's JSON arguments 57-120 us per row (82-152 us per token), 48-186 us per plain step.
+  Each is computed while the GPU runs the layers of the pass that samples under it (11 ms per plain step here), so
+  the pass does not wait for it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,17 @@
+== 2026-10-21 17:10:28 precheck
+uptime: 17:10  up 5 days,  9:33, 1 user, load averages: 3.66 3.63 3.74
+gpu users (4 s):
+   7.0%  pid 93029 Claude Helper
+Pages free:                                  1251817.
+Pages active:                                 663528.
+Pages inactive:                               666993.
+Pages speculative:                              3908.
+Pages wired down:                             221016.
+Pages purgeable:                               12756.
+Pages occupied by compressor:                 295521.
+memory_pressure: System-wide memory free percentage: 83%
+swap: total = 3072.00M  used = 1984.62M  free = 1087.38M  (encrypted); memorystatus_level 83
+engines:
+54402  18448       00:02 build/kapitsa
+disk: 23 GB free
+gpu quiet after 18s

@@ -1,0 +1,330 @@
+{
+ "schema": 2,
+ "label": "plan-dec",
+ "model": "flash-q20",
+ "base_url": "http://127.0.0.1:1/v1",
+ "when": "2026-10-21 11:49:09",
+ "temperature": 0.6,
+ "args": {
+  "base_url": "http://127.0.0.1:1/v1",
+  "model": "flash-q20",
+  "label": "plan-dec",
+  "pid": 0,
+  "decode_tokens": 512,
+  "decode_runs": 3,
+  "greedy_runs": 3,
+  "window_head": 16,
+  "window_tail": 4,
+  "rep_threshold": 0.5,
+  "sizes": "4000,16000",
+  "corpus": null,
+  "ref_prompt_tokens": "",
+  "cached_samples": 3,
+  "turn_gap": 1.0,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0,
+  "sampling_overrides": "",
+  "extra_body": "{\"seed\": 1234}",
+  "reasoning_effort": "low",
+  "no_think_style": "both",
+  "warmup": "light",
+  "adaptive_warm": false,
+  "no_gpu_lock": true,
+  "skip": "prefill,tools,agent",
+  "agent_trace": "/Users/flaminis/Desktop/kapitsa/.claude/worktrees/agent-a9a95c76c733c6cab/bench/harness/agent-traces/opencode-ledger.json",
+  "agent_tool_mode": "rendered",
+  "agent_gaps": "recorded",
+  "agent_max_turns": null,
+  "agent_timeout": 2400,
+  "out": "plan-dec.json"
+ },
+ "sampling": {
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "sampling_greedy": {
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "top_k": 1,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "repeat_penalty": 1.0
+ },
+ "no_think": {
+  "chat_template_kwargs": {
+   "enable_thinking": false
+  },
+  "reasoning_effort": "none"
+ },
+ "corpus": {
+  "path": "corpus/bench_corpus.txt",
+  "sha256": "1a9bb103b3f6d39ee5b9f5bf7207e304c5ce92788c273685f597508c7d2bde28",
+  "frozen": true
+ },
+ "harness": {
+  "git_head": "303d763e5bc9372666da066d8836ca7b9a444ed6",
+  "dirty": false
+ },
+ "phases": {
+  "warmup": [
+   1792565349.46,
+   1792565349.461
+  ],
+  "decode": [
+   1792565349.479,
+   1792565349.48
+  ],
+  "decode_greedy": [
+   1792565349.498,
+   1792565349.499
+  ]
+ },
+ "memory": {
+  "warmup": {
+   "swap_used_mb": 1383.06,
+   "memorystatus_level": 44,
+   "swapouts_delta": 0
+  },
+  "decode": {
+   "swap_used_mb": 1383.06,
+   "memorystatus_level": 44,
+   "swapouts_delta": 0
+  },
+  "decode_greedy": {
+   "swap_used_mb": 1383.06,
+   "memorystatus_level": 44,
+   "swapouts_delta": 0
+  }
+ },
+ "gpu_lock": {
+  "held_by": "none",
+  "path": "/Users/flaminis/.cache/nace-gpu.lock",
+  "wait_s": null
+ },
+ "vm_start": {
+  "swap_used_mb": 1383.06,
+  "swapouts": 30528421,
+  "swapins": 24600221,
+  "pageouts": 858992,
+  "memorystatus_level": 44
+ },
+ "decode": [
+  {
+   "greedy": false,
+   "invalid": [
+    "too few streamed events for a middle-window rate"
+   ],
+   "flags": [
+    "finish_reason=stop (expected length)",
+    "completion_tokens=1 != 512"
+   ],
+   "completion_tokens": 1,
+   "chunks": 0,
+   "ttft_s": 0.1,
+   "decode_tps": null,
+   "decode_tps_e2e": null,
+   "e2e_wall_tps": 5.0,
+   "finish": "stop",
+   "usage_reported": true,
+   "rate": {
+    "events": 0
+   },
+   "timings": null,
+   "distinct4": null,
+   "text": "",
+   "reasoning": "",
+   "events_t_ms": [],
+   "events_chars": []
+  },
+  {
+   "greedy": false,
+   "invalid": [
+    "too few streamed events for a middle-window rate"
+   ],
+   "flags": [
+    "finish_reason=stop (expected length)",
+    "completion_tokens=1 != 512"
+   ],
+   "completion_tokens": 1,
+   "chunks": 0,
+   "ttft_s": 0.1,
+   "decode_tps": null,
+   "decode_tps_e2e": null,
+   "e2e_wall_tps": 5.0,
+   "finish": "stop",
+   "usage_reported": true,
+   "rate": {
+    "events": 0
+   },
+   "timings": null,
+   "distinct4": null,
+   "text": "",
+   "reasoning": "",
+   "events_t_ms": [],
+   "events_chars": []
+  },
+  {
+   "greedy": false,
+   "invalid": [
+    "too few streamed events for a middle-window rate"
+   ],
+   "flags": [
+    "finish_reason=stop (expected length)",
+    "completion_tokens=1 != 512"
+   ],
+   "completion_tokens": 1,
+   "chunks": 0,
+   "ttft_s": 0.1,
+   "decode_tps": null,
+   "decode_tps_e2e": null,
+   "e2e_wall_tps": 5.0,
+   "finish": "stop",
+   "usage_reported": true,
+   "rate": {
+    "events": 0
+   },
+   "timings": null,
+   "distinct4": null,
+   "text": "",
+   "reasoning": "",
+   "events_t_ms": [],
+   "events_chars": []
+  }
+ ],
+ "decode_summary": {
+  "runs": 3,
+  "valid_runs": 0,
+  "invalid": [
+   "too few streamed events for a middle-window rate"
+  ],
+  "flags": [
+   "completion_tokens=1 != 512",
+   "finish_reason=stop (expected length)"
+  ]
+ },
+ "decode_greedy": [
+  {
+   "greedy": true,
+   "invalid": [
+    "too few streamed events for a middle-window rate"
+   ],
+   "flags": [
+    "finish_reason=stop (expected length)",
+    "completion_tokens=1 != 512"
+   ],
+   "completion_tokens": 1,
+   "chunks": 0,
+   "ttft_s": 0.1,
+   "decode_tps": null,
+   "decode_tps_e2e": null,
+   "e2e_wall_tps": 5.0,
+   "finish": "stop",
+   "usage_reported": true,
+   "rate": {
+    "events": 0
+   },
+   "timings": null,
+   "distinct4": null,
+   "text": "",
+   "reasoning": "",
+   "events_t_ms": [],
+   "events_chars": []
+  },
+  {
+   "greedy": true,
+   "invalid": [
+    "too few streamed events for a middle-window rate"
+   ],
+   "flags": [
+    "finish_reason=stop (expected length)",
+    "completion_tokens=1 != 512"
+   ],
+   "completion_tokens": 1,
+   "chunks": 0,
+   "ttft_s": 0.1,
+   "decode_tps": null,
+   "decode_tps_e2e": null,
+   "e2e_wall_tps": 5.0,
+   "finish": "stop",
+   "usage_reported": true,
+   "rate": {
+    "events": 0
+   },
+   "timings": null,
+   "distinct4": null,
+   "text": "",
+   "reasoning": "",
+   "events_t_ms": [],
+   "events_chars": []
+  },
+  {
+   "greedy": true,
+   "invalid": [
+    "too few streamed events for a middle-window rate"
+   ],
+   "flags": [
+    "finish_reason=stop (expected length)",
+    "completion_tokens=1 != 512"
+   ],
+   "completion_tokens": 1,
+   "chunks": 0,
+   "ttft_s": 0.1,
+   "decode_tps": null,
+   "decode_tps_e2e": null,
+   "e2e_wall_tps": 5.0,
+   "finish": "stop",
+   "usage_reported": true,
+   "rate": {
+    "events": 0
+   },
+   "timings": null,
+   "distinct4": null,
+   "text": "",
+   "reasoning": "",
+   "events_t_ms": [],
+   "events_chars": []
+  }
+ ],
+ "decode_greedy_summary": {
+  "runs": 3,
+  "valid_runs": 0,
+  "invalid": [
+   "too few streamed events for a middle-window rate"
+  ],
+  "flags": [
+   "completion_tokens=1 != 512",
+   "finish_reason=stop (expected length)"
+  ]
+ },
+ "invalid": [
+  "decode: too few streamed events for a middle-window rate",
+  "decode_greedy: too few streamed events for a middle-window rate"
+ ],
+ "flags": [
+  "decode: completion_tokens=1 != 512",
+  "decode: finish_reason=stop (expected length)",
+  "decode_greedy: completion_tokens=1 != 512",
+  "decode_greedy: finish_reason=stop (expected length)"
+ ],
+ "peak_memory_mb": null,
+ "mapped_file_clean_mb": null,
+ "vm_end": {
+  "swap_used_mb": 1383.06,
+  "swapouts": 30528421,
+  "swapins": 24600221,
+  "pageouts": 858992,
+  "memorystatus_level": 44
+ },
+ "when_end": "2026-10-21 11:49:09"
+}

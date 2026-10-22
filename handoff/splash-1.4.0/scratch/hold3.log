@@ -1,0 +1,119 @@
+==== hold 3 start 09:33:20
+==== hold start 09:33:20: /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit n_gen 2048 pressure 0 order A Q W W Q A extra 
+---- state 09:33:20: before run 1 (A)
+   5.4%  pid 93029 Claude Helper
+Pages free:                                  1053804.
+Pages wired down:                             219531.
+Pages stored in compressor:                   474655.
+Pages occupied by compressor:                 271176.
+total = 2048.00M  used = 1198.62M  free = 849.38M  (encrypted)
+System-wide memory free percentage: 84%
+ 9:33  up 5 days,  1:56, 1 user, load averages: 5.00 15.32 281.57
+==== run 1 A rc 0 34 s
+[kapitsa] MTP head loaded in 234 ms (MoE, trunk hidden pre-norm, drafts over ids < 32768 + specials)
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 40 layers, MoE, 19.5 GB mapped in 11449 ms; weights 4-bit group 64 100%, 8-bit group 64 0%
+ane: 0 split chunks, 0 evaluations, ANE 0 ms (0.0 ms each), reruns 0; memory: Metal 21209 MB, process footprint 21017 MB; thermal nominal
+mean GPU time per step: 9.21 ms (2047 steps)
+prompt 85 tok in 3040 ms (28.0 tok/s); decode 2047 tok in 18860 ms (108.5 tok/s)
+---- state 09:33:57: before run 2 (Q)
+Pages free:                                  1381076.
+Pages wired down:                             218554.
+Pages stored in compressor:                   632272.
+Pages occupied by compressor:                 340526.
+total = 2048.00M  used = 1190.62M  free = 857.38M  (encrypted)
+System-wide memory free percentage: 81%
+ 9:33  up 5 days,  1:57, 1 user, load averages: 4.97 14.15 270.41
+==== run 2 Q rc 0 30 s
+[kapitsa] MTP head loaded in 256 ms (MoE, trunk hidden pre-norm, drafts over ids < 32768 + specials)
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 40 layers, MoE, 19.5 GB mapped in 10252 ms; weights 4-bit group 64 100%, 8-bit group 64 0%
+ane: 0 split chunks, 0 evaluations, ANE 0 ms (0.0 ms each), reruns 0; memory: Metal 21209 MB, process footprint 21018 MB; thermal nominal
+mean GPU time per step: 9.19 ms (2047 steps)
+prompt 85 tok in 740 ms (114.9 tok/s); decode 2047 tok in 18828 ms (108.7 tok/s)
+start-commit n=2048 p50 18.049 p90 18.654 p99 19.180 p99.9 19.817 max 614.55 ms; >1/5/20/50/100 ms: 2047/2047/1/1/1
+start-ready  n=2048 p50 0.001 p90 0.001 p99 0.016 p99.9 0.032 max 614.55 ms; >1/5/20/50/100 ms: 1/1/1/1/1
+start-start  n=2047 p50 9.161 p90 9.463 p99 9.963 p99.9 10.290 max 124.80 ms; >1/5/20/50/100 ms: 2047/2047/1/1/1
+gpu          n=2048 p50 9.161 p90 9.462 p99 9.963 p99.9 10.289 max 120.30 ms; >1/5/20/50/100 ms: 2048/2048/1/1/1
+largest start-ready waits (ms@n): 614.55@0 0.77@1 0.03@1323 0.02@1387 0.02@22 0.02@1442 0.02@1652 0.02@2031
+---- state 09:34:29: before run 3 (W)
+   0.6%  pid 53159 Google Chrome He
+Pages free:                                  1300250.
+Pages wired down:                             229195.
+Pages stored in compressor:                   610424.
+Pages occupied by compressor:                 335820.
+total = 2048.00M  used = 1190.62M  free = 857.38M  (encrypted)
+System-wide memory free percentage: 81%
+ 9:34  up 5 days,  1:57, 1 user, load averages: 4.60 13.05 259.68
+==== run 3 W rc 0 26 s
+[kapitsa] MTP head loaded in 309 ms (MoE, trunk hidden pre-norm, drafts over ids < 32768 + specials)
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 40 layers, MoE, 19.5 GB mapped in 7502 ms; weights 4-bit group 64 100%, 8-bit group 64 0%
+ane: 0 split chunks, 0 evaluations, ANE 0 ms (0.0 ms each), reruns 0; memory: Metal 21209 MB, process footprint 21011 MB; thermal nominal
+mean GPU time per step: 9.18 ms (2047 steps)
+prompt 85 tok in 154 ms (553.6 tok/s); decode 2047 tok in 18790 ms (108.9 tok/s)
+start-commit n=2048 p50 17.961 p90 18.673 p99 19.246 p99.9 20.316 max 21.67 ms; >1/5/20/50/100 ms: 2047/2047/3/0/0
+start-ready  n=2048 p50 0.001 p90 0.001 p99 0.016 p99.9 0.084 max 21.67 ms; >1/5/20/50/100 ms: 1/1/1/0/0
+start-start  n=2047 p50 9.131 p90 9.485 p99 9.895 p99.9 10.500 max 126.18 ms; >1/5/20/50/100 ms: 2047/2047/1/1/1
+gpu          n=2048 p50 9.130 p90 9.483 p99 9.895 p99.9 10.500 max 124.59 ms; >1/5/20/50/100 ms: 2048/2048/1/1/1
+largest start-ready waits (ms@n): 21.67@0 0.49@1 0.08@1445 0.04@1208 0.03@361 0.03@8 0.02@959 0.02@609
+---- state 09:34:58: before run 4 (W)
+Pages free:                                  1271601.
+Pages wired down:                             233154.
+Pages stored in compressor:                   605463.
+Pages occupied by compressor:                 330377.
+total = 2048.00M  used = 1190.62M  free = 857.38M  (encrypted)
+System-wide memory free percentage: 81%
+ 9:35  up 5 days,  1:58, 1 user, load averages: 3.51 12.12 252.20
+==== run 4 W rc 0 27 s
+[kapitsa] MTP head loaded in 228 ms (MoE, trunk hidden pre-norm, drafts over ids < 32768 + specials)
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 40 layers, MoE, 19.5 GB mapped in 7404 ms; weights 4-bit group 64 100%, 8-bit group 64 0%
+ane: 0 split chunks, 0 evaluations, ANE 0 ms (0.0 ms each), reruns 0; memory: Metal 21209 MB, process footprint 21011 MB; thermal nominal
+mean GPU time per step: 9.33 ms (2047 steps)
+prompt 85 tok in 194 ms (437.9 tok/s); decode 2047 tok in 19102 ms (107.2 tok/s)
+start-commit n=2048 p50 18.293 p90 18.896 p99 19.295 p99.9 19.954 max 65.36 ms; >1/5/20/50/100 ms: 2047/2047/2/1/0
+start-ready  n=2048 p50 0.001 p90 0.001 p99 0.014 p99.9 0.019 max 65.36 ms; >1/5/20/50/100 ms: 1/1/1/1/0
+start-start  n=2047 p50 9.319 p90 9.588 p99 9.967 p99.9 10.405 max 126.58 ms; >1/5/20/50/100 ms: 2047/2047/1/1/1
+gpu          n=2048 p50 9.319 p90 9.587 p99 9.967 p99.9 10.405 max 122.99 ms; >1/5/20/50/100 ms: 2048/2048/1/1/1
+largest start-ready waits (ms@n): 65.36@0 0.65@1 0.02@1751 0.02@1501 0.02@1641 0.02@190 0.02@299 0.02@1544
+---- state 09:35:27: before run 5 (Q)
+Pages free:                                  1354794.
+Pages wired down:                             223944.
+Pages stored in compressor:                   644442.
+Pages occupied by compressor:                 349743.
+total = 2048.00M  used = 1190.62M  free = 857.38M  (encrypted)
+System-wide memory free percentage: 81%
+ 9:35  up 5 days,  1:58, 1 user, load averages: 4.00 11.44 243.64
+==== run 5 Q rc 0 27 s
+[kapitsa] MTP head loaded in 266 ms (MoE, trunk hidden pre-norm, drafts over ids < 32768 + specials)
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 40 layers, MoE, 19.5 GB mapped in 7566 ms; weights 4-bit group 64 100%, 8-bit group 64 0%
+ane: 0 split chunks, 0 evaluations, ANE 0 ms (0.0 ms each), reruns 0; memory: Metal 21209 MB, process footprint 21011 MB; thermal nominal
+mean GPU time per step: 9.23 ms (2047 steps)
+prompt 85 tok in 163 ms (520.1 tok/s); decode 2047 tok in 18901 ms (108.3 tok/s)
+start-commit n=2048 p50 18.174 p90 18.772 p99 19.125 p99.9 19.715 max 32.64 ms; >1/5/20/50/100 ms: 2047/2047/1/0/0
+start-ready  n=2048 p50 0.001 p90 0.001 p99 0.016 p99.9 0.021 max 32.64 ms; >1/5/20/50/100 ms: 1/1/1/0/0
+start-start  n=2047 p50 9.226 p90 9.520 p99 9.799 p99.9 10.373 max 125.12 ms; >1/5/20/50/100 ms: 2047/2047/1/1/1
+gpu          n=2048 p50 9.226 p90 9.519 p99 9.799 p99.9 10.372 max 122.98 ms; >1/5/20/50/100 ms: 2048/2048/1/1/1
+largest start-ready waits (ms@n): 32.64@0 0.74@1 0.02@1388 0.02@202 0.02@285 0.02@1603 0.02@1443 0.02@1764
+---- state 09:35:56: before run 6 (A)
+Pages free:                                  1271101.
+Pages wired down:                             202879.
+Pages stored in compressor:                   678918.
+Pages occupied by compressor:                 371337.
+total = 2048.00M  used = 1190.62M  free = 857.38M  (encrypted)
+System-wide memory free percentage: 81%
+ 9:35  up 5 days,  1:59, 1 user, load averages: 3.34 10.58 235.29
+==== run 6 A rc 0 31 s
+[kapitsa] MTP head loaded in 247 ms (MoE, trunk hidden pre-norm, drafts over ids < 32768 + specials)
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 40 layers, MoE, 19.5 GB mapped in 9855 ms; weights 4-bit group 64 100%, 8-bit group 64 0%
+ane: 0 split chunks, 0 evaluations, ANE 0 ms (0.0 ms each), reruns 0; memory: Metal 21209 MB, process footprint 21018 MB; thermal nominal
+mean GPU time per step: 9.66 ms (2047 steps)
+prompt 85 tok in 707 ms (120.1 tok/s); decode 2047 tok in 19783 ms (103.5 tok/s)
+---- state 09:36:29: after
+   1.7%  pid 93029 Claude Helper
+Pages free:                                  1317934.
+Pages wired down:                             247286.
+Pages stored in compressor:                   572525.
+Pages occupied by compressor:                 323066.
+total = 2048.00M  used = 1174.62M  free = 873.38M  (encrypted)
+System-wide memory free percentage: 81%
+ 9:36  up 5 days,  1:59, 1 user, load averages: 3.11 9.84 227.23
+==== hold end 09:36:31
+==== hold 3 end 09:36:31

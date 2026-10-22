@@ -1,0 +1,37 @@
+memhog start: host_ms 392574927.0, target 12.0 GB, hold 120 s, swap 604 MB (guard +256), pressure 1, free 1.75 GB, compressor 3.77 GB, wired 19.50 GB
+memhog step: 0.50 GB held, swap 604 MB (+0), pressure 1, free 1.21 GB, compressor 3.77 GB
+memhog step: 1.00 GB held, swap 604 MB (+0), pressure 1, free 0.70 GB, compressor 3.77 GB
+memhog step: 1.50 GB held, swap 604 MB (+0), pressure 1, free 0.10 GB, compressor 3.77 GB
+memhog step: 2.00 GB held, swap 604 MB (+0), pressure 1, free 0.10 GB, compressor 3.77 GB
+memhog step: 2.50 GB held, swap 604 MB (+0), pressure 1, free 0.10 GB, compressor 3.77 GB
+memhog step: 3.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 3.50 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 4.00 GB held, swap 604 MB (+0), pressure 1, free 0.06 GB, compressor 3.77 GB
+memhog step: 4.50 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 5.00 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 5.50 GB held, swap 604 MB (+0), pressure 1, free 0.10 GB, compressor 3.77 GB
+memhog step: 6.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 6.50 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 7.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 7.50 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 8.00 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 8.50 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 9.00 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 9.50 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 10.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 10.50 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 11.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 11.50 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 12.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog holding 12.00 GB (target reached), host_ms 392577662.8
+memhog hold: 8 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.18 GB, compressor 3.77 GB, wired 6.61 GB
+memhog hold: 13 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.16 GB, compressor 3.77 GB, wired 6.61 GB
+memhog hold: 18 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.13 GB, compressor 3.76 GB, wired 6.62 GB
+memhog hold: 23 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.37 GB, compressor 3.79 GB, wired 6.61 GB
+memhog hold: 28 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.26 GB, compressor 3.79 GB, wired 23.90 GB
+memhog hold: 34 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.13 GB, compressor 3.73 GB, wired 23.90 GB
+memhog hold: 39 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.17 GB, compressor 3.73 GB, wired 23.90 GB
+memhog hold: 44 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.21 GB, compressor 3.73 GB, wired 23.89 GB
+memhog hold: 49 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.03 GB, compressor 3.82 GB, wired 24.81 GB
+memhog: swap grew 763 MB (guard 256): freeing everything
+memhog done after 52 s (freed at host_ms 392626321.9): swap 1367 MB (+763), pressure 1, free 13.14 GB, compressor 3.32 GB

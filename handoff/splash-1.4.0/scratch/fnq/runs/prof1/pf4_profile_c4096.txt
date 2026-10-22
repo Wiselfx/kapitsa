@@ -1,0 +1,60 @@
+[kapitsa] read 4.99 GB of weights in 676 ms (7.4 GB/s)
+[kapitsa] MTP head loaded in 0 ms (drafts over ids < 32768 + specials)
+[kapitsa] expert store: 8616 slots of 1.39 MB (12.00 GB, 35.1% of the 24576 experts) in one buffer (up to 30.15 GB each); 8616 read at load in 3322 ms (3.81 GB/s)
+[kapitsa] NI_QMM8=1: 8-bit prefill GEMMs on qmr8 (all but the MoE router)
+[kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+[kapitsa] compiled kernels in 8 ms
+[kapitsa] compiled the weight-format kernels in 10 ms
+[kapitsa] prewarmed 133 prefill pipelines in 22 ms
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20: Qwen3.8-Flash-Next, 48 layers (12 attention), 5.0 GB of weights in 4365 ms; 4-bit group 64 4%, 6-bit group 64 3%, 8-bit group 64 2%, Q2_0 91%, bf16 0%; n-gram table 320001536 x 160, 4-bit group 32, 32.0 GB mapped; routed experts: 8616 of 24576 experts in memory (12.0 GB, 35%), the rest read from the SSD
+(profiling: prompt timings not meaningful)
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+[kapitsa] NI_QMM_GU: dense gate/up/SwiGLU fused (qmr_gu_k32_w14_m32_n64, m16_n64 / m8_n32 below 64 rows)
+expert store, prompt: 96 turns, 29082 experts looked up: 77.9% in memory, 2.0% read ahead and waited for, 20.1% read at the turn; 22198 read ahead (20561 routed), 41.18 GB read; GPU stalled 25.919 ms a turn (25.860 waiting for reads)
+---- GPU profile per step (0 steps, inf ms/step total, isolated dispatches) ----
+  qmr_k32_w14_m32_n128              inf ms/step   35.4%     inf calls/step  26149.30 us/call
+  qrm_gu_q20_m32_n64_slot           inf ms/step   16.9%     inf calls/step  40627.78 us/call
+  qrf_f6g64_m32_n128                inf ms/step   15.0%     inf calls/step  7215.80 us/call
+  qrm_dn_q20_m32_n128_slot          inf ms/step    9.4%     inf calls/step  22430.15 us/call
+  attn_prefill11m                   inf ms/step    4.4%     inf calls/step  20939.95 us/call
+  gdn_step_parr4_l16                inf ms/step    2.7%     inf calls/step  4260.58 us/call
+  qmm_b8_m32_n32                    inf ms/step    2.3%     inf calls/step  2805.94 us/call
+  hc_pre_h                          inf ms/step    2.3%     inf calls/step  1366.78 us/call
+  qmr_gu_k32_w14_m32_n64            inf ms/step    2.1%     inf calls/step  4990.30 us/call
+  moe_combine                       inf ms/step    1.2%     inf calls/step  1486.94 us/call
+  hc_mix_h                          inf ms/step    1.2%     inf calls/step   726.00 us/call
+  moe_topk_rows                     inf ms/step    1.1%     inf calls/step  1330.31 us/call
+  qmms_moe_gu_q20_slot              inf ms/step    0.9%     inf calls/step  2149.58 us/call
+  qmr8_k32_w14_m32_n128             inf ms/step    0.7%     inf calls/step  5759.31 us/call
+  gdn_prep_par                      inf ms/step    0.6%     inf calls/step  1028.73 us/call
+  qmms_moe_dn_q20_slot              inf ms/step    0.6%     inf calls/step  1517.58 us/call
+  qmms_b4_t5                        inf ms/step    0.6%     inf calls/step   591.83 us/call
+  gdn_gnorm_sg                      inf ms/step    0.4%     inf calls/step   614.14 us/call
+  qmr_k64_w14_m16_n64               inf ms/step    0.4%     inf calls/step   600.28 us/call
+  qsa_score                         inf ms/step    0.3%     inf calls/step  1480.22 us/call
+  qmmsf_f6g64_t5                    inf ms/step    0.2%     inf calls/step   229.59 us/call
+  qsa_select_mask                   inf ms/step    0.2%     inf calls/step  1051.68 us/call
+  attn_prep                         inf ms/step    0.2%     inf calls/step   847.09 us/call
+  hc_act_h                          inf ms/step    0.1%     inf calls/step    72.55 us/call
+  qmmsf_f6g64_t2                    inf ms/step    0.1%     inf calls/step   143.46 us/call
+  rows_to_half                      inf ms/step    0.1%     inf calls/step   550.11 us/call
+  moe_bucket3                       inf ms/step    0.1%     inf calls/step   109.36 us/call
+  qmms_gu_b4_t2                     inf ms/step    0.1%     inf calls/step   121.84 us/call
+  qmms_b8_t2                        inf ms/step    0.0%     inf calls/step    76.88 us/call
+  embed_f8g64                       inf ms/step    0.0%     inf calls/step  1835.06 us/call
+  hc_inject                         inf ms/step    0.0%     inf calls/step   895.67 us/call
+  ple_gate_rows                     inf ms/step    0.0%     inf calls/step  1576.40 us/call
+  ple_conv_rows                     inf ms/step    0.0%     inf calls/step  1525.04 us/call
+  qsa_prep                          inf ms/step    0.0%     inf calls/step   102.51 us/call
+  hc_expand                         inf ms/step    0.0%     inf calls/step   890.29 us/call
+  qmv2_b4_g64_r4                    inf ms/step    0.0%     inf calls/step  1429.17 us/call
+  qmms_b8_t5                        inf ms/step    0.0%     inf calls/step   883.17 us/call
+  qsa_block                         inf ms/step    0.0%     inf calls/step    27.28 us/call
+  ple_ring_rows                     inf ms/step    0.0%     inf calls/step    48.06 us/call
+  hc_down_sk3_n2_b6                 inf ms/step    0.0%     inf calls/step    38.79 us/call
+  hc_up_mix3_c2_b6                  inf ms/step    0.0%     inf calls/step    31.50 us/call
+  topk_stage1                       inf ms/step    0.0%     inf calls/step     6.96 us/call
+  sample_stage2                     inf ms/step    0.0%     inf calls/step     4.88 us/call
+prompt 4132 tok in 12085 ms (341.9 tok/s); decode 0 tok in 0 ms (0.0 tok/s)
+expert store, decode: 0 turns, 0 experts looked up: 0.0% in memory, 0.0% read ahead and waited for, 0.0% read at the turn; 0 read ahead (0 routed), 0.00 GB read; GPU stalled 0.000 ms a turn (0.000 waiting for reads)
+ids: 760

@@ -1,0 +1,15 @@
+[kapitsa] DFlash2: reduced draft head, 98304 of 248320 ids (id order = BPE merge order), 113 MB
+[kapitsa] KFlash: tree drafting on the DFlash2 lattice (budget cache on)
+[kapitsa] DFlash2 drafter /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit/dflash2: 6 layers, hidden 2048, 4-bit projections, 0.62 GB resident (process footprint +0.59 GB), loaded in 2141 ms
+[kapitsa] DFlash2: prewarmed 105 pipelines in 2 ms
+[kapitsa] DFlash2: 0.624 GB allocated at load (planned 0.624 GB); 0.604 GB more for 4 slots' rings and 0.115 GB at the first prefill
+[kapitsa] memory: 22.89 GB allocated (model, buffers, 4 slots' state), budget 38.6 GB (recommended working set 40.2 GB): KV room 15.70 GB = 696907 tokens (22 KB per token), one conversation up to 32768 of 32768 tokens
+[kapitsa] engine ready: x, context 32768, 4 slots, KFlash speculative decoding (DFlash2 lattice, tree verify), images on
+== python3 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/batch/concurrency.py streams --base BASE --n 1 --tokens 512 --temperature 0
+{"n": 1, "serial": false, "temperature": 0.0, "tokens": [512], "per_stream_tps": [55.64], "ttft": [0.135], "total_tokens": 512, "span_s": 9.328, "total_tps": 54.89, "decode_window_tps": 55.64, "errors": []}
+== python3 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/batch/concurrency.py streams --base BASE --n 2 --tokens 512 --temperature 0
+{"n": 2, "serial": false, "temperature": 0.0, "tokens": [512, 512], "per_stream_tps": [16.09, 16.58], "ttft": [0.502, 0.195], "total_tokens": 1024, "span_s": 32.272, "total_tps": 31.73, "decode_window_tps": 31.88, "errors": []}
+== python3 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/batch/concurrency.py streams --base BASE --n 3 --tokens 512 --temperature 0
+{"n": 3, "serial": false, "temperature": 0.0, "tokens": [512, 512, 512], "per_stream_tps": [6.57, 6.69, 6.48], "ttft": [1.04, 0.173, 0.528], "total_tokens": 1536, "span_s": 79.671, "total_tps": 19.28, "decode_window_tps": 19.35, "errors": []}
+== python3 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/splash-1-4-0-analysis-3bbeaf/bench/batch/concurrency.py streams --base BASE --n 4 --tokens 512 --temperature 0
+{"n": 4, "serial": false, "temperature": 0.0, "tokens": [512, 512, 512, 512], "per_stream_tps": [5.0, 5.05, 5.03, 5.44], "ttft": [0.53, 1.296, 1.946, 2.539], "total_tokens": 2048, "span_s": 103.607, "total_tps": 19.77, "decode_window_tps": 19.85, "errors": []}

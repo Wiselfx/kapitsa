@@ -1,0 +1,132 @@
+{
+ "alone": [
+  {
+   "content": "```python\nfrom typing import List, Tuple\n\ndef merge_intervals(intervals: List[Tuple[int, int]]) -> List[Tuple[int, int]]:\n    \"\"\"\n    Merge overlapping intervals.\n\n    Given a list of intervals where each interval is represented as a tuple\n    (start, end), this function merges all overlapping intervals into a\n    single list of non-overlapping intervals, sorted by start time.\n\n    The algorithm works by:\n    1. Sorting the intervals by their start time.\n    2. Iterating through the sorted intervals and merging any interval\n       that overlaps with the current merged interval.\n    3. Appending the merged interval to the result list.\n\n    Parameters\n    ----------\n    intervals : List[Tuple[int, int]]\n        A list of intervals, where each interval is a tuple (start, end).\n        The list is not assumed to be sorted.\n\n    Returns\n    -------\n    List[Tuple[int, int]]\n        A list of merged, non-overlapping intervals, sorted by start time.\n\n    Examples\n    --------\n    >>> merge_intervals([(1, 3), (2, 6), (8, 10), (15, 18)])\n    [(1, 6), (8, 10), (15, 18)]\n\n    >>> merge_intervals([(1, 4), (4, 5)])\n    [(1, 5)]\n\n    >>> merge_intervals([(1, 2), (3, 4)])\n    [(1, 2), (3, 4)]\n    \"\"\"\n    if not intervals:\n        return []\n\n    # Sort by start time\n    intervals.sort(key=lambda x: x[0])\n\n    merged = [intervals[0]]\n\n    for current in intervals[1:]:\n        last_end = merged[-1][1]\n        current_start, current_end = current\n\n        if current_start <= last_end:\n            # Overlapping or adjacent intervals\n            merged[-1] = (merged[-1][0], max(last_end, current_end))\n        else:\n            merged.append(current)\n\n    return merged\n```",
+   "calls": [],
+   "finish": "stop",
+   "tokens": 468
+  },
+  {
+   "content": "```python\ndef merge_intervals(intervals):\n    \"\"\"\n    Merge overlapping intervals.\n\n    Given a list of intervals where each interval is represented as a tuple/list\n    of two integers [start, end], this function merges all overlapping or\n    adjacent intervals and returns a list of the merged intervals sorted by start time.\n\n    An interval [a, b] overlaps with [c, d] if a <= d and c <= b. Adjacent intervals\n    like [a, b] and [b, c] are also merged into [a, c].\n\n    Parameters\n    ----------\n    intervals : List[Tuple[int, int]] or List[List[int]]\n        A list of intervals, where each interval is a pair of integers [start, end].\n        The list should be non-empty for meaningful results, though an empty list\n        is handled gracefully.\n\n    Returns\n    -------\n    List[Tuple[int, int]]\n        A list of merged intervals, sorted by the start value of each interval.\n        Each interval is returned as a tuple.\n\n    Raises\n    ------\n    TypeError\n        If the input is not a list or if any interval is not a list/tuple of two integers.\n\n    Examples\n    --------\n    >>> merge_intervals([[1, 3], [2, 6], [8, 10], [15, 18]])\n    [(1, 6), (8, 10), (15, 18)]\n\n    >>> merge_intervals([[1, 4], [4, 5]])\n    [(1, 5)]\n\n    >>> merge_intervals([])\n    []\n    \"\"\"\n    if not isinstance(intervals, list):\n        raise TypeError(\"intervals must be a list\")\n    if not intervals:\n        return []\n\n    # Validate and normalize each interval\n    for i, interval in enumerate(intervals):\n        if not isinstance(interval, (list, tuple)) or len(interval) != 2:\n            raise TypeError(f\"Interval at index {i} must be a list/tuple of two integers, got {interval}\")\n        if not all(isinstance(x, int) for x in interval):\n            raise TypeError(f\"Interval at index {i} must contain integers, got {interval}\")\n\n    # Sort by start time\n    intervals = sorted(intervals, key=lambda x: x[0])",
+   "calls": [],
+   "finish": "length",
+   "tokens": 512
+  }
+ ],
+ "rounds": [
+  [
+   {
+    "content": "Here is a profile of a fictional person from ancient Rome, designed to feel authentic to the era while giving them a distinct personality.\n\n### **Name:** Gaius Valerius Severus\n**Age:** 34\n**Occupation:** *Eques* (Knight) / Property Manager\n**Residence:** The Subura district of Rome, near the Forum Boarium\n\n---\n\n### **Physical Appearance**\n*   **Complexion:** Tanned from years of working in the sun, but with a flush on his cheeks from the heat of the Roman summer.\n*   **Hair:** Dark, thick, and cropped short in the traditional *tonsure* (balding the head), though he keeps a small, neatly trimmed beard that he grooms with great care.\n*   **Attire:** He wears a simple woolen tunic (*tunica*) dyed a deep blue, layered over a linen undergarment. Over this, he wears a short, sleeveless leather jerkin (*subligillum*) to protect against the sun, and sandals with leather straps (*calcei*) rather than heavy boots, as he walks the cobblestones of the city.\n*   **Distinguishing Feature:** A small, silver ring on his left hand, a gift from his late wife, which he wears even when he is not at home.\n\n### **Personality & Character**\nGaius is the archetype of the **modest Roman**: practical, family-oriented, and deeply concerned with *mos maiorum* (the customs of the ancestors).\n\n*   **Pragmatic:** He is not a soldier by trade, nor a senator by birth. He is a man of the earth. He manages a small estate of olive groves and vineyards outside the city walls. He believes that a life well-lived is measured by the harvest",
+    "calls": [],
+    "finish": "length",
+    "tokens": 384,
+    "constrained": true,
+    "valid": null,
+    "wall": 5.582478046417236
+   },
+   {
+    "content": "Here is a profile of a fictional person from Seoul, South Korea, designed to reflect the city's unique blend of tradition, modernity, and fast-paced culture.\n\n### **Profile: Min-ji \"Ji-ah\" Kim**\n\n*   **Age:** 26\n*   **Occupation:** Junior Graphic Designer at a mid-sized advertising agency in Gangnam.\n*   **Hometown:** Seoul (Born and raised in the **Seocho District**, known for its upscale shopping and nightlife).\n*   **Current Residence:** A small, shared apartment in **Dongdaemun**, a historic area famous for its fashion district and bustling street life.\n\n---\n\n### **Daily Life & Personality**\n\n**The Morning Routine:**\nJi-ah's day starts at 6:30 AM. She wakes up to the sound of the city waking up. Her routine is a mix of efficiency and self-care:\n*   She makes *jjajangmyeon* (black bean noodles) for breakfast, a staple of Seoul street food, often buying the ingredients from a local *jokdang* (grocery store) near her building.\n*   She takes the subway to work, navigating the crowded **Gangnam Line**. She uses her phone to listen to K-Pop playlists or Korean podcasts while commuting.\n*   At work, she balances her role as a creative designer with the pressure of meeting tight deadlines. She often takes short breaks at the office cafeteria to grab *bingsu* (shaved ice) or *tteokbokki* (spicy rice cakes) from vending machines or nearby convenience stores.\n\n**Evening Vibes:**\nAfter work, Ji-ah heads to **Myeongdong** or **Hongdae** depending on her mood.\n*   If she wants to relax, she",
+    "calls": [],
+    "finish": "length",
+    "tokens": 384,
+    "constrained": true,
+    "valid": null,
+    "wall": 5.395732879638672
+   },
+   {
+    "content": "A rhythmic drum on sheets of gray,\nWhere thunder rolls and shadows play.\nThe water finds the gutter's edge,\nAnd dances in a silver ledge.\n\nA steady beat, a liquid song,\nThat washes away the morning's throng.\nUntil the sun breaks through the mist,\nAnd turns the roof to golden dust.",
+    "calls": [],
+    "finish": "stop",
+    "tokens": 73,
+    "constrained": false,
+    "valid": null,
+    "wall": 1.5580708980560303
+   },
+   {
+    "content": "TCP Slow Start is the initial phase of the congestion control algorithm used to establish a reliable data connection between a sender and a receiver. Its primary goal is to gradually increase the amount of data sent over the network to avoid overwhelming the network infrastructure, which could lead to packet loss and congestion. When a connection begins, the sender starts with a small **Congestion Window (cwnd)**, typically set to one Maximum Segment Size (MSS). As long as the sender receives acknowledgments (ACKs) for every packet sent, it assumes the network is not congested and doubles the cwnd in each round-trip time (RTT). This exponential growth allows the sender to probe the network's capacity quickly, provided the path is wide enough.\n\nThe process continues until the sender reaches a predefined threshold known as the **Slow Start Threshold (ssthresh)**. Once the cwnd grows to equal or exceed this threshold, the sender transitions out of Slow Start and enters the **Congestion Avoidance** phase. In this phase, the growth rate of the cwnd slows down, typically increasing by one MSS per RTT (linear growth) rather than doubling. This adjustment ensures that the network load increases more gradually, preventing the sudden spike in traffic that could trigger congestion. If packet loss occurs during either phase, the sender interprets it as a sign of network congestion, resets the cwnd to a low value (often 1 MSS), and halves the ssthresh, forcing the connection to restart the Slow Start phase to safely re-enter the network.",
+    "calls": [],
+    "finish": "stop",
+    "tokens": 311,
+    "constrained": false,
+    "valid": null,
+    "wall": 4.26038384437561
+   }
+  ],
+  [
+   {
+    "content": "Here is a fictional character set in the vibrant, chaotic, and grand city of Rome during the height of the Empire.\n\n### **Character Profile: Gaius Valerius Vettius**\n\n**Role:** *Census Officer / Tax Collector* (A small but powerful bureaucratic role)\n**Age:** 34\n**Status:** *Equestrian (Member of the Knightly Class)*\n\n---\n\n### **Physical Appearance**\nGaius is a man carved from the same marble as the Colosseum, but worn by the heat of the sun and the dust of the streets.\n*   **Face:** His face is a map of weathering. He has a straight, strong nose that has been slightly flattened by years of shouting orders to unruly mobs. His complexion is a deep, sun-bleached bronze, dusted with a fine layer of soot that he never seems to brush off.\n*   **Build:** Slightly stocky and wiry; he has the posture of a man who spends his life standing in the scorching heat. He carries a slight stoop, not from weakness, but from the weight of his *cursus honorum* in progress.\n*   **Attire:** Even in summer, he wears a fine, linen *tunic* dyed a muted purple (a color reserved for the wealthy), paired with heavy bronze sandals that click loudly on the *pavement* (flagstone) streets. Around his neck hangs a *pendent* of lapis lazuli, a talisman he believes wards off bad luck.\n\n### **Personality & Demeanor**\nGaius is the epitome of **Pragmatic Cynicism**. He believes that the chaotic emotions of the common people are merely a distraction from the inevitable laws of the state.\n*   **To the",
+    "calls": [],
+    "finish": "length",
+    "tokens": 384,
+    "constrained": true,
+    "valid": null,
+    "wall": 5.335006952285767
+   },
+   {
+    "content": "Here is a profile of a fictional person from Seoul, South Korea, designed to reflect the city's dynamic blend of modernity, tradition, and rapid technological advancement.\n\n### **Character Profile: Min-ji \"Ji-woo\" Kim**\n\n*   **Age:** 26\n*   **Occupation:** UI/UX Designer at a leading tech startup in Gangnam.\n*   **Residence:** An apartment in **Seongdong-gu**, known for its trendy cafes and historic architecture.\n*   **Languages:** Korean (native), English (fluent), and a bit of Japanese (due to travel).\n\n---\n\n### **Daily Life & Background**\n\nJi-woo grew up in **Hwasun-dong**, a neighborhood in Seoul famous for its vibrant street art, vintage clothing stores, and the nearby Hongik University. While her parents are traditional, she embraced the \"Hallyu\" (Korean Wave) culture early on, spending her teenage years attending K-pop concerts and learning Kung Fu at a local studio.\n\nHer career is a stark contrast to her childhood. She works in a high-rise building in **Gangnam**, where the skyline is dominated by skyscrapers like the Lotte World Tower and the Seoul Sky Station. Her work involves designing interfaces for AI-driven health apps, a field that has become increasingly popular in Seoul as the city pushes toward a \"Smart City\" status.\n\n### **Personality & Interests**\n\n*   **The Hybrid Soul:** Ji-woo often struggles with balancing her two worlds. In the morning, she wakes up to the sounds of the subway system (Korido) and eats *Bibimbap* with her classmates at a bustling station cafe. By evening, she retreats to her apartment in Seongdong to relax, perhaps reading a novel or playing *Olymp",
+    "calls": [],
+    "finish": "length",
+    "tokens": 384,
+    "constrained": true,
+    "valid": null,
+    "wall": 5.397125720977783
+   },
+   {
+    "content": "A rhythmic drum on sheets of gray,\nWhere thunder rolls and shadows play.\nThe water finds the gutter's edge,\nAnd dances in a silver ledge.\n\nA steady beat, a liquid song,\nThat washes away the morning's throng.\nUntil the sun breaks through the mist,\nAnd turns the roof to golden dust.",
+    "calls": [],
+    "finish": "stop",
+    "tokens": 73,
+    "constrained": false,
+    "valid": null,
+    "wall": 1.4342138767242432
+   },
+   {
+    "content": "TCP Slow Start is the initial phase of the congestion control algorithm used to establish a reliable data connection between a sender and a receiver. Its primary goal is to gradually increase the amount of data sent over the network to avoid overwhelming the network infrastructure, which could lead to packet loss and congestion. When a connection begins, the sender starts with a small **Congestion Window (cwnd)**, typically set to one Maximum Segment Size (MSS). As long as the sender receives acknowledgments (ACKs) for every packet sent, it assumes the network is not congested and doubles the cwnd in each round-trip time (RTT). This exponential growth allows the sender to probe the network's capacity quickly, provided the path is wide enough.\n\nThe process continues until the sender reaches a predefined threshold known as the **Slow Start Threshold (ssthresh)**. Once the cwnd grows to equal or exceed this threshold, the sender transitions out of Slow Start and enters the **Congestion Avoidance** phase. In this phase, the growth rate of the cwnd slows down, typically increasing by one MSS per RTT (linear growth) rather than doubling. This adjustment ensures that the network load increases more gradually, preventing the sudden spike in traffic that could trigger congestion. If packet loss occurs during either phase, the sender interprets it as a sign of network congestion, resets the cwnd to a low value (often 1 MSS), and halves the ssthresh, forcing the connection to restart the Slow Start phase to safely re-enter the network.",
+    "calls": [],
+    "finish": "stop",
+    "tokens": 311,
+    "constrained": false,
+    "valid": null,
+    "wall": 4.08290696144104
+   }
+  ],
+  [
+   {
+    "content": "A rhythmic drum on sheets of gray,\nWhere thunder rolls and shadows play.\nThe water finds the gutter's edge,\nAnd dances in a silver ledge.\n\nA steady beat, a liquid song,\nThat washes away the morning's throng.\nUntil the sun breaks through the mist,\nAnd turns the roof to golden dust.",
+    "calls": [],
+    "finish": "stop",
+    "tokens": 73,
+    "constrained": false,
+    "valid": null,
+    "wall": 1.4974632263183594
+   },
+   {
+    "content": "TCP Slow Start is the initial phase of the congestion control algorithm used to establish a reliable data connection between a sender and a receiver. Its primary goal is to gradually increase the amount of data sent over the network to avoid overwhelming the network infrastructure, which could lead to packet loss and congestion. When a connection begins, the sender starts with a small **Congestion Window (cwnd)**, typically set to one Maximum Segment Size (MSS). As long as the sender receives acknowledgments (ACKs) for every packet sent, it assumes the network is not congested and doubles the cwnd in each round-trip time (RTT). This exponential growth allows the sender to probe the network's capacity quickly, provided the path is wide enough.\n\nThe process continues until the sender reaches a predefined threshold known as the **Slow Start Threshold (ssthresh)**. Once the cwnd grows to equal or exceed this threshold, the sender transitions out of Slow Start and enters the **Congestion Avoidance** phase. In this phase, the growth rate of the cwnd slows down, typically increasing by one MSS per RTT (linear growth) rather than doubling. This adjustment ensures that the network load increases more gradually, preventing the sudden spike in traffic that could trigger congestion. If packet loss occurs during either phase, the sender interprets it as a sign of network congestion, resets the cwnd to a low value (often 1 MSS), and halves the ssthresh, forcing the connection to restart the Slow Start phase to safely re-enter the network.",
+    "calls": [],
+    "finish": "stop",
+    "tokens": 311,
+    "constrained": false,
+    "valid": null,
+    "wall": 4.070202112197876
+   },
+   {
+    "content": "Here is a profile of a fictional person from ancient Rome, designed to feel authentic to the era while giving them a distinct personality.\n\n### **Name:** Gaius Valerius Severus\n**Age:** 34\n**Occupation:** *Eques* (Knight) / Property Manager\n**Residence:** The Subura district of Rome, near the Forum Boarium\n\n---\n\n### **Physical Appearance**\n*   **Complexion:** Tanned from years of working in the sun, but with a flush on his cheeks from the heat of the Roman summer.\n*   **Hair:** Dark, thick, and cropped short in the traditional *tonsure* (balding the head), though he keeps a small, neatly trimmed beard that he grooms with great care.\n*   **Attire:** He wears a simple woolen tunic (*tunica*) dyed a deep blue, layered over a linen undergarment. Over this, he wears a short, sleeveless leather jerkin (*subligillum*) to protect against the sun, and sandals with leather straps (*calcei*) rather than heavy boots, as he walks the cobblestones of the city.\n*   **Distinguishing Feature:** A small, silver ring on his left hand, a gift from his late wife, which he wears even when he is not at home.\n\n### **Personality & Character**\nGaius is a man of **pragmatic optimism**. He is not a soldier by trade, nor a senator by birth, but he holds a high status due to his wealth and connections. He is known for being:\n*   **Generous but Shrewd:** He hosts lavish dinners for his neighbors, yet he is always calculating the cost of the olive oil and wine to ensure he doesn't go into debt.\n*   **Superstit",
+    "calls": [],
+    "finish": "length",
+    "tokens": 384,
+    "constrained": false,
+    "valid": null,
+    "wall": 5.130263805389404
+   },
+   {
+    "content": "Here is a profile of a fictional person from Seoul, South Korea, designed to reflect the city's unique blend of tradition, modernity, and fast-paced culture.\n\n### **Profile: Min-ji \"Ji-ah\" Kim**\n\n*   **Age:** 26\n*   **Occupation:** Junior Graphic Designer at a mid-sized advertising agency in Gangnam.\n*   **Hometown:** Seoul (Born and raised in the **Seocho District**, known for its upscale shopping and nightlife).\n*   **Current Residence:** A small, shared apartment in **Dongdaemun**, a historic area famous for its fashion district and bustling street life.\n\n---\n\n### **Daily Life & Personality**\n\n**The Morning Routine:**\nJi-ah's day starts at 6:30 AM. She wakes up to the sound of the city waking up. Her routine is a mix of efficiency and self-care:\n*   She makes *jjajangmyeon* (black bean noodles) for breakfast, a staple of Seoul street food, often buying the ingredients from a local *jokdang* (grocery store) near her building.\n*   She takes the subway to work, navigating the crowded **Gangnam Line**. She uses her phone to listen to K-Pop playlists or Korean podcasts while commuting.\n*   At work, she balances her role as a creative designer with the pressure of meeting tight deadlines. She often takes short breaks at the office cafeteria to grab *bingsu* (shaved ice) or *tteokbokki* (spicy rice cakes) from vending machines or nearby convenience stores.\n\n**Evening Vibes:**\nAfter work, Ji-ah heads to **Myeongdong** or **Hongdae** depending on her mood.\n*   If she wants to relax, she",
+    "calls": [],
+    "finish": "length",
+    "tokens": 384,
+    "constrained": false,
+    "valid": null,
+    "wall": 5.075729846954346
+   }
+  ]
+ ]
+}

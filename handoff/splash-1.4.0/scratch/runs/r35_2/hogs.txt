@@ -1,0 +1,75 @@
+1792558173 3.1 Claude Helper
+1792558175 2.1 Claude Helper
+1792558177 2.4 Claude Helper
+1792558179 1.2 Claude Helper
+1792558181 0.9 Claude Helper
+1792558183 1.7 Claude Helper
+1792558185 3.7 Claude Helper
+1792558187 2.9 Claude Helper
+1792558189 3.0 Claude Helper
+1792558191 2.5 Claude Helper
+1792558193 3.1 Claude Helper
+1792558195 5.4 Google Chrome He
+1792558197 3.9 Claude Helper
+1792558200 3.2 Claude Helper
+1792558202 3.4 Claude Helper
+1792558204 3.8 Google Chrome He
+1792558206 2.2 Claude Helper
+1792558208 3.2 Claude Helper
+1792558210 2.0 Claude Helper
+1792558212 1.9 Claude Helper
+1792558214 1.9 Claude Helper
+1792558216 1.8 Claude Helper
+1792558218 2.9 Claude Helper
+1792558220 7.8 Google Chrome He
+1792558222 4.9 Google Chrome He
+1792558224 6.4 Google Chrome He
+1792558226 2.5 Claude Helper
+1792558228 4.3 Claude Helper
+1792558230 5.7 Google Chrome He
+1792558232 5.3 Claude Helper
+1792558234 4.2 Slack Helper
+1792558237 10.8 Slack Helper
+1792558239 9.1 Slack Helper
+1792558241 7.3 Slack Helper
+1792558243 6.4 Google Chrome He
+1792558245 6.2 Google Chrome He
+1792558247 4.0 Google Chrome He
+1792558249 4.3 Google Chrome He
+1792558251 3.6 Claude Helper
+1792558254 3.8 Claude Helper
+1792558256 1.2 Claude Helper
+1792558258 1.1 Claude Helper
+1792558260 2.9 Claude Helper
+1792558263 2.2 Claude Helper
+1792558265 2.0 Claude Helper
+1792558267 3.3 Claude Helper
+1792558269 2.7 Claude Helper
+1792558271 4.3 Slack Helper
+1792558273 5.4 Slack Helper
+1792558275 4.9 Claude Helper
+1792558277 3.1 Claude Helper
+1792558279 2.0 Claude Helper
+1792558281 1.9 Claude Helper
+1792558283 2.0 Claude Helper
+1792558285 5.2 Claude Helper
+1792558287 3.8 Claude Helper
+1792558289 2.8 Claude Helper
+1792558291 3.3 Claude Helper
+1792558293 1.7 Claude Helper
+1792558295 2.2 Claude Helper
+1792558298 4.4 Claude Helper
+1792558300 7.0 Google Chrome He
+1792558302 3.4 Claude Helper
+1792558304 5.2 Google Chrome He
+1792558306 10.5 Google Chrome He
+1792558308 5.0 Google Chrome He
+1792558310 6.8 Google Chrome He
+1792558312 3.5 Claude Helper
+1792558314 1.8 Claude Helper
+1792558316 11.9 Slack Helper
+1792558318 7.2 Slack Helper
+1792558320 2.7 Claude Helper
+1792558322 4.0 Slack Helper
+1792558324 3.4 Claude Helper
+1792558326 3.6 Slack Helper

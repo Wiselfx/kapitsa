@@ -1,0 +1,26 @@
+Structured output 3/3: response_format, text.format, output_format, tool_choice required / named / any / tool and strict tools in the three APIs (4B: 54 of 54 replies schema-valid, greedy and sampled; forced tool calls valid against their tools' schemas)
+
+Chat Completions: response_format json_object, and json_schema with its strict; tool_choice required or a named
+function; parallel_tool_calls; "strict": true functions. Responses: text.format (json_object, json_schema), tool_choice
+required, a function or custom tool, allowed_tools; strict functions (one that leaves strict out is not strict, where
+OpenAI defaults it to true: coding agents send their tools without it and stay unconstrained). Messages: tool_choice any
+and tool with disable_parallel_tool_use, strict tools, output_format / output_config.format. A malformed or unsupported
+format or choice is a 400 naming the field; a non-strict tool whose schema the subset cannot hold keeps a free call
+body under tool_choice required rather than failing the request.
+
+docs/usage.md: the fields, what the subset holds and what it does not, layout bounds, speed. AGENTS.md, CONTRIBUTING.md
+and CI: build grammar_test and structured_check, run tests/test_structured.py --cli.
+
+tests/test_structured.py --cli BUILD: grammar_test and every API's request handling through tools/structured_check (48
+checks). tests/test_structured.py URL: against a server, schemas x prompts, greedy and sampled, json_object, reasoning on,
+Responses and Messages, tool_choice required / named / any / tool, strict tools, a 400, requests at once.
+
+Runs (MacBook Pro M4 Pro, macOS 27.0.1, under the GPU lock): tests/test_structured.py against the 4B with KFlash, 54 of
+54 replies schema-valid (6 schemas, greedy and two seeds) and every other check passes; quick runs: MTP (--dflash none)
+24 of 24 valid, all checks pass (its reasoning-on reply spends max_tokens reasoning: reported, not counted); DFlash
+chains (NI_DFLASH_TREE=0) and Dory 4B (masked plain steps) 24 of 24 valid each (a build differing only in line
+wrapping and a log line; the chains' reasoning-on reply also ran to max_tokens). With NI_BATCH=1, two constrained and
+two free requests at once, 3 rounds (greedy, then sampled twice): every constrained reply valid, decoded in batched
+cycles.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

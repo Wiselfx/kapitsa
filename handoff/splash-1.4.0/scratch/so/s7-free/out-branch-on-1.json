@@ -1,0 +1,72 @@
+[
+ {
+  "kind": "warm",
+  "label": "warm",
+  "content": "OK.",
+  "tool_calls": null,
+  "finish": "stop",
+  "tokens": 3,
+  "prompt_tokens": 2889,
+  "wall": 1.7871308326721191
+ },
+ {
+  "kind": "decode",
+  "label": "greedy 0",
+  "content": "```python\nimport re\nfrom typing import Optional, Tuple\n\ndef parse_iso8601(date_str: str) -> Optional[Tuple[int, int, int, int, int, int, int, int, int]]:\n    \"\"\"\n    Parse an ISO 8601 date string into a tuple of 9 integers representing\n    (year, month, day, hour, minute, second, microsecond, weekday, year_day_of_year).\n    \n    This implementation does NOT use the datetime module. It manually parses\n    the string components and computes the weekday and year_day_of_year.\n    \n    Supported formats:\n        - YYYY-MM-DD (e.g., 2023-10-05)\n        - YYYY-MM-DDTHH:MM:SS (e.g., 2023-10-05T14:30:00)\n        - YYYY-MM-DDTHH:MM:SS.ffffff (e.g., 2023-10-05T14:30:00.123456)\n        - YYYY-MM-DDTHH:MM:SSZ (with optional 'Z' for UTC)\n    \n    Returns:\n        A tuple of 9 integers if the string is valid, or None if parsing fails.\n    \n    Raises:\n        ValueError: If the input string is not a valid ISO 8601 format.\n    \n    Examples:\n        >>> parse_iso8601(\"2023-10-05\")\n        (2023, 10, 5, 0, 0, 0, 0, 2, 277)\n        >>> parse_iso8601(\"2023-10-05T14:30:00.123456Z\")\n        (2023, 10, 5, 14, 30, 0, 123456, 2, 277)\n    \"\"\"\n    # Regex pattern for ISO 8601 date/time\n    pattern = r'^(\\d{4})-(\\d{2})-(\\d{2})[T ](\\d{2}):(\\d{2}):(\\d{2})(?:\\.(\\d",
+  "tool_calls": null,
+  "finish": "length",
+  "tokens": 512,
+  "prompt_tokens": 37,
+  "wall": 1.8570849895477295
+ },
+ {
+  "kind": "decode",
+  "label": "greedy 1",
+  "content": "### Understanding Hash Map Collisions\n\nA **Hash Map** (or Hash Table) stores key-value pairs by computing a hash code from the key to determine an index in an underlying array. However, since the number of possible keys is often infinite or very large, and the array size is finite, multiple keys can map to the same index. This is called a **collision**.\n\nThere are two primary strategies to handle collisions:\n1.  **Chaining**: Each array slot contains a linked list (or another data structure) of all elements that hash to that index.\n2.  **Open Addressing**: If a collision occurs, the algorithm searches for the next available slot within the array itself, following a specific probing sequence.\n\nThe request specifically asks for **Open Addressing**.\n\n#### Common Open Addressing Techniques\n\n1.  **Linear Probing**: The simplest method. If slot `i` is occupied, check `i+1`, then `i+2`, etc., wrapping around to `0` if the end is reached.\n    *   *Pros*: Simple to implement.\n    *   *Cons*: Prone to **primary clustering** (long chains of occupied slots), which degrades performance.\n2.  **Quadratic Probing**: Uses the formula `(i + j\u00b2) % size`.\n    *   *Pros*: Avoids primary clustering.\n    *   *Cons*: Can still get stuck in a cycle if the table isn't full enough.\n3.  **Double Hashing**: Uses a second hash function to determine the step size.\n    *   *Pros*: Generally better distribution.\n    *   *Cons*: More complex implementation.\n\nFor this example, we will implement **Linear Probing** due to its simplicity and common usage in educational contexts.\n\n---\n\n### C Implementation: Hash Map with Linear Probing\n\nHere is a complete, self-contained C program demonstrating a hash map using open addressing with linear probing.\n\n#### Key Features of the Code:\n*   **Fixed Size Array**: Uses a static array of structs.\n*   **Sentinel Value**: Uses a special `NULL` pointer to mark empty slots.\n*   **Load Factor Check**: Prevents the table from becoming too full (which causes performance degradation).\n*   **Deletion**: Implements \"tombstoning\" (marking a slot as deleted but not empty) to maintain the probing chain integrity.\n\n```c\n#include <stdio.h",
+  "tool_calls": null,
+  "finish": "length",
+  "tokens": 512,
+  "prompt_tokens": 30,
+  "wall": 2.524786949157715
+ },
+ {
+  "kind": "decode",
+  "label": "greedy 2",
+  "content": "Here is a robust bash script designed to back up a directory, timestamp the archive, and automatically manage the retention of the last 7 backups.\n\n### Script Logic Overview\n1.  **Input Validation**: Checks if the source directory exists.\n2.  **Timestamping**: Generates a unique timestamp using `date +%Y%m%d_%H%M%S` to ensure filenames are distinct.\n3.  **Archiving**: Creates a compressed tarball (`tar -czf`) of the source directory.\n4.  **Rotation Logic**:\n    *   Lists all existing backup files in the destination directory.\n    *   Sorts them by modification time (newest first).\n    *   Deletes the oldest file if there are more than 7 backups.\n5.  **Logging**: Appends a log entry to a file for auditing purposes.\n\n### The Bash Script (`backup.sh`)\n\n```bash\n#!/bin/bash\n\n# Configuration\nSOURCE_DIR=\"${1:-./source_directory}\" # Default to ./source_directory if no argument provided\nBACKUP_DIR=\"${2:-./backups}\"         # Default to ./backups if no argument provided\nRETENTION_COUNT=7                    # Keep the last 7 backups\nLOG_FILE=\"${BACKUP_DIR}/backup_log.txt\"\n\n# Colors for output (optional, works in most terminals)\nRED='\\033[0;31m'\nGREEN='\\033[0;32m'\nNC='\\033[0m' # No Color\n\n# Function to print colored messages\nlog_info() {\n    echo -e \"${GREEN}[INFO]${NC} $1\"\n}\n\nlog_error() {\n    echo -e \"${RED}[ERROR]${NC} $1\"\n}\n\n# Check if source directory exists\nif [ ! -d \"$SOURCE_DIR\" ]; then\n    log_error \"Source directory '$SOURCE_DIR' does not exist.\"\n    exit 1\nfi\n\n# Create backup directory if it doesn't exist\nmkdir -p \"$BACKUP_DIR\"\n\n# Generate timestamp\nTIMESTAMP=$(date +%Y%m%d_%H%M%S)\nBACKUP_FILE=\"${BACKUP_DIR}/backup_${TIMESTAMP}.tar.gz\"\n\n# Create the backup\nlog_info \"Creating backup of '$SOURCE_DIR'...\"\nif tar -czf \"$BACKUP_FILE\" -C / \"$SOURCE_DIR\"; then\n    log_info \"Backup created successfully: $BACKUP_FILE",
+  "tool_calls": null,
+  "finish": "length",
+  "tokens": 512,
+  "prompt_tokens": 35,
+  "wall": 2.105288028717041
+ },
+ {
+  "kind": "decode",
+  "label": "sampled",
+  "content": "```python\nimport re\nfrom typing import Optional\n\n\"\"\"\nISO 8601 Date Parser\n\nThis module provides utilities to parse ISO 8601 formatted date strings\nwithout relying on the `datetime` module. It includes parsing logic,\nvalidation, and basic unit conversion.\n\nSupported formats:\n    YYYY-MM-DD\n    YYYY-MM-DDTHH:MM:SS\n    YYYY-MM-DDTHH:MM:SS.SSS (milliseconds)\n    YYYY-MM-DDTHH:MM:SS.SSSSSS (microseconds)\n    YYYY-MM-DDTHH:MM:SS\u00b1HH:MM (with timezone offset)\n    YYYY-MM-DDTHH:MM:SS\u00b1HHMM (alternative timezone offset)\n\nReturns:\n    A dictionary containing the parsed components.\n\nExample:\n    >>> parse_iso8601(\"2023-10-27T14:30:00\")\n    {'year': 2023, 'month': 10, 'day': 27, 'hour': 14, 'minute': 30, 'second': 0, 'millisecond': 0, 'microsecond': 0, 'timezone_offset': None}\n\"\"\"\n\n\ndef parse_iso8601(date_str: str) -> dict:\n    \"\"\"\n    Parse an ISO 8601 formatted date string into a dictionary of components.\n\n    This function handles the following formats:\n    - Basic date: YYYY-MM-DD\n    - Date and time: YYYY-MM-DDTHH:MM:SS\n    - Date, time, and milliseconds: YYYY-MM-DDTHH:MM:SS.SSS\n    - Date, time, and microseconds: YYYY-MM-DDTHH:MM:SS.SSSSSS\n    - With timezone offset: YYYY-MM-DDTHH:MM:SS\u00b1HH:MM or \u00b1HHMM\n\n    Args:\n        date_str (str): The ISO 8601 formatted date string.\n\n    Returns:\n        dict: A dictionary containing the parsed date components.\n\n    Raises:\n        ValueError: If the input string does not match the expected ISO 8601 format.\n\n    Examples:\n        >>> parse_iso8601(\"2023-10-27T14:30:00\")\n        {'year': 202",
+  "tool_calls": null,
+  "finish": "length",
+  "tokens": 512,
+  "prompt_tokens": 37,
+  "wall": 2.0471770763397217
+ },
+ {
+  "kind": "prefill",
+  "label": "4K",
+  "content": "The first file in the context, `modeling_granite_speech.py",
+  "tool_calls": null,
+  "finish": "length",
+  "tokens": 16,
+  "prompt_tokens": 4103,
+  "wall": 2.2345261573791504
+ },
+ {
+  "kind": "prefill",
+  "label": "16K",
+  "content": "The first file, `modeling_granite_speech.py`, defines the",
+  "tool_calls": null,
+  "finish": "length",
+  "tokens": 16,
+  "prompt_tokens": 16258,
+  "wall": 10.507957935333252
+ }
+]

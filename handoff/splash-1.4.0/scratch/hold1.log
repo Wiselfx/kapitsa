@@ -1,0 +1,367 @@
+==== hold 1 start 09:04:29
+---- state 09:04:29: before
+   5.5%  pid 93029 Claude Helper
+Pages free:                                  1412212.
+Pages active:                                 577742.
+Pages inactive:                               598646.
+Pages wired down:                             230931.
+Pages stored in compressor:                   543764.
+Pages occupied by compressor:                 281505.
+total = 2048.00M  used = 603.81M  free = 1444.19M  (encrypted)
+System-wide memory free percentage: 83%
+ 9:04  up 5 days,  1:27, 1 user, load averages: 2.80 3.46 3.89
+==== watch none 8 GB
+allocated 30 x 256 MB = 8.05 GB in 303 ms (device allocated 8.05 GB)
+   0.00 s  sys_wired   3.58 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  start
+   0.00 s  sys_wired   3.58 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.26 s  sys_wired   3.58 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.51 s  sys_wired   3.58 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.77 s  sys_wired   3.58 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.02 s  sys_wired   3.75 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.27 s  sys_wired   3.79 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.53 s  sys_wired   3.84 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.78 s  sys_wired   3.84 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.04 s  sys_wired   3.84 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.29 s  sys_wired   3.84 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.55 s  sys_wired   3.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.80 s  sys_wired   3.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.05 s  sys_wired   3.84 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.31 s  sys_wired   3.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.56 s  sys_wired   3.67 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.82 s  sys_wired   3.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.07 s  sys_wired   3.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.33 s  sys_wired   3.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.58 s  sys_wired   3.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.84 s  sys_wired   3.98 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.09 s  sys_wired   3.93 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.34 s  sys_wired   4.28 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.60 s  sys_wired   4.21 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.85 s  sys_wired   4.21 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.10 s  sys_wired   4.29 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.36 s  sys_wired   4.22 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.61 s  sys_wired   4.22 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.87 s  sys_wired   4.22 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.12 s  sys_wired   4.11 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.38 s  sys_wired   4.10 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.63 s  sys_wired   4.10 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.88 s  sys_wired   4.10 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.13 s  sys_wired   3.96 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.39 s  sys_wired   3.96 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.64 s  sys_wired   4.11 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.89 s  sys_wired   4.12 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   9.14 s  sys_wired   4.12 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  end
+==== watch request 8 GB
+allocated 30 x 256 MB = 8.05 GB in 299 ms (device allocated 8.05 GB)
+   0.00 s  sys_wired   4.10 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  start
+   0.00 s  sys_wired   4.10 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.26 s  sys_wired   3.92 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.51 s  sys_wired   4.21 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.76 s  sys_wired   4.23 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.02 s  sys_wired  12.35 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  requestResidency (87 ms)
+   1.36 s  sys_wired  12.35 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.61 s  sys_wired  12.20 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.87 s  sys_wired  12.28 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.12 s  sys_wired  12.19 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.38 s  sys_wired  12.19 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.63 s  sys_wired  12.19 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.88 s  sys_wired  12.34 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.14 s  sys_wired  12.53 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.39 s  sys_wired  12.55 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.65 s  sys_wired  12.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.90 s  sys_wired  12.69 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.15 s  sys_wired  12.69 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.41 s  sys_wired  13.08 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.66 s  sys_wired  13.22 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.91 s  sys_wired  12.78 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.17 s  sys_wired  12.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.42 s  sys_wired  12.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.67 s  sys_wired  12.56 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.93 s  sys_wired  12.59 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.18 s  sys_wired  12.86 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.44 s  sys_wired  12.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.69 s  sys_wired  12.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.94 s  sys_wired  12.88 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.20 s  sys_wired  12.88 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.45 s  sys_wired  12.88 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.71 s  sys_wired  12.88 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.96 s  sys_wired  12.46 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.22 s  sys_wired  12.34 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.47 s  sys_wired  12.24 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.73 s  sys_wired  12.24 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.98 s  sys_wired  12.24 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   9.24 s  sys_wired  12.23 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  end
+==== watch beat 8 GB
+allocated 30 x 256 MB = 8.05 GB in 304 ms (device allocated 8.05 GB)
+   0.00 s  sys_wired   4.17 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  start
+   0.00 s  sys_wired   4.17 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.26 s  sys_wired   4.20 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.51 s  sys_wired   4.05 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.76 s  sys_wired   4.02 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.02 s  sys_wired  12.06 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  requestResidency (110 ms)
+   1.38 s  sys_wired  12.06 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.64 s  sys_wired  11.90 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.89 s  sys_wired  11.88 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.14 s  sys_wired  11.88 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.40 s  sys_wired  11.88 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.65 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.91 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.16 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.41 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.67 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.92 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.18 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.43 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.68 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.94 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.19 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.45 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.70 s  sys_wired  11.72 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.95 s  sys_wired  11.72 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.20 s  sys_wired  11.72 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.45 s  sys_wired  11.72 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.71 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.96 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.22 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.47 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.72 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.98 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.23 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.49 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.74 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   9.00 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   9.25 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  end
+==== watch cb 8 GB
+allocated 30 x 256 MB = 8.05 GB in 280 ms (device allocated 8.05 GB)
+   0.00 s  sys_wired   3.63 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  start
+   0.00 s  sys_wired   3.63 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.25 s  sys_wired   3.63 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.51 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.76 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.01 s  sys_wired  11.81 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  cb binding all: 98 ms, commit->start 98.701833 ms
+   1.36 s  sys_wired  11.81 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.62 s  sys_wired  11.81 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.87 s  sys_wired  11.81 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.13 s  sys_wired  11.79 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.38 s  sys_wired   6.33 GB  footprint   8.07  compressed  0.00  gfx   8.06  gfx_comp  0.00  gfx_nofp  0.06  ri_wired  0.00  
+   2.63 s  sys_wired   3.99 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.07  ri_wired  0.00  
+   2.89 s  sys_wired   3.99 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.07  ri_wired  0.00  
+   3.14 s  sys_wired   3.99 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.07  ri_wired  0.00  
+   3.40 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   3.65 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   3.90 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   4.16 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   4.41 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   4.67 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   4.92 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   5.18 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   5.43 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.04  ri_wired  0.00  
+   5.69 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.04  ri_wired  0.00  
+   5.94 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.04  ri_wired  0.00  
+   6.19 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.04  ri_wired  0.00  
+   6.44 s  sys_wired   3.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   6.70 s  sys_wired   3.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   6.95 s  sys_wired   3.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   7.20 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   7.46 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   7.71 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   7.97 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   8.22 s  sys_wired   3.67 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.02  ri_wired  0.00  
+   8.48 s  sys_wired   3.65 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.02  ri_wired  0.00  
+   8.73 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.02  ri_wired  0.00  
+   8.99 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.02  ri_wired  0.00  
+   9.24 s  sys_wired   3.65 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.02  ri_wired  0.00  end
+==== watch queue 8 GB
+allocated 30 x 256 MB = 8.05 GB in 292 ms (device allocated 8.05 GB)
+   0.00 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  start
+   0.00 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.26 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.51 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.76 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.01 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  requestResidency (99 ms)
+   1.36 s  sys_wired  11.72 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.62 s  sys_wired  11.72 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.88 s  sys_wired  11.72 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.13 s  sys_wired  11.81 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  tiny cb on the queue: 8 ms, commit->start 8.228333 ms
+   2.39 s  sys_wired  11.81 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.65 s  sys_wired  11.79 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.90 s  sys_wired  11.79 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.16 s  sys_wired  11.79 GB  footprint   8.15  compressed  0.00  gfx   8.14  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.41 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.08  ri_wired  0.00  
+   3.66 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.07  ri_wired  0.00  
+   3.91 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.07  ri_wired  0.00  
+   4.17 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.07  ri_wired  0.00  
+   4.42 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.07  ri_wired  0.00  
+   4.67 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   4.93 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   5.18 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   5.44 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   5.69 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   5.95 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   6.20 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   6.45 s  sys_wired   3.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.05  ri_wired  0.00  
+   6.71 s  sys_wired   3.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.04  ri_wired  0.00  
+   6.96 s  sys_wired   3.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.04  ri_wired  0.00  
+   7.21 s  sys_wired   3.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.04  ri_wired  0.00  
+   7.46 s  sys_wired   3.66 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.04  ri_wired  0.00  
+   7.72 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   7.98 s  sys_wired   3.63 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   8.23 s  sys_wired   3.63 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   8.48 s  sys_wired   3.63 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   8.74 s  sys_wired   3.63 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   8.99 s  sys_wired   3.63 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  
+   9.24 s  sys_wired   3.63 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.03  ri_wired  0.00  end
+==== watch endres 8 GB
+allocated 30 x 256 MB = 8.05 GB in 279 ms (device allocated 8.05 GB)
+   0.00 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  start
+   0.00 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.26 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.51 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   0.76 s  sys_wired   3.64 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.02 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  requestResidency (100 ms)
+   1.37 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.63 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   1.88 s  sys_wired  11.74 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.14 s  sys_wired  11.71 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.39 s  sys_wired  11.72 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.64 s  sys_wired  11.72 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   2.90 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.15 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.41 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.66 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   3.91 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.16 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  endResidency
+   4.42 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.67 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   4.93 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.18 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.43 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.68 s  sys_wired  11.70 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   5.94 s  sys_wired  11.94 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.19 s  sys_wired  11.91 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.44 s  sys_wired  11.90 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.70 s  sys_wired  11.90 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   6.95 s  sys_wired  11.83 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.20 s  sys_wired  11.89 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.46 s  sys_wired  11.86 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.71 s  sys_wired  11.88 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   7.97 s  sys_wired  11.87 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.22 s  sys_wired  11.87 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.48 s  sys_wired  11.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.73 s  sys_wired  11.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   8.98 s  sys_wired  11.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  
+   9.24 s  sys_wired  11.85 GB  footprint   8.07  compressed  0.00  gfx   8.05  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  end
+---- state 09:05:30: before stall (no pressure)
+   5.2%  pid 53159 Google Chrome He
+Pages free:                                  1317760.
+Pages active:                                 650870.
+Pages inactive:                               658347.
+Pages wired down:                             221308.
+Pages stored in compressor:                   441411.
+Pages occupied by compressor:                 238652.
+total = 2048.00M  used = 603.81M  free = 1444.19M  (encrypted)
+System-wide memory free percentage: 85%
+ 9:05  up 5 days,  1:28, 1 user, load averages: 2.76 3.31 3.80
+==== stall 20 GB, no pressure
+allocated 75 x 256 MB = 20.13 GB in 739 ms (device allocated 20.13 GB)
+ready; first phase in 0 s
+   0.19 s  sys_wired  23.81 GB  footprint  20.15  compressed  0.00  gfx  20.13  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  phase queue
+phase queue: 20.13 GB in 75 buffers, 475611 command buffers in 15.0 s (inflight 2, touch 4), 0 heartbeat requests (longest 0.00 ms)
+  start - commit (475611): p50 0.042 p90 0.054 p99 0.119 p99.9 0.293 max 1.9 ms; > 1/5/20/50/100 ms: 3/0/0/0/0
+  start - ready  (475611): p50 0.001 p90 0.046 p99 0.058 p99.9 0.140 max 1.9 ms; > 1/5/20/50/100 ms: 1/0/0/0/0
+  15.20 s  sys_wired  23.89 GB  footprint  20.27  compressed  0.00  gfx  20.22  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  phase wired
+phase wired: 20.13 GB in 75 buffers, 482601 command buffers in 15.0 s (inflight 2, touch 4), 30 heartbeat requests (longest 0.01 ms)
+  start - commit (482601): p50 0.043 p90 0.054 p99 0.097 p99.9 0.185 max 0.8 ms; > 1/5/20/50/100 ms: 0/0/0/0/0
+  start - ready  (482601): p50 0.001 p90 0.046 p99 0.052 p99.9 0.131 max 0.4 ms; > 1/5/20/50/100 ms: 0/0/0/0/0
+  30.21 s  sys_wired  23.89 GB  footprint  20.28  compressed  0.00  gfx  20.22  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  phase queue
+phase queue: 20.13 GB in 75 buffers, 477512 command buffers in 15.0 s (inflight 2, touch 4), 0 heartbeat requests (longest 0.00 ms)
+  start - commit (477512): p50 0.044 p90 0.054 p99 0.094 p99.9 0.178 max 1.9 ms; > 1/5/20/50/100 ms: 2/0/0/0/0
+  start - ready  (477512): p50 0.001 p90 0.047 p99 0.052 p99.9 0.132 max 1.9 ms; > 1/5/20/50/100 ms: 1/0/0/0/0
+  45.22 s  sys_wired  23.89 GB  footprint  20.28  compressed  0.00  gfx  20.22  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  phase wired
+phase wired: 20.13 GB in 75 buffers, 449281 command buffers in 15.0 s (inflight 2, touch 4), 30 heartbeat requests (longest 0.00 ms)
+  start - commit (449281): p50 0.046 p90 0.056 p99 0.101 p99.9 0.177 max 1.9 ms; > 1/5/20/50/100 ms: 1/0/0/0/0
+  start - ready  (449281): p50 0.001 p90 0.047 p99 0.051 p99.9 0.132 max 1.9 ms; > 1/5/20/50/100 ms: 1/0/0/0/0
+  60.23 s  sys_wired  23.89 GB  footprint  20.28  compressed  0.00  gfx  20.22  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  phase none
+phase none: 20.13 GB in 75 buffers, 450873 command buffers in 15.0 s (inflight 2, touch 4), 0 heartbeat requests (longest 0.00 ms)
+  start - commit (450873): p50 0.046 p90 0.056 p99 0.101 p99.9 0.178 max 0.5 ms; > 1/5/20/50/100 ms: 0/0/0/0/0
+  start - ready  (450873): p50 0.001 p90 0.047 p99 0.051 p99.9 0.134 max 0.5 ms; > 1/5/20/50/100 ms: 0/0/0/0/0
+  75.24 s  sys_wired  23.89 GB  footprint  20.28  compressed  0.00  gfx  20.22  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  stall end
+---- state 09:06:48: before stall with memhog
+   5.8%  pid 53159 Google Chrome He
+Pages free:                                  1301393.
+Pages active:                                 667118.
+Pages inactive:                               662749.
+Pages wired down:                             222834.
+Pages stored in compressor:                   428992.
+Pages occupied by compressor:                 230408.
+total = 2048.00M  used = 603.81M  free = 1444.19M  (encrypted)
+System-wide memory free percentage: 85%
+ 9:06  up 5 days,  1:29, 1 user, load averages: 3.69 3.51 3.83
+==== stall 20 GB, memhog started during the 25 s delay
+allocated 75 x 256 MB = 20.13 GB in 722 ms (device allocated 20.13 GB)
+ready; first phase in 25 s
+  25.19 s  sys_wired   6.61 GB  footprint  20.15  compressed  0.00  gfx  20.13  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  phase queue
+phase queue: 20.13 GB in 75 buffers, 473106 command buffers in 15.0 s (inflight 2, touch 4), 0 heartbeat requests (longest 0.00 ms)
+  start - commit (473106): p50 0.039 p90 0.054 p99 0.112 p99.9 0.268 max 271.0 ms; > 1/5/20/50/100 ms: 6/3/3/3/3
+  start - ready  (473106): p50 0.001 p90 0.045 p99 0.053 p99.9 0.138 max 271.0 ms; > 1/5/20/50/100 ms: 2/1/1/1/1
+  40.20 s  sys_wired  23.90 GB  footprint  20.27  compressed  0.00  gfx  20.22  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  phase wired
+phase wired: 20.13 GB in 75 buffers, 418478 command buffers in 15.0 s (inflight 2, touch 4), 30 heartbeat requests (longest 0.07 ms)
+  start - commit (418478): p50 0.044 p90 0.057 p99 0.131 p99.9 0.418 max 678.9 ms; > 1/5/20/50/100 ms: 83/12/5/2/2
+  start - ready  (418478): p50 0.001 p90 0.047 p99 0.067 p99.9 0.145 max 678.9 ms; > 1/5/20/50/100 ms: 20/6/2/1/1
+  55.21 s  sys_wired  24.77 GB  footprint  20.28  compressed  0.02  gfx  20.22  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  phase queue
+phase queue: 20.13 GB in 75 buffers, 447839 command buffers in 15.0 s (inflight 2, touch 4), 0 heartbeat requests (longest 0.00 ms)
+  start - commit (447839): p50 0.044 p90 0.054 p99 0.145 p99.9 0.296 max 1.1 ms; > 1/5/20/50/100 ms: 3/0/0/0/0
+  start - ready  (447839): p50 0.001 p90 0.047 p99 0.062 p99.9 0.142 max 0.4 ms; > 1/5/20/50/100 ms: 0/0/0/0/0
+  70.22 s  sys_wired  24.25 GB  footprint  20.28  compressed  0.02  gfx  20.22  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  phase wired
+phase wired: 20.13 GB in 75 buffers, 451627 command buffers in 15.0 s (inflight 2, touch 4), 30 heartbeat requests (longest 0.00 ms)
+  start - commit (451627): p50 0.044 p90 0.055 p99 0.113 p99.9 0.179 max 0.7 ms; > 1/5/20/50/100 ms: 0/0/0/0/0
+  start - ready  (451627): p50 0.001 p90 0.048 p99 0.069 p99.9 0.141 max 0.4 ms; > 1/5/20/50/100 ms: 0/0/0/0/0
+  85.23 s  sys_wired  24.23 GB  footprint  20.28  compressed  0.01  gfx  20.22  gfx_comp  0.00  gfx_nofp  0.00  ri_wired  0.00  stall end
+memhog start: host_ms 392574927.0, target 12.0 GB, hold 120 s, swap 604 MB (guard +256), pressure 1, free 1.75 GB, compressor 3.77 GB, wired 19.50 GB
+memhog step: 0.50 GB held, swap 604 MB (+0), pressure 1, free 1.21 GB, compressor 3.77 GB
+memhog step: 1.00 GB held, swap 604 MB (+0), pressure 1, free 0.70 GB, compressor 3.77 GB
+memhog step: 1.50 GB held, swap 604 MB (+0), pressure 1, free 0.10 GB, compressor 3.77 GB
+memhog step: 2.00 GB held, swap 604 MB (+0), pressure 1, free 0.10 GB, compressor 3.77 GB
+memhog step: 2.50 GB held, swap 604 MB (+0), pressure 1, free 0.10 GB, compressor 3.77 GB
+memhog step: 3.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 3.50 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 4.00 GB held, swap 604 MB (+0), pressure 1, free 0.06 GB, compressor 3.77 GB
+memhog step: 4.50 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 5.00 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 5.50 GB held, swap 604 MB (+0), pressure 1, free 0.10 GB, compressor 3.77 GB
+memhog step: 6.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 6.50 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 7.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 7.50 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 8.00 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 8.50 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 9.00 GB held, swap 604 MB (+0), pressure 1, free 0.08 GB, compressor 3.77 GB
+memhog step: 9.50 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 10.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 10.50 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 11.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 11.50 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog step: 12.00 GB held, swap 604 MB (+0), pressure 1, free 0.09 GB, compressor 3.77 GB
+memhog holding 12.00 GB (target reached), host_ms 392577662.8
+memhog hold: 8 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.18 GB, compressor 3.77 GB, wired 6.61 GB
+memhog hold: 13 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.16 GB, compressor 3.77 GB, wired 6.61 GB
+memhog hold: 18 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.13 GB, compressor 3.76 GB, wired 6.62 GB
+memhog hold: 23 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.37 GB, compressor 3.79 GB, wired 6.61 GB
+memhog hold: 28 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.26 GB, compressor 3.79 GB, wired 23.90 GB
+memhog hold: 34 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.13 GB, compressor 3.73 GB, wired 23.90 GB
+memhog hold: 39 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.17 GB, compressor 3.73 GB, wired 23.90 GB
+memhog hold: 44 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.21 GB, compressor 3.73 GB, wired 23.89 GB
+memhog hold: 49 s, 12.00 GB, swap 604 MB (+0), pressure 1, free 0.03 GB, compressor 3.82 GB, wired 24.81 GB
+memhog: swap grew 763 MB (guard 256): freeing everything
+memhog done after 52 s (freed at host_ms 392626321.9): swap 1367 MB (+763), pressure 1, free 13.14 GB, compressor 3.32 GB
+---- state 09:08:16: after
+  11.4%  pid 93029 Claude Helper
+Pages free:                                  1960001.
+Pages active:                                 343789.
+Pages inactive:                               347000.
+Pages wired down:                             260210.
+Pages stored in compressor:                   317225.
+Pages occupied by compressor:                 186820.
+total = 2048.00M  used = 1366.62M  free = 681.38M  (encrypted)
+System-wide memory free percentage: 85%
+ 9:08  up 5 days,  1:31, 1 user, load averages: 3.14 3.33 3.72
+==== hold 1 end 09:08:18

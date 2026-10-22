@@ -1,0 +1,107 @@
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+[kapitsa] read 2.37 GB of weights in 147 ms (16.1 GB/s)
+[kapitsa] converted 24 parameter tensors to bf16 at load (0 values not exactly representable)
+[kapitsa] read 0.24 GB of weights in 13 ms (18.2 GB/s)
+[kapitsa] MTP head loaded in 210 ms (dense, trunk hidden post-norm, drafts over ids < 32768 + specials)
+[kapitsa] NI_QMM8=1: 8-bit prefill GEMMs on qmr8 (all but the MoE router)
+[kapitsa] compiled kernels in 8 ms
+[kapitsa] prewarmed 90 prefill pipelines in 12 ms
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.5-4b-4bit: 32 layers, dense, 2.4 GB mapped in 406 ms; weights 4-bit group 64 100%
+[kapitsa] NI_ANE: compiling the Neural Engine program in the background; prefill uses the GPU alone until it is ready
+[kapitsa] NI_ANE: Neural Engine program ready in the background (program was cached, 0.1 s)
+[kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (239 ms)
+[kapitsa] GPU: Apple M4 Pro, 20 cores
+[kapitsa] memory: 3.38 GB allocated (model, buffers, 2 slots' state), budget 38.6 GB (recommended working set 40.2 GB): KV room 35.22 GB = 955280 tokens (36 KB per token), one conversation up to 16384 of 16384 tokens
+[kapitsa] images: Qwen3.5 ViT (24 blocks, width 1024, 16-pixel patches; images of 65536 to 1200000 pixels), 0.67 GB loaded on the first image
+[kapitsa] engine ready: qwen3.5-4b-4bit, context 16384, 2 slots, MTP speculative decoding depth 4, images on
+[kapitsa] listening on http://127.0.0.1:8474
+Ready: chat at http://127.0.0.1:8474, API at http://127.0.0.1:8474/v1 (model "qwen3.5-4b-4bit"). Ctrl+C stops.
+[kapitsa] grammar: 248044 tokens in a 591554-node trie (48 ms)
+[kapitsa] NI_ANE: Neural Engine FFN split (wavefront): 18/18 units (9216 channels; GPU 0) from the default for this chip, chunks >= 512 rows; row scales 0 ms, program cached 1 ms + load 25 ms (13 functions, MIL 89 KB); 187.6 MB Metal; ready in 0.0 s
+[kapitsa] NI_ANE: startup check 2.11% of the ANE's part from the GPU alone (2 functions, 187 ms)
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 59 masks (batched passes' not counted), 28.3 us each
+[kapitsa] chat: prompt 45 (cached 0) in 70 ms (+77.3 ms template/tokenize; last chunk: encoded by 1.3 ms, GPU start +8.4 ms, GPU 60.5 ms, wake +0.1 ms), 60 tokens in 662 ms (89.1 tok/s), stop
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 59 masks (batched passes' not counted), 33.4 us each
+[kapitsa] chat: prompt 45 (cached 0) in 63 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +2.0 ms, GPU 60.6 ms, wake +0.1 ms), 60 tokens in 687 ms (85.9 tok/s), stop
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 37 masks (batched passes' not counted), 47.5 us each
+[kapitsa] chat: prompt 39 (cached 0) in 56 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.6 ms, GPU 54.7 ms, wake +0.1 ms), 38 tokens in 450 ms (82.2 tok/s), stop
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 44 masks (batched passes' not counted), 46.7 us each
+[kapitsa] chat: prompt 39 (cached 0) in 53 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.7 ms, GPU 51.8 ms, wake +0.1 ms), 45 tokens in 515 ms (85.5 tok/s), stop
+[kapitsa] chat: structured output (JSON, 13 nodes), plain steps: 133 masks (batched passes' not counted), 33.1 us each
+[kapitsa] chat: prompt 32 (cached 0) in 43 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.1 ms, GPU 43.0 ms, wake +0.1 ms), 134 tokens in 1492 ms (89.2 tok/s), stop
+[kapitsa] chat: structured output (JSON, 13 nodes), plain steps: 133 masks (batched passes' not counted), 41.8 us each
+[kapitsa] chat: prompt 32 (cached 0) in 44 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.0 ms, GPU 41.5 ms, wake +0.1 ms), 134 tokens in 1514 ms (87.8 tok/s), stop
+[kapitsa] chat: structured output (JSON, 13 nodes), plain steps: 108 masks (batched passes' not counted), 31.9 us each
+[kapitsa] chat: prompt 29 (cached 0) in 44 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +2.4 ms, GPU 41.3 ms, wake +0.1 ms), 109 tokens in 1210 ms (89.3 tok/s), stop
+[kapitsa] chat: structured output (JSON, 13 nodes), plain steps: 106 masks (batched passes' not counted), 32.2 us each
+[kapitsa] chat: prompt 29 (cached 0) in 44 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.2 ms, GPU 41.3 ms, wake +0.1 ms), 107 tokens in 1193 ms (88.9 tok/s), stop
+[kapitsa] chat: structured output (JSON, 14 nodes), plain steps: 103 masks (batched passes' not counted), 17.5 us each
+[kapitsa] chat: prompt 41 (cached 0) in 61 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.0 ms, GPU 58.9 ms, wake +0.1 ms), 104 tokens in 1145 ms (89.9 tok/s), stop
+[kapitsa] chat: structured output (JSON, 14 nodes), plain steps: 90 masks (batched passes' not counted), 19.5 us each
+[kapitsa] chat: prompt 41 (cached 0) in 61 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.0 ms, GPU 59.0 ms, wake +0.1 ms), 91 tokens in 1000 ms (90.0 tok/s), stop
+[kapitsa] chat: structured output (JSON, 14 nodes), plain steps: 93 masks (batched passes' not counted), 17.5 us each
+[kapitsa] chat: prompt 35 (cached 0) in 52 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.6 ms, GPU 51.3 ms, wake +0.1 ms), 94 tokens in 1029 ms (90.4 tok/s), stop
+[kapitsa] chat: structured output (JSON, 14 nodes), plain steps: 75 masks (batched passes' not counted), 31.7 us each
+[kapitsa] chat: prompt 35 (cached 0) in 53 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.6 ms, GPU 51.8 ms, wake +0.1 ms), 76 tokens in 866 ms (86.6 tok/s), stop
+[kapitsa] chat: structured output (JSON, 16 nodes), plain steps: 424 masks (batched passes' not counted), 20.6 us each
+[kapitsa] chat: prompt 28 (cached 0) in 42 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.6 ms, GPU 41.2 ms, wake +0.1 ms), 425 tokens in 4691 ms (90.4 tok/s), stop
+[kapitsa] chat: structured output (JSON, 16 nodes), plain steps: 470 masks (batched passes' not counted), 25.0 us each
+[kapitsa] chat: prompt 28 (cached 0) in 43 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.2 ms, GPU 41.0 ms, wake +0.1 ms), 471 tokens in 5286 ms (88.9 tok/s), stop
+[kapitsa] chat: structured output (JSON, 16 nodes), plain steps: 578 masks (batched passes' not counted), 40.1 us each
+[kapitsa] chat: prompt 31 (cached 0) in 45 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +2.1 ms, GPU 42.9 ms, wake +0.1 ms), 579 tokens in 6653 ms (86.9 tok/s), stop
+[kapitsa] chat: structured output (JSON, 16 nodes), plain steps: 579 masks (batched passes' not counted), 34.5 us each
+[kapitsa] chat: prompt 31 (cached 0) in 46 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.1 ms, GPU 43.1 ms, wake +0.1 ms), 580 tokens in 6608 ms (87.6 tok/s), stop
+[kapitsa] chat: structured output (JSON, 15 nodes), plain steps: 22 masks (batched passes' not counted), 37.7 us each
+[kapitsa] chat: prompt 31 (cached 0) in 44 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +2.2 ms, GPU 41.7 ms, wake +0.1 ms), 23 tokens in 258 ms (85.1 tok/s), stop
+[kapitsa] chat: structured output (JSON, 15 nodes), plain steps: 22 masks (batched passes' not counted), 32.4 us each
+[kapitsa] chat: prompt 31 (cached 0) in 42 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.5 ms, GPU 41.6 ms, wake +0.1 ms), 23 tokens in 260 ms (84.5 tok/s), stop
+[kapitsa] chat: structured output (JSON, 15 nodes), plain steps: 32 masks (batched passes' not counted), 29.7 us each
+[kapitsa] chat: prompt 30 (cached 0) in 42 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.1 ms, GPU 41.5 ms, wake +0.1 ms), 33 tokens in 370 ms (86.4 tok/s), stop
+[kapitsa] chat: structured output (JSON, 15 nodes), plain steps: 29 masks (batched passes' not counted), 31.6 us each
+[kapitsa] chat: prompt 30 (cached 0) in 43 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.1 ms, GPU 42.5 ms, wake +0.1 ms), 30 tokens in 339 ms (85.5 tok/s), stop
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 196 masks (batched passes' not counted), 39.6 us each
+[kapitsa] chat: prompt 31 (cached 0) in 42 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.1 ms, GPU 41.7 ms, wake +0.2 ms), 197 tokens in 2205 ms (88.9 tok/s), stop
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 242 masks (batched passes' not counted), 41.0 us each
+[kapitsa] chat: prompt 31 (cached 0) in 44 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.3 ms, GPU 41.6 ms, wake +0.1 ms), 243 tokens in 2725 ms (88.8 tok/s), stop
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 320 masks (batched passes' not counted), 41.8 us each
+[kapitsa] chat: prompt 33 (cached 0) in 52 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +1.9 ms, GPU 50.0 ms, wake +0.1 ms), 321 tokens in 3596 ms (89.0 tok/s), stop
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 89 masks (batched passes' not counted), 33.8 us each
+[kapitsa] chat: prompt 33 (cached 0) in 52 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.0 ms, GPU 49.4 ms, wake +0.2 ms), 90 tokens in 1020 ms (87.3 tok/s), stop
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 59 masks (batched passes' not counted), 33.4 us each
+[kapitsa] chat: prompt 35 (cached 0) in 52 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +1.2 ms, GPU 50.5 ms, wake +0.1 ms), 60 tokens in 675 ms (87.4 tok/s), stop
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 59 masks (batched passes' not counted), 29.9 us each
+[kapitsa] chat: prompt 35 (cached 0) in 51 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.5 ms, GPU 50.6 ms, wake +0.1 ms), 60 tokens in 675 ms (87.4 tok/s), stop
+[kapitsa] chat: structured output (JSON, 9 nodes), plain steps: 28 masks (batched passes' not counted), 35.9 us each
+[kapitsa] chat: prompt 21 (cached 0) in 33 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.5 ms, GPU 31.8 ms, wake +0.2 ms), 29 tokens in 326 ms (85.8 tok/s), stop
+[kapitsa] chat: structured output (JSON, 9 nodes), plain steps: 244 masks (batched passes' not counted), 27.4 us each
+[kapitsa] chat: prompt 20 (cached 0) in 32 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.1 ms, GPU 31.7 ms, wake +0.1 ms), 245 tokens in 2776 ms (87.9 tok/s), stop
+[kapitsa] chat: structured output (JSON, 9 nodes), plain steps: 10 masks (batched passes' not counted), 72.9 us each
+[kapitsa] chat: prompt 23 (cached 0) in 37 ms (+0.7 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +4.4 ms, GPU 31.8 ms, wake +0.1 ms), 11 tokens in 124 ms (80.9 tok/s), stop
+[kapitsa] chat: prompt 23 (cached 0) in 33 ms (+5.2 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +1.3 ms, GPU 31.8 ms, wake +0.1 ms), 4096 tokens in 16305 ms (251.1 tok/s), length
+[kapitsa] chat: structured output (JSON, 14 nodes), plain steps: 123 masks (batched passes' not counted), 23.9 us each
+[kapitsa] chat: prompt 31 (cached 0) in 44 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.2 ms, GPU 41.3 ms, wake +0.1 ms), 124 tokens in 1393 ms (88.3 tok/s), stop
+[kapitsa] NI_QMM_GU: dense gate/up/SwiGLU fused (qmr_gu_k32_w14_m32_n64, m16_n64 / m8_n32 below 64 rows)
+[kapitsa] chat: structured output (tool calls (get_weather, run_shell; one call), 13 nodes), plain steps: 26 masks (batched passes' not counted), 1265.2 us each
+[kapitsa] chat: prompt 397 (cached 0) in 453 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +3.0 ms, GPU 449.3 ms, wake +0.1 ms), 27 tokens in 319 ms (81.5 tok/s), tool_calls
+[kapitsa] chat: structured output (tool calls (get_weather; one call), 12 nodes), plain steps: 54 masks (batched passes' not counted), 18.9 us each
+[kapitsa] chat: prompt 397 (cached 0) in 451 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.5 ms, GPU 449.7 ms, wake +0.1 ms), 55 tokens in 644 ms (83.8 tok/s), tool_calls
+[kapitsa] chat: structured output (tool calls (get_weather, run_shell; one call), 13 nodes), plain steps: 39 masks (batched passes' not counted), 52.8 us each
+[kapitsa] chat: prompt 403 (cached 0) in 459 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.7 ms, GPU 458.3 ms, wake +0.1 ms), 40 tokens in 460 ms (84.7 tok/s), tool_calls
+[kapitsa] chat: structured output (tool calls (get_weather), 12 nodes), plain steps: 30 masks (batched passes' not counted), 19.3 us each
+[kapitsa] chat: prompt 337 (cached 0) in 385 ms (+5.7 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +1.5 ms, GPU 383.4 ms, wake +0.1 ms), 133 tokens in 798 ms (165.4 tok/s), tool_calls
+[kapitsa] chat: structured output (tool calls (get_weather), 12 nodes), plain steps: 53 masks (batched passes' not counted), 15.4 us each
+[kapitsa] chat: prompt 336 (cached 0) in 384 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.6 ms, GPU 383.4 ms, wake +0.2 ms), 54 tokens in 622 ms (85.3 tok/s), tool_calls
+[kapitsa] chat: structured output (tool calls (get_weather), 12 nodes), plain steps: 53 masks (batched passes' not counted), 16.7 us each
+[kapitsa] chat: prompt 336 (cached 329) in 16 ms (+0.2 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.1 ms, GPU 15.4 ms, wake +0.1 ms), 54 tokens in 608 ms (87.2 tok/s), tool_calls
+[kapitsa] chat: structured output (tool calls (get_weather), 12 nodes), plain steps: 53 masks (batched passes' not counted), 15.6 us each
+[kapitsa] chat: prompt 338 (cached 0) in 385 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +1.4 ms, GPU 383.6 ms, wake +0.1 ms), 54 tokens in 621 ms (85.3 tok/s), tool_calls
+[kapitsa] chat: structured output (text or tool calls (get_weather), 12 nodes), plain steps: 40 masks (batched passes' not counted), 16.7 us each
+[kapitsa] chat: prompt 351 (cached 0) in 385 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.4 ms, GPU 384.1 ms, wake +0.1 ms), 41 tokens in 475 ms (84.2 tok/s), tool_calls
+[kapitsa] chat: all 2 slots are busy: a request waits for one (1 waiting; --slots sets how many requests run at once)
+[kapitsa] chat: all 2 slots are busy: a request waits for one (2 waiting; --slots sets how many requests run at once)
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 39 masks (batched passes' not counted), 26.3 us each
+[kapitsa] chat: prompt 29 (cached 0) in 43 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +2.0 ms, GPU 41.3 ms, wake +0.1 ms), 40 tokens in 908 ms (43.0 tok/s), stop; slot 1, waited 0 ms for it, turns given to other requests: 0 in the prefill, 10 while decoding; 0 cycles batched with other requests
+[kapitsa] chat: structured output (JSON, 12 nodes), plain steps: 59 masks (batched passes' not counted), 27.1 us each
+[kapitsa] chat: prompt 35 (cached 0) in 52 ms (+0.7 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.6 ms, GPU 50.9 ms, wake +0.1 ms), 60 tokens in 1321 ms (44.7 tok/s), stop; slot 0, waited 0 ms for it, turns given to other requests: 0 in the prefill, 15 while decoding; 0 cycles batched with other requests
+[kapitsa] chat: prompt 20 (cached 0) in 32 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.1 ms, GPU 31.7 ms, wake +0.1 ms), 117 tokens in 1641 ms (70.7 tok/s), stop; slot 1, waited 940 ms for it, turns given to other requests: 0 in the prefill, 25 while decoding; 0 cycles batched with other requests
+[kapitsa] chat: prompt 20 (cached 0) in 32 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.1 ms, GPU start +0.6 ms, GPU 31.6 ms, wake +0.1 ms), 109 tokens in 1566 ms (69.0 tok/s), stop; slot 0, waited 1283 ms for it, turns given to other requests: 0 in the prefill, 21 while decoding; 0 cycles batched with other requests

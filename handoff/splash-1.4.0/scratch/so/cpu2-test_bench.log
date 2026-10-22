@@ -1,0 +1,25 @@
+PASS bench_test self
+PASS the C++ protocol runs against the scripted server
+PASS both send the same 14 requests
+PASS every request is the same, key for key, in order (bodies, paths, session ids)
+PASS the 4K prompt is the harness's, from the frozen corpus
+PASS t_decode (decode) records alike
+PASS t_decode (decode): the same rate method over the same events
+PASS t_decode (greedy) records alike
+PASS t_decode (greedy): the same rate method over the same events
+PASS t_prefill records alike
+PASS the follow-ups alike
+PASS the follow-ups' checks alike
+PASS t_tools (tools_off): the streamed call alike
+PASS t_tools (tools_off): the whole reply alike
+PASS t_tools (tools_off): the round trip passes in both
+PASS t_tools (tools_on): the streamed call alike
+PASS t_tools (tools_on): the whole reply alike
+PASS t_tools (tools_on): the round trip passes in both
+PASS the scripted tool checks pass
+PASS the warm-up alike
+Traceback (most recent call last):
+  File "/Users/flaminis/Desktop/kapitsa/.claude/worktrees/agent-a85679af4f1631100/tests/test_bench.py", line 209, in <module>
+    for d in (res.get("decode") or []) + (res.get("decode_greedy") or []):
+              ^^^^^^^
+AttributeError: 'list' object has no attribute 'get'

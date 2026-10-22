@@ -1,0 +1,15 @@
+[kapitsa] read 4.99 GB of weights in 657 ms (7.6 GB/s)
+[kapitsa] MTP head loaded in 0 ms (drafts over ids < 32768 + specials)
+[kapitsa] expert store: 4308 slots of 1.39 MB (6.00 GB, 17.5% of the 24576 experts) in one buffer (up to 30.15 GB each); 4308 read at load in 1597 ms (3.96 GB/s)
+[kapitsa] NI_QMM8=1: 8-bit prefill GEMMs on qmr8 (all but the MoE router)
+[kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+[kapitsa] compiled kernels in 8 ms
+[kapitsa] compiled the weight-format kernels in 9 ms
+[kapitsa] prewarmed 133 prefill pipelines in 21 ms
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20: Qwen3.8-Flash-Next, 48 layers (12 attention), 5.0 GB of weights in 2458 ms; 4-bit group 64 4%, 6-bit group 64 3%, 8-bit group 64 2%, Q2_0 91%, bf16 0%; n-gram table 320001536 x 160, 4-bit group 32, 32.0 GB mapped; routed experts: 4308 of 24576 experts in memory (6.0 GB, 18%), the rest read from the SSD
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+[kapitsa] NI_QMM_GU: dense gate/up/SwiGLU fused (qmr_gu_k32_w14_m32_n64, m16_n64 / m8_n32 below 64 rows)
+expert store, prompt: 144 turns, 48781 experts looked up: 45.7% in memory, 39.6% read ahead and waited for, 14.8% read at the turn; 47750 read ahead (41200 routed), 80.74 GB read; GPU stalled 73.646 ms a turn (73.594 waiting for reads)
+prompt 4132 tok in 22268 ms (185.6 tok/s); decode 0 tok in 0 ms (nan tok/s)
+expert store, decode: 0 turns, 0 experts looked up: 0.0% in memory, 0.0% read ahead and waited for, 0.0% read at the turn; 0 read ahead (0 routed), 0.00 GB read; GPU stalled 0.000 ms a turn (0.000 waiting for reads)
+ids: 760

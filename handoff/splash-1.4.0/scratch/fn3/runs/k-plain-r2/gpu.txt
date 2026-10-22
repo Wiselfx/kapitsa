@@ -1,0 +1,104 @@
+1792584654 5.7 Claude Helper
+1792584656 5.7 Claude Helper
+1792584658 7.5 Claude Helper
+1792584660 3.6 Claude Helper
+1792584662 8.2 Claude Helper
+1792584664 5.8 Claude Helper
+1792584666 3.3 Claude Helper
+1792584668 6.6 Claude Helper
+1792584670 3.8 Claude Helper
+1792584672 3.6 Claude Helper
+1792584674 3.5 Claude Helper
+1792584676 1.9 Claude Helper
+1792584678 1.6 Claude Helper
+1792584680 3.7 Claude Helper
+1792584682 6.8 Claude Helper
+1792584685 5.5 Claude Helper
+1792584687 3.6 Claude Helper
+1792584689 4.5 Claude Helper
+1792584691 5.3 Claude Helper
+1792584693 3.6 Claude Helper
+1792584695 5.6 Claude Helper
+1792584697 12.0 Google Chrome He
+1792584699 10.0 Claude Helper
+1792584701 7.2 Claude Helper
+1792584703 7.5 Claude Helper
+1792584705 4.5 Claude Helper
+1792584707 6.5 Google Chrome He
+1792584709 4.1 Google Chrome He
+1792584711 1.3 Claude Helper
+1792584713 1.4 Claude Helper
+1792584715 2.3 Claude Helper
+1792584717 2.9 Claude Helper
+1792584719 7.0 Claude Helper
+1792584721 2.3 Claude Helper
+1792584723 2.0 Claude Helper
+1792584726 3.1 Claude Helper
+1792584728 6.8 Claude Helper
+1792584730 6.6 Claude Helper
+1792584732 7.2 Claude Helper
+1792584734 5.7 Claude Helper
+1792584736 2.7 Claude Helper
+1792584738 1.5 Claude Helper
+1792584740 1.4 Claude Helper
+1792584742 2.3 Claude Helper
+1792584744 1.4 Claude Helper
+1792584746 1.6 Claude Helper
+1792584748 3.0 Claude Helper
+1792584750 1.9 Claude Helper
+1792584752 4.6 Claude Helper
+1792584754 2.8 Claude Helper
+1792584756 0.0 -
+1792584758 0.0 -
+1792584760 0.0 -
+1792584762 0.0 -
+1792584764 0.0 -
+1792584767 0.0 -
+1792584769 4.1 Claude Helper
+1792584771 3.6 Claude Helper
+1792584773 3.0 Claude Helper
+1792584775 3.6 Claude Helper
+1792584777 1.2 Claude Helper
+1792584779 2.3 Claude Helper
+1792584781 3.2 Claude Helper
+1792584783 3.8 Claude Helper
+1792584785 1.8 Claude Helper
+1792584787 3.3 Claude Helper
+1792584789 3.2 Claude Helper
+1792584791 4.7 Claude Helper
+1792584793 2.5 Claude Helper
+1792584795 2.5 Claude Helper
+1792584797 8.9 Claude Helper
+1792584799 7.7 Claude Helper
+1792584801 7.1 Google Chrome He
+1792584803 4.4 Claude Helper
+1792584806 4.6 Google Chrome He
+1792584808 2.1 Claude Helper
+1792584810 2.7 Claude Helper
+1792584812 2.4 Claude Helper
+1792584814 1.8 Claude Helper
+1792584816 3.3 Claude Helper
+1792584818 2.5 Claude Helper
+1792584820 2.0 Claude Helper
+1792584822 2.3 Claude Helper
+1792584824 3.1 Claude Helper
+1792584826 2.2 Claude Helper
+1792584828 2.2 Claude Helper
+1792584830 3.6 Claude Helper
+1792584832 4.2 Claude Helper
+1792584834 5.2 Claude Helper
+1792584836 0.0 -
+1792584838 0.0 -
+1792584840 3.4 Claude Helper
+1792584842 4.0 Claude Helper
+1792584844 1.6 Claude Helper
+1792584847 3.1 Claude Helper
+1792584849 4.6 Claude Helper
+1792584851 3.5 Claude Helper
+1792584853 4.3 Claude Helper
+1792584855 3.0 Claude Helper
+1792584857 2.8 Claude Helper
+1792584859 2.9 Claude Helper
+1792584861 3.4 Claude Helper
+1792584863 2.2 Claude Helper
+1792584865 3.9 Claude Helper

@@ -1,0 +1,8 @@
+== api_test: 102 passed, 0 failed
+== test_server --cli: ALL PASSED
+== test_sidecar: ALL PASSED
+== test_bench: FAIL: 1 failed: ['tools/community_check.py accepts both']
+== test_update: ok: 0 failed
+== test_reasoning: all passed
+== test_pr_size: ALL PASSED
+== done

@@ -1,0 +1,8 @@
+== t-plain
+  decode T=0.6: 20.68 tok/s (e2e 20.06; 512 tok, finish=length, d4=0.669)
+  decode T=0.6: 15.84 tok/s (e2e 15.52; 512 tok, finish=length, d4=0.7005)
+  decode T=0.6: 16.69 tok/s (e2e 16.68; 512 tok, finish=length, d4=0.7027)
+  decode median 16.69 (min 15.84, max 20.68) over 3/3 valid
+  decode T=0: median 18.79 (min 18.76, max 18.88) over 3/3 valid
+  memory: phys_footprint_peak 17.44 GB, resident mapped files 0.88 GB, swap used 2928.0 MB
+  -> /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/runs/t-plain/result.json

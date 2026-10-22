@@ -1,0 +1,11 @@
+config.json: 0.00 GB, 0 of 1 pieces already here, 16 connections
+  17:15:08 config.json: 0/1 pieces, 0.00 GB this run, 0.0 MB/s, 71.7 GB free
+config.json: done -> /Users/flaminis/.cache/flash-next-gguf/hub/models--incoai--Qwen3.8-Flash-Next-DFlash2/snapshots/a22a1744e85c17364dcc54a6a420af7135d4c7f6/config.json
+model.safetensors: 1.21 GB, 0 of 18 pieces already here, 16 connections
+  17:15:09 model.safetensors: 0/18 pieces, 0.00 GB this run, 0.0 MB/s, 71.7 GB free
+  17:15:39 model.safetensors: 0/18 pieces, 0.28 GB this run, 9.0 MB/s, 71.4 GB free
+  17:16:09 model.safetensors: 2/18 pieces, 0.66 GB this run, 10.8 MB/s, 71.0 GB free
+  17:16:39 model.safetensors: 15/18 pieces, 1.16 GB this run, 12.6 MB/s, 70.5 GB free
+model.safetensors: SHA-256 ok
+model.safetensors: done -> /Users/flaminis/.cache/flash-next-gguf/hub/models--incoai--Qwen3.8-Flash-Next-DFlash2/snapshots/a22a1744e85c17364dcc54a6a420af7135d4c7f6/model.safetensors
+all done in 98 s, 1.21 GB fetched

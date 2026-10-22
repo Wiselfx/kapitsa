@@ -1,0 +1,55 @@
+KFlash batch budget: batched decode's verify rows chosen every cycle from the members' calibrated drafts and the measured cost (M4 Pro, 3 at once: 35B +16-20%, 27B +15-23%; 2 and 4 at once -1 to +4%; a request alone unchanged)
+
+With 2-4 requests decoding at once on a DFlash2 drafter, Engine::batch_rows gave every member a fixed row count (2 at
+once 4 each, 3 or 4 at once 2 each, the 27B's 3 taking turns). Now KfBatch (src/model/kflash_budget.h) decides each
+cycle, after the members' drafting passes, how many rows the batched verify checks in all (members .. 8) and which member
+gets them:
+- a draft's worth is its calibrated survival: the product over its chain of sigmoid(alpha_d + beta_d logit(c_j)), c_j
+  the largest of the 16 candidates' probabilities under the walk's scores. For a greedy member that is its chain node's
+  q, the tree's own quantity: KfBudget's calibration, fed the batched chains' records too (KfBudget::records). A sampled
+  member (exact speculative sampling) is another event: KfBatch's own calibration. c_j does not move with the draw at j;
+- every member verifies its anchor, then drafts go in decreasing survival over the batch while each pays
+  (survival >= rate x the cost of one more row), so each member's rows are a prefix of its chain and a draft's place
+  depends only on the drafts ranked before it: the sampled members' speculative sampling stays exact;
+- cost: a batched cycle's GPU time by members and rows, measured and cached like KfBudget's (KfCosts, extracted from
+  KfBudget unchanged), read as a robust line in rows, every 64th cycle re-measuring the stalest count (a table measured
+  while the GPU was busy once locked the rule into plain rows).
+The decision runs on the host: the batched verify's per-member dispatches (GDN, attention partials, captures, the
+sampler) take their rows and row offsets when encoded, so GPU-written counts would mean changing ~10 kernels. The verify
+is encoded once the drafting passes are done and its first layer is committed at once (encode_verify_multi's
+split_after): the GPU waits 0.18-0.31 ms per batched cycle for the host. NI_BATCH_KF=0 keeps the table;
+NI_BATCH_KF_FLOOR=1 gives every member a draft (measured once: -2.5 to -3.9% at 4 at once on the 35B; off).
+Bolt's LiLiCorr keeps its table.
+
+Runs: MacBook Pro M4 Pro 20-core GPU, 48 GB, macOS 27.0.1 (26A434); Qwen3.6 35B-A3B 4-bit and Qwen3.8 27B 4-bit with
+DFlash2; main 0553f55 (A) against this commit (B), bench/batch/concurrency.py streams, 512 tokens, --slots 4, every
+round A and B back to back under the GPU lock, orders alternated; tok/s in all, mean (range), 3 runs each:
+- 35B greedy: 2 at once 190.0 (184.8-194.4) -> 192.8 (191.9-193.9); 3 at once 170.8 (166.3-176.4) -> 205.7
+  (204.5-206.8); 4 at once 191.9 (185.2-196.9) -> 199.8 (198.5-201.3). T 0.6: 193.5 (190.6-195.7) -> 194.0
+  (178.1-209.5); 170.6 (167.6-174.8) -> 197.7 (190.0-206.3); 188.6 (184.2-191.6) -> 195.0 (189.2-199.5).
+- 27B greedy: 63.5 (60.3-67.0) -> 65.5 (63.3-68.6); 57.7 (54.5-61.3) -> 66.4 (64.5-69.7); 61.9 (58.9-67.2) -> 64.4
+  (61.7-67.0). T 0.6: 66.7 (63.7-68.5) -> 65.9 (64.1-68.2); 53.1 (50.5-55.4) -> 65.2 (62.7-66.8); 64.6 (61.3-67.6) ->
+  65.2 (61.9-67.0).
+- A request alone: the same tokens (concurrency.py exact alone, 7 requests, both models); 35B decode 148.5 (144.9-150.6)
+  -> 145.7 (145.5-145.8) on the streams prompt, single medians 185.7 -> 184.0, and B's binary with A's KFlash cache
+  against B's 170.0 -> 171.3 (5 prompts x 2): no consistent difference. Prefill untouched (35B TTFT 4k 3.56 / 3.56 s,
+  16k 16.67 / 16.68 s).
+- Together against alone, greedy (match.py): 35B 6 of 13 requests identical (A 8), every first difference at a
+  single-stream margin below 0.5 (median 0.018, max 0.389); 27B 12 of 13 (A 12), one difference at margin 0.0009.
+- Replay before building (ni_run lattice recordings of 6 prompts, greedy): tokens per cycle against the table 35B
+  +3% / +31% / +4.8% at 2 / 3 / 4 members, 27B +4.1% / +33% / +2.5%.
+Foreign GPU load (gpu_hogs monitor) 2-11% mean (the desktop's Claude, Slack and Chrome helpers); one 27B round had
+Chrome at up to 73% during A.
+
+Checked: build; api_test, test_server --cli, test_sidecar, test_bench, test_update, test_community, test_reasoning,
+test_pr_size; dflash_accept_test --cpu (new: KfBatch's rule against brute force, its causality, the cost line, the
+exploration, refresh, cache and calibrations; KfBudget's numbers bit for bit as before the KfCosts extraction);
+batch_check with uneven row layouts and the split pass on the 35B under MTL_SHADER_VALIDATION=1 (argmax equal in 288 of
+288 rows); the server's exact plan together under MTL_SHADER_VALIDATION=1.
+
+Not verified: MTL_DEBUG_LAYER (the prefill's attn_prefill11g asks 40 KB of threadgroup memory, which the layer refuses,
+on main too); Bolt; other Macs; a chi-square test of the batched sampled path (exactness rests on the rule's causality
+test and the existing dfl_accept tests). One B session (exact plan together, 35B) crawled at ~5 s a batched cycle while
+the system's GPU monitor stalled; it did not reproduce in two re-runs (one under shader validation), cause unknown.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

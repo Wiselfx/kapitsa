@@ -1,0 +1,5 @@
+== plan-c4096
+  prefill 4000: 1 tok (ref 4133), TTFT 0.10s -> 10 tok/s, cold cached=None | cached TTFT median NAs over 0 turns (cached []) INVALID ['prompt_tokens 1 outside ±1% of 4133 (truncated or template drift)', 'turn 1 returned no content; not substituting text, cached test skipped']
+  prefill 16000: 1 tok (ref 16286), TTFT 0.10s -> 10 tok/s, cold cached=None | cached TTFT median NAs over 0 turns (cached []) INVALID ['prompt_tokens 1 outside ±1% of 16286 (truncated or template drift)', 'turn 1 returned no content; not substituting text, cached test skipped']
+  INVALID: ['prefill_4000: prompt_tokens 1 outside ±1% of 4133 (truncated or template drift)', 'cached_4000: turn 1 returned no content; not substituting text, cached test skipped', 'prefill_16000: prompt_tokens 1 outside ±1% of 16286 (truncated or template drift)', 'cached_16000: turn 1 returned no content; not substituting text, cached test skipped']
+  -> plan-c4096.json

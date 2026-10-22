@@ -1,0 +1,27 @@
+[  0%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/encoder.cpp.o
+[  0%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/update/update.mm.o
+[  5%] Building CXX object CMakeFiles/naceinfer.dir/src/util/term.cpp.o
+[  5%] Building CXX object CMakeFiles/naceinfer.dir/src/tokenizer/tokenizer.cpp.o
+[  8%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/vision/image.mm.o
+[  8%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/qwen_vit.cpp.o
+[ 11%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/radio_vit.cpp.o
+[ 11%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/vit_common.cpp.o
+[ 14%] Building CXX object CMakeFiles/naceinfer.dir/generated/kernels_embed.cpp.o
+[ 14%] Building CXX object CMakeFiles/naceinfer.dir/generated/nh_kernels_embed.cpp.o
+[ 17%] Building CXX object CMakeFiles/naceinfer.dir/generated/dory_kernels_embed.cpp.o
+[ 17%] Building CXX object CMakeFiles/naceinfer.dir/generated/tensor_kernels_embed.cpp.o
+[ 20%] Building CXX object CMakeFiles/naceinfer.dir/generated/bench_corpus.cpp.o
+[ 20%] Building CXX object CMakeFiles/naceinfer.dir/generated/mac_models.cpp.o
+[ 22%] Linking CXX static library libnaceinfer.a
+[ 85%] Built target naceinfer
+[ 88%] Embedding the chat page
+[ 88%] Building CXX object CMakeFiles/kapitsa.dir/src/server/ui.cpp.o
+[ 88%] Building CXX object CMakeFiles/kapitsa.dir/src/server/main.cpp.o
+[ 94%] Building CXX object CMakeFiles/kapitsa.dir/src/server/beam.cpp.o
+[ 94%] Building CXX object CMakeFiles/kapitsa.dir/src/server/launch.cpp.o
+[ 94%] Building CXX object CMakeFiles/kapitsa.dir/src/server/picker.cpp.o
+[ 97%] Building CXX object CMakeFiles/kapitsa.dir/src/server/bench_cmd.cpp.o
+[ 97%] Building CXX object CMakeFiles/kapitsa.dir/src/server/update_cmd.cpp.o
+[ 97%] Building CXX object CMakeFiles/kapitsa.dir/generated/chat_page.cpp.o
+[100%] Linking CXX executable kapitsa
+[100%] Built target kapitsa

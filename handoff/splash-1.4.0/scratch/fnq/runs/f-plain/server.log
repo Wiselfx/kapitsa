@@ -1,0 +1,31 @@
+[kapitsa] read 4.99 GB of weights in 675 ms (7.4 GB/s)
+[kapitsa] MTP head loaded in 0 ms (drafts over ids < 32768 + specials)
+[kapitsa] expert store: 8616 slots of 1.39 MB (12.00 GB, 35.1% of the 24576 experts) in one buffer (up to 30.15 GB each); 8616 read at load in 3351 ms (3.78 GB/s)
+[kapitsa] NI_QMM8=1: 8-bit prefill GEMMs on qmr8 (all but the MoE router)
+[kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+[kapitsa] compiled kernels in 7 ms
+[kapitsa] compiled the weight-format kernels in 9 ms
+[kapitsa] prewarmed 133 prefill pipelines in 20 ms
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20: Qwen3.8-Flash-Next, 48 layers (12 attention), 5.0 GB of weights in 4364 ms; 4-bit group 64 4%, 6-bit group 64 3%, 8-bit group 64 2%, Q2_0 91%, bf16 0%; n-gram table 320001536 x 160, 4-bit group 32, 32.0 GB mapped; routed experts: 8616 of 24576 experts in memory (12.0 GB, 35%), the rest read from the SSD
+[kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (235 ms)
+[kapitsa] GPU: Apple M4 Pro, 20 cores
+[kapitsa] memory: 18.90 GB allocated (model, buffers, 1 slots' state), budget 23.0 GB (recommended working set 40.2 GB): KV room 4.10 GB = 129616 tokens (31 KB per token), one conversation up to 32768 of 32768 tokens
+[kapitsa] images: Qwen3.5 ViT (27 blocks, width 1152, 16-pixel patches; images of 65536 to 1200000 pixels), 0.90 GB loaded on the first image
+[kapitsa] engine ready: flash-q20, context 32768, 1 slots, plain decoding, images on
+[kapitsa] listening on http://127.0.0.1:8391
+Ready: chat at http://127.0.0.1:8391, API at http://127.0.0.1:8391/v1 (model "flash-q20"). Ctrl+C stops.
+[kapitsa] chat: prompt 15 (cached 0) in 996 ms (+0.6 ms template/tokenize; last chunk: encoded by 3.3 ms, GPU start +11.8 ms, GPU 981.2 ms, wake +0.2 ms), 8 tokens in 617 ms (11.3 tok/s), length
+[kapitsa] expert store: prompt: 2678 experts looked up in 48 turns, 30.6% in memory, 0.0% read ahead and waited for, 69.4% read at the turn, 2.73 GB read (182.1 MB a token); decode: 3840 experts looked up in 384 turns, 88.0% in memory, 4.9% read ahead and waited for, 7.1% read at the turn, 1.21 GB read (151.1 MB a token)
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+[kapitsa] chat: prompt 85 (cached 0) in 8053 ms (+0.8 ms template/tokenize; last chunk: encoded by 2.5 ms, GPU start +0.1 ms, GPU 8050.0 ms, wake +0.2 ms), 512 tokens in 26850 ms (19.0 tok/s), length
+[kapitsa] expert store: prompt: 8285 experts looked up in 48 turns, 30.4% in memory, 67.5% read ahead and waited for, 2.1% read at the turn, 31.17 GB read (366.7 MB a token); decode: 245760 experts looked up in 24576 turns, 92.5% in memory, 3.1% read ahead and waited for, 4.4% read at the turn, 54.09 GB read (105.6 MB a token)
+[kapitsa] chat: prompt 85 (cached 0) in 6089 ms (+0.7 ms template/tokenize; last chunk: encoded by 1.8 ms, GPU start +1.5 ms, GPU 6085.2 ms, wake +0.1 ms), 512 tokens in 31421 ms (16.3 tok/s), length
+[kapitsa] expert store: prompt: 8216 experts looked up in 48 turns, 51.9% in memory, 46.9% read ahead and waited for, 1.2% read at the turn, 23.99 GB read (282.2 MB a token); decode: 245760 experts looked up in 24576 turns, 91.0% in memory, 5.2% read ahead and waited for, 3.8% read at the turn, 81.97 GB read (160.1 MB a token)
+[kapitsa] chat: prompt 85 (cached 0) in 6090 ms (+0.7 ms template/tokenize; last chunk: encoded by 2.0 ms, GPU start +1.6 ms, GPU 6086.5 ms, wake +0.1 ms), 512 tokens in 34615 ms (14.8 tok/s), length
+[kapitsa] expert store: prompt: 8225 experts looked up in 48 turns, 49.8% in memory, 49.1% read ahead and waited for, 1.1% read at the turn, 23.99 GB read (282.3 MB a token); decode: 245760 experts looked up in 24576 turns, 89.5% in memory, 6.5% read ahead and waited for, 4.0% read at the turn, 92.83 GB read (181.3 MB a token)
+[kapitsa] chat: prompt 85 (cached 0) in 6402 ms (+0.7 ms template/tokenize; last chunk: encoded by 1.6 ms, GPU start +1.9 ms, GPU 6398.9 ms, wake +0.1 ms), 512 tokens in 30710 ms (16.6 tok/s), length
+[kapitsa] expert store: prompt: 8211 experts looked up in 48 turns, 57.5% in memory, 41.8% read ahead and waited for, 0.7% read at the turn, 23.95 GB read (281.8 MB a token); decode: 245760 experts looked up in 24576 turns, 91.4% in memory, 5.4% read ahead and waited for, 3.2% read at the turn, 78.25 GB read (152.8 MB a token)
+[kapitsa] chat: prompt 85 (cached 0) in 6035 ms (+0.7 ms template/tokenize; last chunk: encoded by 1.8 ms, GPU start +1.6 ms, GPU 6031.6 ms, wake +0.2 ms), 512 tokens in 32329 ms (15.8 tok/s), length
+[kapitsa] expert store: prompt: 8287 experts looked up in 48 turns, 52.5% in memory, 46.2% read ahead and waited for, 1.3% read at the turn, 23.97 GB read (282.0 MB a token); decode: 245760 experts looked up in 24576 turns, 90.3% in memory, 6.1% read ahead and waited for, 3.6% read at the turn, 86.32 GB read (168.6 MB a token)
+[kapitsa] chat: prompt 85 (cached 0) in 6082 ms (+0.8 ms template/tokenize; last chunk: encoded by 1.8 ms, GPU start +1.5 ms, GPU 6078.4 ms, wake +0.1 ms), 512 tokens in 32955 ms (15.5 tok/s), length
+[kapitsa] expert store: prompt: 8214 experts looked up in 48 turns, 51.7% in memory, 46.9% read ahead and waited for, 1.4% read at the turn, 23.97 GB read (282.0 MB a token); decode: 245760 experts looked up in 24576 turns, 90.1% in memory, 6.1% read ahead and waited for, 3.7% read at the turn, 88.33 GB read (172.5 MB a token)

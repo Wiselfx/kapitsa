@@ -1,0 +1,9 @@
+== plan-mtp
+  decode T=0.6: NA tok/s (e2e NA; 1 tok, finish=stop, d4=None) INVALID ['too few streamed events for a middle-window rate'] flags ['finish_reason=stop (expected length)', 'completion_tokens=1 != 512']
+  decode T=0.6: NA tok/s (e2e NA; 1 tok, finish=stop, d4=None) INVALID ['too few streamed events for a middle-window rate'] flags ['finish_reason=stop (expected length)', 'completion_tokens=1 != 512']
+  decode T=0.6: NA tok/s (e2e NA; 1 tok, finish=stop, d4=None) INVALID ['too few streamed events for a middle-window rate'] flags ['finish_reason=stop (expected length)', 'completion_tokens=1 != 512']
+  decode median None (min None, max None) over 0/3 valid
+  decode T=0: median None (min None, max None) over 0/3 valid INVALID ['too few streamed events for a middle-window rate'] flags ['completion_tokens=1 != 512', 'finish_reason=stop (expected length)']
+  prefill 4000: 1 tok (ref 4133), TTFT 0.10s -> 10 tok/s, cold cached=None | cached TTFT median NAs over 0 turns (cached []) INVALID ['prompt_tokens 1 outside ±1% of 4133 (truncated or template drift)', 'turn 1 returned no content; not substituting text, cached test skipped']
+  INVALID: ['decode: too few streamed events for a middle-window rate', 'decode_greedy: too few streamed events for a middle-window rate', 'prefill_4000: prompt_tokens 1 outside ±1% of 4133 (truncated or template drift)', 'cached_4000: turn 1 returned no content; not substituting text, cached test skipped']
+  -> plan-mtp.json

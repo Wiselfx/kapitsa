@@ -1,0 +1,15 @@
+[kapitsa] read 4.99 GB of weights in 666 ms (7.5 GB/s)
+[kapitsa] MTP head loaded in 0 ms (drafts over ids < 32768 + specials)
+[kapitsa] expert store: 12.0 GB rather than the 29.9 GB the budget leaves (the process's GPU memory within 40% of the RAM: beyond ~45%, every command buffer of a streamed store took seconds longer on a 48 GB Mac)
+[kapitsa] expert store: 8594 slots of 1.39 MB (11.97 GB, 35.0% of the 24576 experts) in one buffer (up to 30.15 GB each); 8594 read at load in 3245 ms (3.89 GB/s)
+[kapitsa] NI_QMM8=1: 8-bit prefill GEMMs on qmr8 (all but the MoE router)
+[kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+[kapitsa] compiled kernels in 8 ms
+[kapitsa] compiled the weight-format kernels in 10 ms
+[kapitsa] prewarmed 133 prefill pipelines in 23 ms
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20: Qwen3.8-Flash-Next, 48 layers (12 attention), 5.0 GB of weights in 4255 ms; 4-bit group 64 4%, 6-bit group 64 3%, 8-bit group 64 2%, Q2_0 91%, bf16 0%; n-gram table 320001536 x 160, 4-bit group 32, 32.0 GB mapped; routed experts: 8594 of 24576 experts in memory (12.0 GB, 35%), the rest read from the SSD
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+expert store, prompt: 48 turns, 8285 experts looked up: 15.8% in memory, 81.1% read ahead and waited for, 3.1% read at the turn; 22143 read ahead (7329 routed), 32.91 GB read; GPU stalled 153.617 ms a turn (153.601 waiting for reads)
+prompt 85 tok in 8105 ms (10.5 tok/s); spec decode D=2: 15 tok in 1513 ms (9.9 tok/s), 8 cycles, 1.88 tok/cycle, accepted/drafted 0.50, 188.754 ms GPU/cycle, 189.104 ms wall/cycle, hist 2 4 2
+expert store, decode: 384 turns, 8389 experts looked up: 76.3% in memory, 11.2% read ahead and waited for, 12.4% read at the turn; 2273 read ahead (1777 routed), 4.87 GB read; GPU stalled 2.376 ms a turn (2.362 waiting for reads)
+ids: 71093 12305 198 12237 198 19504 52 18887 440 75843 1326 46601 321 8487 6027 5468

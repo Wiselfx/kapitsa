@@ -1,0 +1,120 @@
+1792566100 5.3 Google Chrome He
+1792566104 6.2 Google Chrome He
+1792566106 31.7 Google Chrome He
+1792566108 19.4 Google Chrome He
+1792566110 36.7 Google Chrome He
+1792566112 73.4 Google Chrome He
+1792566114 19.6 Google Chrome He
+1792566116 63.0 Google Chrome He
+1792566118 56.6 Google Chrome He
+1792566120 11.3 Google Chrome He
+1792566122 10.4 Google Chrome He
+1792566124 66.9 Google Chrome He
+1792566126 46.9 Google Chrome He
+1792566128 18.6 Google Chrome He
+1792566131 5.7 Google Chrome He
+1792566133 5.8 Google Chrome He
+1792566135 5.6 Google Chrome He
+1792566137 5.6 Google Chrome He
+1792566139 5.3 Google Chrome He
+1792566141 16.4 Google Chrome He
+1792566143 19.4 Google Chrome He
+1792566145 11.1 Google Chrome He
+1792566147 12.0 Google Chrome He
+1792566149 11.0 Google Chrome He
+1792566151 9.0 Google Chrome He
+1792566153 10.0 Google Chrome He
+1792566155 9.6 Google Chrome He
+1792566157 7.4 Google Chrome He
+1792566159 4.6 Google Chrome He
+1792566161 4.1 Google Chrome He
+1792566163 24.3 Google Chrome He
+1792566165 36.8 Google Chrome He
+1792566168 36.3 Google Chrome He
+1792566170 14.4 Google Chrome He
+1792566172 5.2 Google Chrome He
+1792566174 5.4 Google Chrome He
+1792566176 13.9 Google Chrome He
+1792566178 39.1 Google Chrome He
+1792566180 20.4 Google Chrome He
+1792566182 20.2 Google Chrome He
+1792566184 36.9 Google Chrome He
+1792566186 19.6 Claude Helper
+1792566188 16.9 Claude Helper
+1792566190 21.4 Claude Helper
+1792566192 16.2 Claude Helper
+1792566194 15.7 Claude Helper
+1792566196 9.6 Claude Helper
+1792566198 8.4 Google Chrome He
+1792566200 4.8 Claude Helper
+1792566203 7.6 Google Chrome He
+1792566205 11.8 Google Chrome He
+1792566207 7.9 Google Chrome He
+1792566209 4.7 Claude Helper
+1792566211 4.1 Claude Helper
+1792566213 4.6 Claude Helper
+1792566215 4.9 Claude Helper
+1792566217 3.7 Claude Helper
+1792566219 3.9 Claude Helper
+1792566221 5.1 Claude Helper
+1792566223 7.1 Google Chrome He
+1792566225 6.8 Claude Helper
+1792566227 6.8 Claude Helper
+1792566229 5.6 Claude Helper
+1792566232 3.7 Claude Helper
+1792566234 9.0 Google Chrome He
+1792566236 6.6 Claude Helper
+1792566238 13.9 Claude Helper
+1792566240 29.9 Claude Helper
+1792566242 27.6 Claude Helper
+1792566245 23.7 Claude Helper
+1792566247 15.4 Claude Helper
+1792566249 19.3 Claude Helper
+1792566251 26.5 Claude Helper
+1792566253 21.5 Claude Helper
+1792566255 7.2 Claude Helper
+1792566257 6.6 Claude Helper
+1792566259 7.7 Google Chrome He
+1792566261 12.8 Google Chrome He
+1792566263 13.3 Google Chrome He
+1792566265 12.3 Google Chrome He
+1792566267 11.0 Google Chrome He
+1792566269 35.7 Google Chrome He
+1792566271 35.8 Claude Helper
+1792566273 26.1 Claude Helper
+1792566276 29.7 Claude Helper
+1792566278 21.7 Claude Helper
+1792566280 21.7 Claude Helper
+1792566282 16.9 Claude Helper
+1792566284 11.7 Claude Helper
+1792566286 4.9 Claude Helper
+1792566288 5.0 Claude Helper
+1792566290 4.3 Claude Helper
+1792566292 5.6 Claude Helper
+1792566294 15.3 Google Chrome He
+1792566296 11.6 Slack Helper
+1792566298 12.0 Slack Helper
+1792566300 8.2 Slack Helper
+1792566302 7.0 Google Chrome He
+1792566304 11.7 Claude Helper
+1792566306 30.0 Claude Helper
+1792566309 22.1 Claude Helper
+1792566311 20.4 Claude Helper
+1792566313 20.1 Claude Helper
+1792566315 19.3 Claude Helper
+1792566317 19.7 Claude Helper
+1792566319 14.9 Claude Helper
+1792566321 9.8 Claude Helper
+1792566323 4.3 Claude Helper
+1792566325 3.3 Claude Helper
+1792566327 4.3 Claude Helper
+1792566329 3.9 Claude Helper
+1792566331 10.3 Google Chrome He
+1792566333 11.9 Slack Helper
+1792566335 7.5 Slack Helper
+1792566337 6.1 Claude Helper
+1792566339 6.4 Claude Helper
+1792566342 5.7 Claude Helper
+1792566344 12.1 Slack Helper
+1792566346 4.8 Claude Helper
+1792566348 10.2 Slack Helper

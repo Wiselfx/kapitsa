@@ -1,0 +1,92 @@
+-- The C compiler identification is AppleClang 21.0.0.21000334
+-- The CXX compiler identification is AppleClang 21.0.0.21000334
+-- The OBJCXX compiler identification is AppleClang 21.0.0.21000334
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting OBJCXX compiler ABI info
+-- Detecting OBJCXX compiler ABI info - done
+-- Check for working OBJCXX compiler: /usr/bin/clang++ - skipped
+-- Configuring done (0.9s)
+-- Generating done (0.1s)
+-- Build files have been written to: /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/build-b
+[  2%] Embedding the Dory Metal kernels
+[  5%] Embedding the Metal 4 tensor kernels
+[  8%] Embedding the Nemotron-H Metal kernels
+[  8%] Embedding the benchmark's prompt corpus
+[  8%] Embedding Metal kernels
+[  8%] Embedding the Mac models
+[ 11%] Building CXX object CMakeFiles/naceinfer.dir/src/api/common.cpp.o
+[ 11%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/ane/ane.mm.o
+[ 11%] Building CXX object CMakeFiles/naceinfer.dir/src/api/clients.cpp.o
+[ 11%] Building CXX object CMakeFiles/naceinfer.dir/src/api/responses.cpp.o
+[ 14%] Building CXX object CMakeFiles/naceinfer.dir/src/api/chat_completions.cpp.o
+[ 17%] Building CXX object CMakeFiles/naceinfer.dir/src/api/anthropic.cpp.o
+[ 17%] Building CXX object CMakeFiles/naceinfer.dir/src/ane/ffn_split.cpp.o
+[ 20%] Building CXX object CMakeFiles/naceinfer.dir/src/bench/monitor.cpp.o
+[ 20%] Building CXX object CMakeFiles/naceinfer.dir/src/bench/submit.cpp.o
+[ 22%] Building CXX object CMakeFiles/naceinfer.dir/src/bench/result.cpp.o
+[ 25%] Building CXX object CMakeFiles/naceinfer.dir/src/engine/doctor.cpp.o
+[ 28%] Building CXX object CMakeFiles/naceinfer.dir/src/engine/engine.cpp.o
+[ 28%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/bench/system.mm.o
+[ 31%] Building CXX object CMakeFiles/naceinfer.dir/src/bench/protocol.cpp.o
+[ 31%] Building CXX object CMakeFiles/naceinfer.dir/src/gguf/import.cpp.o
+[ 34%] Building CXX object CMakeFiles/naceinfer.dir/src/hub/catalog.cpp.o
+[ 34%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/metal/gpu.mm.o
+[ 34%] Building CXX object CMakeFiles/naceinfer.dir/src/gguf/gguf.cpp.o
+[ 34%] Building CXX object CMakeFiles/naceinfer.dir/src/gguf/quant.cpp.o
+[ 34%] Building CXX object CMakeFiles/naceinfer.dir/src/hub/resolve.cpp.o
+[ 37%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/hub/http.mm.o
+[ 40%] Building CXX object CMakeFiles/naceinfer.dir/src/loader/safetensors.cpp.o
+[ 40%] Building CXX object CMakeFiles/naceinfer.dir/src/hub/fetch.cpp.o
+[ 40%] Building CXX object CMakeFiles/naceinfer.dir/src/model/dory.cpp.o
+[ 42%] Building CXX object CMakeFiles/naceinfer.dir/src/model/nemotron_h.cpp.o
+[ 42%] Building CXX object CMakeFiles/naceinfer.dir/src/model/ngram.cpp.o
+[ 42%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35_v8.cpp.o
+[ 45%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35_ane.cpp.o
+[ 45%] Building CXX object CMakeFiles/naceinfer.dir/src/model/nemotron_ane.cpp.o
+[ 48%] Building CXX object CMakeFiles/naceinfer.dir/src/model/dflash2.cpp.o
+[ 48%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35_iq.cpp.o
+[ 51%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35_spec.cpp.o
+[ 54%] Building CXX object CMakeFiles/naceinfer.dir/src/model/lilicorr.cpp.o
+[ 54%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen35.cpp.o
+[ 57%] Building CXX object CMakeFiles/naceinfer.dir/src/model/dspark.cpp.o
+[ 60%] Building CXX object CMakeFiles/naceinfer.dir/src/model/nh_drafter.cpp.o
+[ 60%] Building CXX object CMakeFiles/naceinfer.dir/src/model/kflash_budget.cpp.o
+[ 62%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen4_exp.cpp.o
+[ 62%] Building CXX object CMakeFiles/naceinfer.dir/src/model/qwen4_exp_spec.cpp.o
+[ 65%] Building CXX object CMakeFiles/naceinfer.dir/src/tokenizer/tokenizer.cpp.o
+[ 68%] Building CXX object CMakeFiles/naceinfer.dir/generated/bench_corpus.cpp.o
+[ 68%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/qwen_vit.cpp.o
+[ 68%] Building CXX object CMakeFiles/naceinfer.dir/generated/mac_models.cpp.o
+[ 68%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/update/update.mm.o
+[ 68%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/encoder.cpp.o
+[ 68%] Building CXX object CMakeFiles/naceinfer.dir/generated/tensor_kernels_embed.cpp.o
+[ 71%] Building CXX object CMakeFiles/naceinfer.dir/generated/kernels_embed.cpp.o
+[ 74%] Building CXX object CMakeFiles/naceinfer.dir/generated/dory_kernels_embed.cpp.o
+[ 77%] Building OBJCXX object CMakeFiles/naceinfer.dir/src/vision/image.mm.o
+[ 77%] Building CXX object CMakeFiles/naceinfer.dir/generated/nh_kernels_embed.cpp.o
+[ 80%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/vit_common.cpp.o
+[ 80%] Building CXX object CMakeFiles/naceinfer.dir/src/vision/radio_vit.cpp.o
+[ 82%] Building CXX object CMakeFiles/naceinfer.dir/src/util/term.cpp.o
+[ 85%] Linking CXX static library libnaceinfer.a
+[ 85%] Built target naceinfer
+[ 85%] Embedding the chat page
+[ 85%] Building CXX object CMakeFiles/kapitsa.dir/src/server/beam.cpp.o
+[ 88%] Building CXX object CMakeFiles/kapitsa.dir/src/server/main.cpp.o
+[ 91%] Building CXX object CMakeFiles/kapitsa.dir/src/server/bench_cmd.cpp.o
+[ 94%] Building CXX object CMakeFiles/kapitsa.dir/src/server/ui.cpp.o
+[ 94%] Building CXX object CMakeFiles/kapitsa.dir/src/server/launch.cpp.o
+[ 94%] Building CXX object CMakeFiles/kapitsa.dir/src/server/picker.cpp.o
+[ 97%] Building CXX object CMakeFiles/kapitsa.dir/generated/chat_page.cpp.o
+[ 97%] Building CXX object CMakeFiles/kapitsa.dir/src/server/update_cmd.cpp.o
+[100%] Linking CXX executable kapitsa
+[100%] Built target kapitsa
+EXIT 0

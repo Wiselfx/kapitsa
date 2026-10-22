@@ -1,0 +1,37 @@
+1792555242 6.2 Claude Helper
+1792555244 6.9 Claude Helper
+1792555247 4.4 Claude Helper
+1792555249 4.7 Claude Helper
+1792555251 3.6 Claude Helper
+1792555253 6.7 Claude Helper
+1792555255 7.0 Claude Helper
+1792555257 15.1 Claude Helper
+1792555260 4.0 Claude Helper
+1792555262 8.7 Claude Helper
+1792555264 7.1 Claude Helper
+1792555266 4.1 Google Chrome He
+1792555268 1.9 Claude Helper
+1792555270 3.7 Claude Helper
+1792555272 1.5 Claude Helper
+1792555274 1.7 Claude Helper
+1792555276 2.4 Claude Helper
+1792555279 2.8 Claude Helper
+1792555281 2.6 Claude Helper
+1792555283 2.4 Claude Helper
+1792555285 1.7 Claude Helper
+1792555287 1.5 Claude Helper
+1792555289 2.1 Claude Helper
+1792555291 5.3 Claude Helper
+1792555293 1.8 Claude Helper
+1792555295 8.2 Claude Helper
+1792555297 6.8 Claude Helper
+1792555299 4.7 Claude Helper
+1792555301 8.6 Google Chrome He
+1792555303 8.3 Google Chrome He
+1792555305 4.4 Claude Helper
+1792555307 8.2 Claude Helper
+1792555309 4.8 Claude Helper
+1792555311 6.1 Google Chrome He
+1792555313 7.8 Google Chrome He
+1792555316 7.5 Google Chrome He
+1792555318 6.1 Google Chrome He

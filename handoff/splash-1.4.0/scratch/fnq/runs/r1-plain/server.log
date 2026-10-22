@@ -1,0 +1,19 @@
+[kapitsa] read 4.99 GB of weights in 1312 ms (3.8 GB/s)
+[kapitsa] MTP head loaded in 0 ms (drafts over ids < 32768 + specials)
+[kapitsa] expert store: 12925 slots of 1.39 MB (18.00 GB, 52.6% of the 24576 experts) in one buffer; 12925 read at load in 4786 ms (3.97 GB/s)
+[kapitsa] NI_QMM8=1: 8-bit prefill GEMMs on qmr8 (all but the MoE router)
+[kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+[kapitsa] compiled kernels in 8 ms
+[kapitsa] compiled the weight-format kernels in 6687 ms
+[kapitsa] prewarmed 133 prefill pipelines in 6703 ms
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20: Qwen3.8-Flash-Next, 48 layers (12 attention), 5.0 GB of weights in 13235 ms; 4-bit group 64 4%, 6-bit group 64 3%, 8-bit group 64 2%, Q2_0 91%, bf16 0%; n-gram table 320001536 x 160, 4-bit group 32, 32.0 GB mapped; routed experts: 12925 of 24576 experts in memory (18.0 GB, 53%), the rest read from the SSD
+[kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (260 ms)
+[kapitsa] GPU: Apple M4 Pro, 20 cores
+[kapitsa] memory: 24.90 GB allocated (model, buffers, 1 slots' state), budget 29.0 GB (recommended working set 40.2 GB): KV room 4.10 GB = 129588 tokens (31 KB per token), one conversation up to 32768 of 32768 tokens
+[kapitsa] images: Qwen3.5 ViT (27 blocks, width 1152, 16-pixel patches; images of 65536 to 1200000 pixels), 0.90 GB loaded on the first image
+[kapitsa] engine ready: flash-q20, context 32768, 1 slots, plain decoding, images on
+[kapitsa] listening on http://127.0.0.1:8391
+Ready: chat at http://127.0.0.1:8391, API at http://127.0.0.1:8391/v1 (model "flash-q20"). Ctrl+C stops.
+[kapitsa] chat: prompt 15 (cached 0) in 2364 ms (+0.7 ms template/tokenize; last chunk: encoded by 31.3 ms, GPU start +472.9 ms, GPU 1859.7 ms, wake +0.2 ms), 8 tokens in 53200 ms (0.1 tok/s), length
+[kapitsa] expert store: prompt: 2678 experts looked up in 48 turns, 49.9% in memory, 0.0% read ahead and waited for, 50.1% read at the turn, 1.97 GB read (131.5 MB a token); decode: 3840 experts looked up in 384 turns, 94.8% in memory, 0.2% read ahead and waited for, 5.0% read at the turn, 0.90 GB read (112.9 MB a token)
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below

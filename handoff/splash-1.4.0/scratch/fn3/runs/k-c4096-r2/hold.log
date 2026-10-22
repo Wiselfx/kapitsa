@@ -1,0 +1,9 @@
+17:00:59 quiet wait exit 0
+17:00:59 cmd: env NI_LOG=1 KAPITSA_NO_AUTO_UPDATE=1 KAPITSA_HOME=/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/home /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/kap-main/build/kapitsa serve --model /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 --model-id flash-q20 --dflash none --spec 2 --host 127.0.0.1 --port 8391 --ctx 32768 --slots 1 --prefill-chunk 4096
+17:01:04 ready after 5 s, model id: flash-q20
+17:01:04 inv1 seed 44: --sizes 4000,16000 --skip decode,greedy,tools,agent --warmup light
+17:02:38 inv1 exit 0
+17:02:38 stopping: 31626
+  PID  PPID  PGID    RSS ELAPSED COMM
+31626 31451 31451 20985600   01:39 /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/kap-main/build/kapitsa
+17:02:39 hold done

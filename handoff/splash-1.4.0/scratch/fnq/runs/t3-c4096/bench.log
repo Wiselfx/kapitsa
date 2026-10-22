@@ -1,0 +1,5 @@
+== t3-c4096
+  prefill 4000: 4133 tok (ref 4133), TTFT 11.59s -> 357 tok/s, cold cached=0 | cached TTFT median 0.69s over 3 turns (cached [4160, 4195, 4238])
+  prefill 16000: 16284 tok (ref 16286), TTFT 40.01s -> 407 tok/s, cold cached=0 | cached TTFT median 0.81s over 3 turns (cached [16328, 16391, 16442])
+  memory: phys_footprint_peak 19.59 GB, resident mapped files 3.95 GB, swap used 2928.0 MB
+  -> /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/runs/t3-c4096/result.json

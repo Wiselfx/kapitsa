@@ -1,0 +1,112 @@
+1792567890 5.4 Claude Helper
+1792567892 5.5 Claude Helper
+1792567894 5.2 Claude Helper
+1792567896 5.3 Claude Helper
+1792567898 5.2 Claude Helper
+1792567900 14.5 Claude Helper
+1792567902 28.3 Claude Helper
+1792567904 21.2 Claude Helper
+1792567906 20.6 Claude Helper
+1792567908 21.3 Claude Helper
+1792567910 21.3 Claude Helper
+1792567913 19.7 Claude Helper
+1792567915 12.2 Claude Helper
+1792567917 5.5 Claude Helper
+1792567919 4.3 Claude Helper
+1792567921 3.8 Claude Helper
+1792567923 4.3 Claude Helper
+1792567925 4.7 Claude Helper
+1792567927 4.0 Claude Helper
+1792567929 25.1 Claude Helper
+1792567931 26.0 Claude Helper
+1792567933 18.4 Claude Helper
+1792567935 22.7 Claude Helper
+1792567937 21.5 Claude Helper
+1792567939 19.4 Claude Helper
+1792567941 16.5 Claude Helper
+1792567944 10.4 Claude Helper
+1792567946 4.9 Claude Helper
+1792567948 3.3 Claude Helper
+1792567950 3.6 Claude Helper
+1792567952 3.3 Claude Helper
+1792567954 3.1 Claude Helper
+1792567956 3.5 Claude Helper
+1792567958 3.4 Claude Helper
+1792567960 3.2 Claude Helper
+1792567962 3.6 Claude Helper
+1792567964 32.6 Claude Helper
+1792567966 23.9 Claude Helper
+1792567968 20.9 Claude Helper
+1792567970 18.7 Claude Helper
+1792567972 21.3 Claude Helper
+1792567974 17.6 Claude Helper
+1792567976 14.9 Claude Helper
+1792567978 9.1 Claude Helper
+1792567981 3.9 Claude Helper
+1792567983 3.2 Claude Helper
+1792567985 3.3 Claude Helper
+1792567987 3.2 Claude Helper
+1792567989 3.4 Claude Helper
+1792567991 3.4 Claude Helper
+1792567993 3.1 Claude Helper
+1792567995 3.5 Claude Helper
+1792567997 3.5 Claude Helper
+1792567999 3.1 Claude Helper
+1792568001 3.3 Claude Helper
+1792568003 3.4 Claude Helper
+1792568005 7.2 Claude Helper
+1792568007 5.3 Claude Helper
+1792568009 5.9 Claude Helper
+1792568011 25.3 Claude Helper
+1792568013 30.7 Claude Helper
+1792568015 20.5 Claude Helper
+1792568018 17.4 Claude Helper
+1792568020 18.8 Claude Helper
+1792568022 18.6 Claude Helper
+1792568024 18.9 Claude Helper
+1792568026 7.4 Claude Helper
+1792568028 4.4 Claude Helper
+1792568030 3.4 Claude Helper
+1792568032 3.2 Claude Helper
+1792568034 3.5 Claude Helper
+1792568036 3.4 Claude Helper
+1792568038 3.3 Claude Helper
+1792568040 30.2 Claude Helper
+1792568042 21.8 Claude Helper
+1792568044 17.9 Claude Helper
+1792568046 18.7 Claude Helper
+1792568048 19.5 Claude Helper
+1792568050 22.2 Claude Helper
+1792568052 15.3 Claude Helper
+1792568055 9.8 Claude Helper
+1792568057 5.3 Claude Helper
+1792568059 4.3 Claude Helper
+1792568061 5.6 Claude Helper
+1792568063 4.5 Claude Helper
+1792568065 4.7 Claude Helper
+1792568067 4.4 Claude Helper
+1792568069 4.7 Claude Helper
+1792568071 4.2 Claude Helper
+1792568073 4.2 Claude Helper
+1792568075 4.5 Claude Helper
+1792568077 7.9 Claude Helper
+1792568079 0.0 -
+1792568081 0.8 Claude Helper
+1792568083 3.0 Claude Helper
+1792568085 0.0 -
+1792568087 0.0 -
+1792568089 0.0 -
+1792568092 0.0 -
+1792568094 0.0 -
+1792568096 0.0 -
+1792568098 0.0 -
+1792568100 0.0 -
+1792568102 0.0 -
+1792568104 0.0 -
+1792568106 0.0 -
+1792568108 0.0 -
+1792568110 0.0 -
+1792568112 0.0 -
+1792568114 0.0 -
+1792568116 0.0 -
+1792568118 0.0 -

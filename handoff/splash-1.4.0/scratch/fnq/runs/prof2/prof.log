@@ -1,0 +1,7 @@
+14:04:37 pf4_profile: env NI_EXPERT_STORE=12 NI_CHUNK=2048 NI_PROFILE=1 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/agent-a9a95c76c733c6cab/build/ni_run /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 @/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/plan/pf4_seed11.ids 2 0
+14:05:02 pf4_profile: done (25 s)
+14:05:02 pf4_profile_c4096: env NI_EXPERT_STORE=12 NI_CHUNK=4096 NI_PROFILE=1 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/agent-a9a95c76c733c6cab/build/ni_run /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 @/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/plan/pf4_seed11.ids 2 0
+14:05:19 pf4_profile_c4096: done (17 s)
+14:05:19 pf16_profile_c4096: env NI_EXPERT_STORE=12 NI_CHUNK=4096 NI_PROFILE=1 /Users/flaminis/Desktop/kapitsa/.claude/worktrees/agent-a9a95c76c733c6cab/build/ni_run /Users/flaminis/.cache/kapitsa/models/qwen3.8-flash-next-q20 @/private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fnq/plan/pf16_seed33.ids 2 0
+14:06:07 pf16_profile_c4096: done (47 s)
+prof done

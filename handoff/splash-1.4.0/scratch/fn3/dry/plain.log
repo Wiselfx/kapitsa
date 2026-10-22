@@ -1,0 +1,8 @@
+== dry
+  decode T=0.6: NA tok/s (e2e NA; 1 tok, finish=stop, d4=None) INVALID ['too few streamed events for a middle-window rate'] flags ['finish_reason=stop (expected length)', 'completion_tokens=1 != 512']
+  decode T=0.6: NA tok/s (e2e NA; 1 tok, finish=stop, d4=None) INVALID ['too few streamed events for a middle-window rate'] flags ['finish_reason=stop (expected length)', 'completion_tokens=1 != 512']
+  decode T=0.6: NA tok/s (e2e NA; 1 tok, finish=stop, d4=None) INVALID ['too few streamed events for a middle-window rate'] flags ['finish_reason=stop (expected length)', 'completion_tokens=1 != 512']
+  decode median None (min None, max None) over 0/3 valid
+  decode T=0: median None (min None, max None) over 0/3 valid INVALID ['too few streamed events for a middle-window rate'] flags ['completion_tokens=1 != 512', 'finish_reason=stop (expected length)']
+  INVALID: ['decode: too few streamed events for a middle-window rate', 'decode_greedy: too few streamed events for a middle-window rate']
+  -> /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/fn3/dry/plain.json

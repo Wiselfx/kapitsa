@@ -1,0 +1,16 @@
+== 2026-10-21 17:00:36 precheck
+uptime: 17:00  up 5 days,  9:23, 1 user, load averages: 3.23 3.56 3.88
+gpu users (4 s):
+Pages free:                                  1171825.
+Pages active:                                 738234.
+Pages inactive:                               731747.
+Pages speculative:                              5344.
+Pages wired down:                             218159.
+Pages purgeable:                               26888.
+Pages occupied by compressor:                 237475.
+memory_pressure: System-wide memory free percentage: 85%
+swap: total = 3072.00M  used = 1984.62M  free = 1087.38M  (encrypted); memorystatus_level 85
+engines:
+31484  58016       00:01 /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/strata-src/Strata/.venv/bin/python
+disk: 24 GB free
+gpu quiet after 18s

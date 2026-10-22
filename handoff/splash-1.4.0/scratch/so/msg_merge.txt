@@ -1,0 +1,15 @@
+Merge origin/main (#206, #207, #208, #212) into structured-output: batched masks follow the KFlash batch budget's rows
+
+Engine::batch_cycle under the batch budget (#207): a masked member's rows are its own, kv[i] + 1 (its anchor alone
+when the budget gives it no draft), for Seq::mask_rows and verify_masks. The masks keep their event: the host computes
+them after the verify is encoded and committed (the drafts were waited for before the plan), while its layers run.
+NI_BATCH_KF=0 (the table) is the old path, kv[i] = rows - 1 for every member. KfBatch::Member gets `masked`: a masked
+member's acceptances (the grammar's masks decide them) are no calibration records, for KfBatch's sampled calibration
+nor KfBudget's greedy one; its tokens and rows still count in the cycle's rate and cost, as the single-stream path keeps
+masked cycles out of KfBudget's observe.
+
+engine.h: both includes (engine/grammar.h, engine/prefix_cache.h). AGENTS.md, CONTRIBUTING.md, CI: prefix_cache_test
+and test_logit_compare beside grammar_test, structured_check and test_structured --cli. docs/usage.md: both sets of
+NI_* rows.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

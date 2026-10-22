@@ -1,0 +1,74 @@
+1792558330 4.0 Slack Helper
+1792558333 4.5 Slack Helper
+1792558335 1.9 Claude Helper
+1792558337 1.5 Claude Helper
+1792558339 3.4 Claude Helper
+1792558341 2.6 Claude Helper
+1792558343 1.8 Claude Helper
+1792558345 8.0 Google Chrome He
+1792558347 13.4 Google Chrome He
+1792558350 7.1 Google Chrome He
+1792558352 2.7 Claude Helper
+1792558354 4.0 Claude Helper
+1792558356 2.0 Claude Helper
+1792558358 1.8 Claude Helper
+1792558360 1.8 Claude Helper
+1792558362 3.0 Claude Helper
+1792558364 7.2 Google Chrome He
+1792558366 4.2 Claude Helper
+1792558368 4.8 Google Chrome He
+1792558370 3.6 Claude Helper
+1792558372 1.9 Claude Helper
+1792558374 6.4 Google Chrome He
+1792558376 8.9 Google Chrome He
+1792558378 5.7 Claude Helper
+1792558380 1.8 Claude Helper
+1792558383 1.9 Claude Helper
+1792558385 2.8 Claude Helper
+1792558387 2.9 Claude Helper
+1792558389 1.9 Claude Helper
+1792558391 5.5 Google Chrome He
+1792558393 1.8 Claude Helper
+1792558395 4.4 Claude Helper
+1792558397 9.0 Claude Helper
+1792558399 11.8 Claude Helper
+1792558401 5.5 Claude Helper
+1792558403 14.2 Slack Helper
+1792558405 8.2 Claude Helper
+1792558407 7.5 Claude Helper
+1792558409 9.0 Slack Helper
+1792558413 8.7 Slack Helper
+1792558415 3.5 Slack Helper
+1792558417 3.1 Slack Helper
+1792558419 5.1 Slack Helper
+1792558421 3.7 Claude Helper
+1792558423 6.6 Slack Helper
+1792558425 4.8 Claude Helper
+1792558427 2.2 Claude Helper
+1792558429 1.9 Claude Helper
+1792558431 2.1 Claude Helper
+1792558433 3.9 Claude Helper
+1792558436 1.9 Claude Helper
+1792558438 1.7 Claude Helper
+1792558440 1.8 Claude Helper
+1792558442 2.5 Claude Helper
+1792558444 2.5 Claude Helper
+1792558446 1.8 Claude Helper
+1792558448 2.7 Claude Helper
+1792558450 2.9 Claude Helper
+1792558452 3.8 Google Chrome He
+1792558454 6.2 Google Chrome He
+1792558456 7.7 Google Chrome He
+1792558458 2.4 Claude Helper
+1792558460 2.5 Claude Helper
+1792558462 6.7 Claude Helper
+1792558464 7.7 Google Chrome He
+1792558466 5.9 Google Chrome He
+1792558468 5.5 Google Chrome He
+1792558470 3.3 Claude Helper
+1792558473 4.9 Claude Helper
+1792558475 3.3 Claude Helper
+1792558477 3.9 Google Chrome He
+1792558479 4.3 Google Chrome He
+1792558481 2.8 Claude Helper
+1792558483 1.7 Claude Helper

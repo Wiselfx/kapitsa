@@ -1,0 +1,86 @@
+1792556934 6.6 Claude Helper
+1792556937 1.0 Google Chrome He
+1792556939 0.7 Google Chrome He
+1792556941 0.5 Google Chrome He
+1792556943 1.7 Google Chrome He
+1792556945 0.0 -
+1792556947 0.8 Claude Helper
+1792556949 0.6 Google Chrome He
+1792556951 0.6 Google Chrome He
+1792556953 0.0 -
+1792556955 0.0 -
+1792556957 0.7 Google Chrome He
+1792556959 0.0 -
+1792556961 1.3 Slack Helper
+1792556963 1.3 Google Chrome He
+1792556965 2.4 Google Chrome He
+1792556967 1.3 Google Chrome He
+1792556969 2.5 Google Chrome He
+1792556972 0.0 -
+1792556974 2.1 Google Chrome He
+1792556976 2.6 Google Chrome He
+1792556978 0.0 -
+1792556980 3.8 Google Chrome He
+1792556982 1.6 Google Chrome He
+1792556984 0.0 -
+1792556986 0.9 Google Chrome He
+1792556988 0.5 Slack Helper
+1792556990 0.7 Claude Helper
+1792556992 0.0 -
+1792556994 7.6 Claude Helper
+1792556996 3.2 Claude Helper
+1792556998 5.3 Claude Helper
+1792557000 2.3 Claude Helper
+1792557002 3.3 Claude Helper
+1792557004 0.0 -
+1792557006 2.2 Claude Helper
+1792557008 8.4 Claude Helper
+1792557012 4.6 Claude Helper
+1792557014 4.3 Claude Helper
+1792557016 3.0 Claude Helper
+1792557018 5.0 Claude Helper
+1792557020 11.4 Claude Helper
+1792557022 7.9 Claude Helper
+1792557024 7.5 Claude Helper
+1792557026 11.1 Claude Helper
+1792557028 6.2 Claude Helper
+1792557030 5.7 Claude Helper
+1792557032 6.5 Claude Helper
+1792557034 4.9 Claude Helper
+1792557037 5.2 Claude Helper
+1792557039 7.4 Claude Helper
+1792557041 10.3 Claude Helper
+1792557043 6.0 Claude Helper
+1792557045 6.5 Claude Helper
+1792557047 7.1 Claude Helper
+1792557049 5.6 Claude Helper
+1792557051 5.6 Claude Helper
+1792557053 6.4 Claude Helper
+1792557055 9.1 Claude Helper
+1792557057 9.0 Claude Helper
+1792557059 6.7 Claude Helper
+1792557061 7.0 Claude Helper
+1792557063 6.4 Claude Helper
+1792557065 5.7 Claude Helper
+1792557067 5.7 Claude Helper
+1792557069 5.5 Claude Helper
+1792557071 10.0 Claude Helper
+1792557073 8.0 Claude Helper
+1792557076 4.1 Claude Helper
+1792557078 1.5 Claude Helper
+1792557080 1.3 Claude Helper
+1792557082 5.0 Claude Helper
+1792557084 3.3 Claude Helper
+1792557086 3.4 Claude Helper
+1792557088 0.0 -
+1792557090 0.0 -
+1792557092 0.0 -
+1792557094 0.0 -
+1792557096 0.0 -
+1792557098 0.9 Claude Helper
+1792557100 0.0 -
+1792557102 17.1 Claude Helper
+1792557104 11.2 Claude Helper
+1792557106 5.0 Claude Helper
+1792557108 3.0 Claude Helper
+1792557110 2.9 Claude Helper

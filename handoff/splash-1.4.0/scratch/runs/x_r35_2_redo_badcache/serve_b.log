@@ -1,0 +1,408 @@
+[kapitsa] NI_QMM: dense prefill GEMM qmr_k32_w14_m32_n128 (M >= 64), qmr_k64_w14_m16_n64 / qmr_k64_w12_m8_n64 below
+[kapitsa] read 19.51 GB of weights in 7079 ms (2.8 GB/s)
+[kapitsa] read 0.58 GB of weights in 269 ms (2.2 GB/s)
+[kapitsa] MTP head loaded in 195 ms (MoE, trunk hidden pre-norm, drafts over ids < 32768 + specials)
+[kapitsa] NI_QMM8=1: 8-bit prefill GEMMs on qmr8 (all but the MoE router)
+[kapitsa] NI_MOE_QMR: MoE prefill expert GEMMs qrm_gu/qrm_dn, 32-row tiles
+[kapitsa] compiled kernels in 15 ms
+[kapitsa] prewarmed 92 prefill pipelines in 33 ms
+[kapitsa] loaded /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit: 40 layers, MoE, 19.5 GB mapped in 10547 ms; weights 4-bit group 64 100%, 8-bit group 64 0%
+[kapitsa] tokenizer: 248044 tokens, 247587 merges, 33 added (313 ms)
+[kapitsa] read 1.05 GB of weights in 332 ms (3.2 GB/s)
+[kapitsa] DFlash2: reduced draft head, 98304 of 248320 ids (id order = BPE merge order), 113 MB
+[kapitsa] KFlash: tree drafting on the DFlash2 lattice (budget cache on)
+[kapitsa] DFlash2 drafter /Users/flaminis/.cache/kapitsa/models/qwen3.6-35b-a3b-4bit/dflash2: 6 layers, hidden 2048, 4-bit projections, 0.62 GB resident (process footprint +0.59 GB), loaded in 563 ms
+[kapitsa] DFlash2: prewarmed 105 pipelines in 10 ms
+[kapitsa] DFlash2: 0.624 GB allocated at load (planned 0.624 GB); 0.604 GB more for 4 slots' rings and 0.115 GB at the first prefill
+[kapitsa] sequence: recurrent state 66 MB, KV for 0 of 32768 tokens (0 MB)
+[kapitsa] sequence: recurrent state 66 MB, KV for 0 of 32768 tokens (0 MB)
+[kapitsa] sequence: recurrent state 66 MB, KV for 0 of 32768 tokens (0 MB)
+[kapitsa] sequence: recurrent state 66 MB, KV for 0 of 32768 tokens (0 MB)
+[kapitsa] GPU: Apple M4 Pro, 20 cores
+[kapitsa] memory: 22.89 GB allocated (model, buffers, 4 slots' state), budget 38.6 GB (recommended working set 40.2 GB): KV room 15.70 GB = 696907 tokens (22 KB per token), one conversation up to 32768 of 32768 tokens
+[kapitsa] images: Qwen3.5 ViT (27 blocks, width 1152, 16-pixel patches; images of 65536 to 1200000 pixels), 0.90 GB loaded on the first image
+[kapitsa] engine ready: x, context 32768, 4 slots, KFlash speculative decoding (DFlash2 lattice, tree verify), images on
+[kapitsa] listening on http://127.0.0.1:8137
+Ready: chat at http://127.0.0.1:8137, API at http://127.0.0.1:8137/v1 (model "x"). Ctrl+C stops.
+[kapitsa] KV cache 0 -> 1024 positions (23 MB) in 0.2 ms
+[kapitsa] checkpoints: query boundary at 363 overwrites an empty one
+[kapitsa] NI_QMM_GU: dense gate/up/SwiGLU fused (qmr_gu_k32_w14_m32_n64, m16_n64 / m8_n32 below 64 rows)
+[kapitsa] KFlash: 2 cycles, 8.00 rows per cycle; cycles by rows 8:2; tokens per cycle expected 4.180, got 3.500; rate 0.1475 tok/ms; cost ms by rows 1:18.54 2:20.39 3:22.15 4:23.28 5:24.69 6:25.73 7:27.32 8:24.35; calibration (alpha, beta) by depth (-0.43, 0.80) (-0.69, 0.64) (-0.58, 0.56) (-0.50, 0.52) (-2.33, 0.66) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 3.50 tokens/cycle over 2 cycles
+[kapitsa] chat: prompt 370 (cached 0) in 446 ms (+3.8 ms template/tokenize; last chunk: encoded by 1.0 ms, GPU start +40.4 ms, GPU 404.3 ms, wake +0.1 ms), 8 tokens in 62 ms (113.5 tok/s), length, 3.50 tok/cycle
+[kapitsa] KV cache 0 -> 1024 positions (23 MB) in 0.1 ms
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 3.50 tokens/cycle over 2 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 194 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +5.2 ms, GPU 188.8 ms, wake +0.1 ms), 1 tokens in 5 ms (0.0 tok/s), length
+[kapitsa] KV cache 0 -> 1024 positions (23 MB) in 0.1 ms
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 3.50 tokens/cycle over 2 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 199 ms (+0.3 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +10.2 ms, GPU 188.7 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] KV cache 0 -> 1024 positions (23 MB) in 0.2 ms
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 3.50 tokens/cycle over 2 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 197 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +7.6 ms, GPU 189.0 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 3.50 tokens/cycle over 2 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 187 ms (+1.2 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +0.1 ms, GPU 186.4 ms, wake +0.1 ms), 1 tokens in 5 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 3.50 tokens/cycle over 2 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 189 ms (+3.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 188.8 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 3.50 tokens/cycle over 2 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 190 ms (+3.0 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.3 ms, GPU 189.4 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 3.50 tokens/cycle over 2 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 188 ms (+2.3 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 188.1 ms, wake +0.1 ms), 1 tokens in 5 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 3.50 tokens/cycle over 2 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 189 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 188.6 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] KFlash: 139 cycles, 8.00 rows per cycle; cycles by rows 8:139; tokens per cycle expected 3.766, got 3.741; rate 0.1565 tok/ms; cost ms by rows 1:18.64 2:20.48 3:22.25 4:23.38 5:24.79 6:25.83 7:27.41 8:24.43; calibration (alpha, beta) by depth (-0.26, 0.77) (-0.66, 0.53) (-0.50, 0.43) (-0.36, 0.47) (-0.63, 0.59) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 3.73 tokens/cycle over 139 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 123 ms (+0.9 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.4 ms, GPU 122.5 ms, wake +0.1 ms), 512 tokens in 3373 ms (151.5 tok/s), length, 3.73 tok/cycle
+[kapitsa] checkpoints: prompt diverges at 1 of 369, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 362 overwrites an empty one
+[kapitsa] KFlash: 141 cycles, 8.00 rows per cycle; cycles by rows 8:141; tokens per cycle expected 3.777, got 3.738; rate 0.1562 tok/ms; cost ms by rows 1:18.43 2:20.28 3:22.04 4:23.17 5:24.59 6:25.63 7:27.21 8:24.21; calibration (alpha, beta) by depth (-0.26, 0.77) (-0.66, 0.53) (-0.50, 0.43) (-0.36, 0.47) (-0.63, 0.59) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 3.72 tokens/cycle over 141 cycles
+[kapitsa] chat: prompt 369 (cached 0) in 399 ms (+3.7 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +5.9 ms, GPU 392.8 ms, wake +0.1 ms), 8 tokens in 59 ms (118.1 tok/s), length, 3.50 tok/cycle
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 3.72 tokens/cycle over 141 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 191 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +2.0 ms, GPU 188.5 ms, wake +0.1 ms), 1 tokens in 5 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 3.72 tokens/cycle over 141 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 190 ms (+2.9 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.8 ms, GPU 188.4 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 3.72 tokens/cycle over 141 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 189 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +1.2 ms, GPU 187.4 ms, wake +0.1 ms), 1 tokens in 5 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 3.72 tokens/cycle over 141 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 190 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 189.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 3.72 tokens/cycle over 141 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 190 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 189.8 ms, wake +0.1 ms), 1 tokens in 5 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 3.72 tokens/cycle over 141 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 190 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.5 ms, GPU 189.0 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 144, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 137 overwrites an empty one
+[kapitsa] dflash: 3.72 tokens/cycle over 141 cycles
+[kapitsa] chat: prompt 144 (cached 0) in 188 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 187.6 ms, wake +0.1 ms), 1 tokens in 5 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 3.72 tokens/cycle over 141 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 190 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +0.1 ms, GPU 189.8 ms, wake +0.1 ms), 1 tokens in 5 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] batch: 200 cycles, 2.2 rows each, 21.55 ms per cycle (GPU 21.06; idle before the verify 0.197)
+[kapitsa] batch: 200 cycles, 2.1 rows each, 21.68 ms per cycle (GPU 21.13; idle before the verify 0.223)
+[kapitsa] batch: 78 cycles, 2.0 rows each, 20.77 ms per cycle (GPU 20.22; idle before the verify 0.227)
+[kapitsa] KFlash batch: 478 cycles; 2 members: 2.11 rows per cycle (by rows 2:454 4:23 8:1), tokens per cycle expected 2.097, got 2.098, rate 0.0987 tok/ms, cost ms by rows 2:20.37 3:30.96 4:22.07 5:34.29 6:34.81 7:36.57 8:20.03; sampled calibration (alpha, beta) by depth (-0.43, 0.78) (-1.16, 0.69) (-0.74, 0.74) (-0.61, 0.71) (-0.65, 0.49) (0.00, 1.00) (0.00, 1.00)
+[kapitsa] KFlash: batch budget saved (478 cycles) to /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/home-b/kflash/qwen3.6-35b-a3b-4bit-dflash2-b4-Apple_M4_Pro-batch.json
+[kapitsa] KFlash: 145 cycles, 8.00 rows per cycle; cycles by rows 8:145; tokens per cycle expected 3.814, got 3.772; rate 0.1601 tok/ms; cost ms by rows 1:18.57 2:20.42 3:22.18 4:23.31 5:24.73 6:25.77 7:27.35 8:24.36; calibration (alpha, beta) by depth (-0.26, 0.79) (-0.73, 0.54) (-0.45, 0.44) (-0.46, 0.47) (-1.05, 0.52) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.41 tokens/cycle over 1101 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 123 ms (+0.7 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 123.0 ms, wake +0.1 ms), 512 tokens in 10347 ms (49.4 tok/s), length, 1.06 tok/cycle; slot 0, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 478 cycles batched with other requests
+[kapitsa] KFlash: 145 cycles, 8.00 rows per cycle; cycles by rows 8:145; tokens per cycle expected 3.814, got 3.772; rate 0.1601 tok/ms; cost ms by rows 1:18.57 2:20.42 3:22.18 4:23.31 5:24.73 6:25.77 7:27.35 8:24.36; calibration (alpha, beta) by depth (-0.26, 0.79) (-0.73, 0.54) (-0.45, 0.44) (-0.46, 0.47) (-1.05, 0.52) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.41 tokens/cycle over 1101 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 124 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.3 ms, GPU 123.4 ms, wake +0.1 ms), 512 tokens in 10496 ms (48.7 tok/s), length, 1.06 tok/cycle; slot 3, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 478 cycles batched with other requests
+[kapitsa] checkpoints: prompt diverges at 1 of 371, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 364 overwrites an empty one
+[kapitsa] KFlash: 147 cycles, 8.00 rows per cycle; cycles by rows 8:147; tokens per cycle expected 3.822, got 3.769; rate 0.1599 tok/ms; cost ms by rows 1:18.24 2:20.09 3:21.85 4:22.99 5:24.40 6:25.44 7:27.02 8:24.01; calibration (alpha, beta) by depth (-0.26, 0.79) (-0.73, 0.54) (-0.45, 0.44) (-0.46, 0.47) (-1.05, 0.52) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.41 tokens/cycle over 1103 cycles
+[kapitsa] chat: prompt 371 (cached 0) in 373 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +6.3 ms, GPU 366.7 ms, wake +0.1 ms), 8 tokens in 58 ms (120.6 tok/s), length, 3.50 tok/cycle
+[kapitsa] checkpoints: prompt diverges at 7 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.41 tokens/cycle over 1103 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 178 ms (+2.9 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +2.2 ms, GPU 176.0 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.41 tokens/cycle over 1103 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 178 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.1 ms, GPU 176.7 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.41 tokens/cycle over 1103 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 180 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.9 ms, GPU 179.1 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.41 tokens/cycle over 1103 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 177 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 176.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.41 tokens/cycle over 1103 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 177 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +0.2 ms, GPU 176.7 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.41 tokens/cycle over 1103 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 178 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 177.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.41 tokens/cycle over 1103 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 177 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 177.1 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.41 tokens/cycle over 1103 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.4 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] batch: 200 cycles, 4.0 rows each, 25.86 ms per cycle (GPU 25.32; idle before the verify 0.213)
+[kapitsa] KFlash: 151 cycles, 8.00 rows per cycle; cycles by rows 8:151; tokens per cycle expected 3.855, got 3.801; rate 0.1649 tok/ms; cost ms by rows 1:15.50 2:17.35 3:19.11 4:20.25 5:21.66 6:22.70 7:24.28 8:21.10; calibration (alpha, beta) by depth (-0.27, 0.74) (-0.75, 0.56) (-0.43, 0.46) (-0.45, 0.50) (-1.43, 0.54) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.37 tokens/cycle over 2208 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 114 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.3 ms, GPU start +0.1 ms, GPU 113.2 ms, wake +0.1 ms), 512 tokens in 9871 ms (51.8 tok/s), length, 1.39 tok/cycle; slot 3, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 367 cycles batched with other requests
+[kapitsa] batch: 176 cycles, 3.9 rows each, 26.73 ms per cycle (GPU 26.19; idle before the verify 0.215)
+[kapitsa] KFlash batch: 854 cycles; 2 members: 2.11 rows per cycle (by rows 2:463 4:23 8:1), tokens per cycle expected 2.095, got 2.097, rate 0.0985 tok/ms, cost ms by rows 2:21.09 3:31.63 4:22.74 5:34.97 6:35.48 7:37.25 8:20.71; 3 members: 4.01 rows per cycle (by rows 4:366 8:1), tokens per cycle expected 3.975, got 3.981, rate 0.1497 tok/ms, cost ms by rows 3:46.84 4:26.34 5:81.66 6:60.66 7:54.09 8:50.59; sampled calibration (alpha, beta) by depth (-0.43, 0.78) (-1.16, 0.69) (-0.74, 0.74) (-0.61, 0.71) (-0.65, 0.49) (0.00, 1.00) (0.00, 1.00)
+[kapitsa] KFlash: batch budget saved (854 cycles) to /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/home-b/kflash/qwen3.6-35b-a3b-4bit-dflash2-b4-Apple_M4_Pro-batch.json
+[kapitsa] KFlash: 152 cycles, 8.00 rows per cycle; cycles by rows 8:152; tokens per cycle expected 3.875, got 3.829; rate 0.1676 tok/ms; cost ms by rows 1:17.42 2:19.27 3:21.03 4:22.16 5:23.58 6:24.62 7:26.20 8:23.14; calibration (alpha, beta) by depth (-0.27, 0.74) (-0.75, 0.56) (-0.43, 0.46) (-0.45, 0.50) (-1.43, 0.54) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.37 tokens/cycle over 2227 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 114 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.4 ms, GPU 113.6 ms, wake +0.1 ms), 512 tokens in 10225 ms (50.0 tok/s), length, 1.35 tok/cycle; slot 2, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 376 cycles batched with other requests
+[kapitsa] KFlash: 158 cycles, 8.00 rows per cycle; cycles by rows 8:158; tokens per cycle expected 3.914, got 3.886; rate 0.1727 tok/ms; cost ms by rows 1:18.66 2:20.51 3:22.27 4:23.40 5:24.81 6:25.85 7:27.44 8:24.45; calibration (alpha, beta) by depth (-0.26, 0.75) (-0.73, 0.57) (-0.46, 0.47) (-0.45, 0.50) (-1.44, 0.54) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.38 tokens/cycle over 2233 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 114 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 113.4 ms, wake +0.1 ms), 512 tokens in 10103 ms (50.6 tok/s), length, 1.33 tok/cycle; slot 0, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 376 cycles batched with other requests
+[kapitsa] checkpoints: prompt diverges at 1 of 371, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 364 overwrites an empty one
+[kapitsa] KFlash: 160 cycles, 8.00 rows per cycle; cycles by rows 8:160; tokens per cycle expected 3.921, got 3.881; rate 0.1720 tok/ms; cost ms by rows 1:18.11 2:19.95 3:21.72 4:22.85 5:24.26 6:25.30 7:26.88 8:23.87; calibration (alpha, beta) by depth (-0.26, 0.75) (-0.73, 0.57) (-0.46, 0.47) (-0.45, 0.50) (-1.44, 0.54) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.38 tokens/cycle over 2235 cycles
+[kapitsa] chat: prompt 371 (cached 0) in 370 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +5.2 ms, GPU 364.8 ms, wake +0.1 ms), 8 tokens in 59 ms (119.1 tok/s), length, 3.50 tok/cycle
+[kapitsa] checkpoints: prompt diverges at 1 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.38 tokens/cycle over 2235 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 180 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.0 ms, GPU 178.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 144, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 137 overwrites an empty one
+[kapitsa] dflash: 1.38 tokens/cycle over 2235 cycles
+[kapitsa] chat: prompt 144 (cached 0) in 175 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.0 ms, GPU 174.1 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.38 tokens/cycle over 2235 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 178 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.9 ms, GPU 176.8 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.38 tokens/cycle over 2235 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 175 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 174.9 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.38 tokens/cycle over 2235 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 175 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 174.6 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.38 tokens/cycle over 2235 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.38 tokens/cycle over 2235 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 174 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 173.6 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.38 tokens/cycle over 2235 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 174 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 174.0 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] batch: 200 cycles, 6.0 rows each, 31.52 ms per cycle (GPU 30.92; idle before the verify 0.232)
+[kapitsa] KFlash: 165 cycles, 8.00 rows per cycle; cycles by rows 8:165; tokens per cycle expected 3.956, got 3.915; rate 0.1775 tok/ms; cost ms by rows 1:15.31 2:17.16 3:18.92 4:20.06 5:21.47 6:22.51 7:24.09 8:20.90; calibration (alpha, beta) by depth (-0.27, 0.73) (-0.74, 0.61) (-0.39, 0.48) (-0.46, 0.54) (-1.79, 0.57) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.43 tokens/cycle over 3487 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 113 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 112.7 ms, wake +0.1 ms), 512 tokens in 10028 ms (51.0 tok/s), length, 1.64 tok/cycle; slot 1, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 311 cycles batched with other requests
+[kapitsa] KFlash: 165 cycles, 8.00 rows per cycle; cycles by rows 8:165; tokens per cycle expected 3.956, got 3.915; rate 0.1775 tok/ms; cost ms by rows 1:15.31 2:17.16 3:18.92 4:20.06 5:21.47 6:22.51 7:24.09 8:20.90; calibration (alpha, beta) by depth (-0.27, 0.73) (-0.74, 0.61) (-0.39, 0.48) (-0.46, 0.54) (-1.79, 0.57) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.42 tokens/cycle over 3580 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 113 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 112.4 ms, wake +0.1 ms), 512 tokens in 11145 ms (45.8 tok/s), length, 1.49 tok/cycle; slot 3, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 343 cycles batched with other requests
+[kapitsa] batch: 152 cycles, 5.3 rows each, 30.98 ms per cycle (GPU 30.32; idle before the verify 0.248)
+[kapitsa] KFlash batch: 1206 cycles; 2 members: 2.10 rows per cycle (by rows 2:472 4:23 8:1), tokens per cycle expected 2.093, got 2.095, rate 0.0984 tok/ms, cost ms by rows 2:19.96 3:30.57 4:21.68 5:33.90 6:34.42 7:36.18 8:19.64; 3 members: 4.01 rows per cycle (by rows 4:398 8:1), tokens per cycle expected 3.976, got 3.982, rate 0.1498 tok/ms, cost ms by rows 3:47.91 4:27.47 5:82.72 6:61.73 7:55.15 8:51.65; 4 members: 6.01 rows per cycle (by rows 6:310 8:1), tokens per cycle expected 5.936, got 5.939, rate 0.1848 tok/ms, cost ms by rows 4:51.19 5:52.29 6:32.99 7:98.16 8:62.49; sampled calibration (alpha, beta) by depth (-0.43, 0.78) (-1.16, 0.69) (-0.74, 0.74) (-0.61, 0.71) (-0.65, 0.49) (0.00, 1.00) (0.00, 1.00)
+[kapitsa] KFlash: batch budget saved (1206 cycles) to /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/home-b/kflash/qwen3.6-35b-a3b-4bit-dflash2-b4-Apple_M4_Pro-batch.json
+[kapitsa] KFlash: 166 cycles, 8.00 rows per cycle; cycles by rows 8:166; tokens per cycle expected 3.966, got 3.940; rate 0.1801 tok/ms; cost ms by rows 1:16.81 2:18.66 3:20.42 4:21.56 5:22.97 6:24.01 7:25.59 8:22.49; calibration (alpha, beta) by depth (-0.27, 0.73) (-0.74, 0.61) (-0.39, 0.48) (-0.46, 0.54) (-1.79, 0.57) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.42 tokens/cycle over 3599 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 113 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.4 ms, GPU 112.7 ms, wake +0.1 ms), 512 tokens in 11498 ms (44.4 tok/s), length, 1.44 tok/cycle; slot 2, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 352 cycles batched with other requests
+[kapitsa] KFlash: 172 cycles, 8.00 rows per cycle; cycles by rows 8:172; tokens per cycle expected 3.967, got 3.930; rate 0.1785 tok/ms; cost ms by rows 1:16.05 2:17.90 3:19.66 4:20.79 5:22.20 6:23.24 7:24.83 8:21.68; calibration (alpha, beta) by depth (-0.27, 0.73) (-0.74, 0.61) (-0.39, 0.48) (-0.46, 0.54) (-1.79, 0.57) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.43 tokens/cycle over 3605 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 114 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 113.7 ms, wake +0.1 ms), 512 tokens in 11364 ms (45.0 tok/s), length, 1.42 tok/cycle; slot 0, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 352 cycles batched with other requests
+[kapitsa] checkpoints: prompt diverges at 3 of 370, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 363 overwrites an empty one
+[kapitsa] KFlash: 174 cycles, 8.00 rows per cycle; cycles by rows 8:174; tokens per cycle expected 3.973, got 3.925; rate 0.1777 tok/ms; cost ms by rows 1:16.99 2:18.84 3:20.60 4:21.74 5:23.15 6:24.19 7:25.77 8:22.68; calibration (alpha, beta) by depth (-0.27, 0.73) (-0.74, 0.61) (-0.39, 0.48) (-0.46, 0.54) (-1.79, 0.57) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.43 tokens/cycle over 3607 cycles
+[kapitsa] chat: prompt 370 (cached 0) in 382 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +4.1 ms, GPU 377.9 ms, wake +0.1 ms), 8 tokens in 58 ms (121.2 tok/s), length, 3.50 tok/cycle
+[kapitsa] checkpoints: prompt diverges at 1 of 143, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 136 overwrites an empty one
+[kapitsa] dflash: 1.43 tokens/cycle over 3607 cycles
+[kapitsa] chat: prompt 143 (cached 0) in 181 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.9 ms, GPU 179.7 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 143, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 136 overwrites an empty one
+[kapitsa] dflash: 1.43 tokens/cycle over 3607 cycles
+[kapitsa] chat: prompt 143 (cached 0) in 177 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.9 ms, GPU 175.9 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.43 tokens/cycle over 3607 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 179 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +2.1 ms, GPU 176.4 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.43 tokens/cycle over 3607 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 178 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 177.5 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.43 tokens/cycle over 3607 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 182 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 181.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.43 tokens/cycle over 3607 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.4 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.43 tokens/cycle over 3607 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 175 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.1 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.43 tokens/cycle over 3607 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 177 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 176.7 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] batch: 200 cycles, 2.0 rows each, 20.89 ms per cycle (GPU 20.07; idle before the verify 0.305)
+[kapitsa] batch: 200 cycles, 2.0 rows each, 21.01 ms per cycle (GPU 20.45; idle before the verify 0.229)
+[kapitsa] batch: 100 cycles, 2.0 rows each, 21.98 ms per cycle (GPU 21.12; idle before the verify 0.304)
+[kapitsa] KFlash batch: 1706 cycles; 2 members: 2.05 rows per cycle (by rows 2:971 4:24 8:1), tokens per cycle expected 2.048, got 2.049, rate 0.0964 tok/ms, cost ms by rows 2:20.78 3:31.37 4:22.52 5:34.71 6:35.23 7:36.99 8:20.45; 3 members: 4.01 rows per cycle (by rows 4:398 8:1), tokens per cycle expected 3.976, got 3.982, rate 0.1498 tok/ms, cost ms by rows 3:47.91 4:27.47 5:82.72 6:61.73 7:55.15 8:51.65; 4 members: 6.01 rows per cycle (by rows 6:310 8:1), tokens per cycle expected 5.936, got 5.939, rate 0.1848 tok/ms, cost ms by rows 4:51.19 5:52.29 6:32.99 7:98.16 8:62.49; sampled calibration (alpha, beta) by depth (-0.43, 0.78) (-1.16, 0.69) (-0.74, 0.74) (-0.61, 0.71) (-0.65, 0.49) (0.00, 1.00) (0.00, 1.00)
+[kapitsa] KFlash: batch budget saved (1706 cycles) to /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/home-b/kflash/qwen3.6-35b-a3b-4bit-dflash2-b4-Apple_M4_Pro-batch.json
+[kapitsa] KFlash: 178 cycles, 8.00 rows per cycle; cycles by rows 8:178; tokens per cycle expected 3.992, got 3.927; rate 0.1781 tok/ms; cost ms by rows 1:16.83 2:18.68 3:20.44 4:21.58 5:22.99 6:24.03 7:25.61 8:22.51; calibration (alpha, beta) by depth (-0.30, 0.74) (-0.74, 0.61) (-0.41, 0.50) (-0.44, 0.58) (-2.02, 0.62) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.34 tokens/cycle over 4611 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 113 ms (+0.9 ms template/tokenize; last chunk: encoded by 0.4 ms, GPU start +0.4 ms, GPU 112.6 ms, wake +0.1 ms), 512 tokens in 10790 ms (47.4 tok/s), length, 1.02 tok/cycle; slot 3, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 500 cycles batched with other requests
+[kapitsa] KFlash: 180 cycles, 8.00 rows per cycle; cycles by rows 8:180; tokens per cycle expected 3.997, got 3.933; rate 0.1785 tok/ms; cost ms by rows 1:18.02 2:19.87 3:21.63 4:22.76 5:24.17 6:25.22 7:26.80 8:23.77; calibration (alpha, beta) by depth (-0.30, 0.74) (-0.74, 0.61) (-0.41, 0.50) (-0.44, 0.58) (-2.02, 0.62) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.34 tokens/cycle over 4613 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 113 ms (+0.7 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 113.0 ms, wake +0.1 ms), 512 tokens in 10705 ms (47.7 tok/s), length, 1.01 tok/cycle; slot 0, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 500 cycles batched with other requests
+[kapitsa] checkpoints: prompt diverges at 1 of 369, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 362 overwrites an empty one
+[kapitsa] KFlash: 182 cycles, 8.00 rows per cycle; cycles by rows 8:182; tokens per cycle expected 4.001, got 3.929; rate 0.1780 tok/ms; cost ms by rows 1:16.91 2:18.76 3:20.52 4:21.66 5:23.07 6:24.11 7:25.69 8:22.60; calibration (alpha, beta) by depth (-0.30, 0.74) (-0.74, 0.61) (-0.41, 0.50) (-0.44, 0.58) (-2.02, 0.62) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.34 tokens/cycle over 4615 cycles
+[kapitsa] chat: prompt 369 (cached 0) in 373 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +5.4 ms, GPU 366.9 ms, wake +0.1 ms), 8 tokens in 55 ms (126.4 tok/s), length, 3.50 tok/cycle
+[kapitsa] checkpoints: prompt diverges at 7 of 144, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 137 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 4615 cycles
+[kapitsa] chat: prompt 144 (cached 0) in 181 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.9 ms, GPU 178.9 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 4615 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.0 ms, GPU 174.6 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 144, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 137 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 4615 cycles
+[kapitsa] chat: prompt 144 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.9 ms, GPU 174.4 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 4615 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 176 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 176.1 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 4615 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 4615 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 175 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 174.5 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 4615 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 177 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 176.1 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 4615 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.8 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] batch: 200 cycles, 4.0 rows each, 26.53 ms per cycle (GPU 25.76; idle before the verify 0.284)
+[kapitsa] KFlash: 186 cycles, 8.00 rows per cycle; cycles by rows 8:186; tokens per cycle expected 4.021, got 3.952; rate 0.1819 tok/ms; cost ms by rows 1:15.59 2:17.43 3:19.20 4:20.33 5:21.74 6:22.78 7:24.36 8:21.19; calibration (alpha, beta) by depth (-0.30, 0.74) (-0.74, 0.61) (-0.41, 0.50) (-0.44, 0.58) (-2.02, 0.62) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.34 tokens/cycle over 5725 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 113 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 112.8 ms, wake +0.1 ms), 512 tokens in 10077 ms (50.7 tok/s), length, 1.38 tok/cycle; slot 0, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 368 cycles batched with other requests
+[kapitsa] batch: 187 cycles, 3.8 rows each, 27.31 ms per cycle (GPU 26.26; idle before the verify 0.297)
+[kapitsa] KFlash batch: 2093 cycles; 2 members: 2.05 rows per cycle (by rows 2:990 4:24 8:1), tokens per cycle expected 2.048, got 2.048, rate 0.0964 tok/ms, cost ms by rows 2:20.39 3:31.00 4:22.15 5:34.34 6:34.85 7:36.62 8:20.08; 3 members: 4.01 rows per cycle (by rows 4:766 8:1), tokens per cycle expected 3.964, got 3.966, rate 0.1479 tok/ms, cost ms by rows 3:47.81 4:27.37 5:82.63 6:61.63 7:55.06 8:51.56; 4 members: 6.01 rows per cycle (by rows 6:310 8:1), tokens per cycle expected 5.936, got 5.939, rate 0.1848 tok/ms, cost ms by rows 4:51.19 5:52.29 6:32.99 7:98.16 8:62.49; sampled calibration (alpha, beta) by depth (-0.17, 0.55) (-1.16, 0.69) (-0.74, 0.74) (-0.61, 0.71) (-0.65, 0.49) (0.00, 1.00) (0.00, 1.00)
+[kapitsa] KFlash: batch budget saved (2093 cycles) to /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/home-b/kflash/qwen3.6-35b-a3b-4bit-dflash2-b4-Apple_M4_Pro-batch.json
+[kapitsa] KFlash: 186 cycles, 8.00 rows per cycle; cycles by rows 8:186; tokens per cycle expected 4.021, got 3.952; rate 0.1819 tok/ms; cost ms by rows 1:15.59 2:17.43 3:19.20 4:20.33 5:21.74 6:22.78 7:24.36 8:21.19; calibration (alpha, beta) by depth (-0.30, 0.74) (-0.74, 0.61) (-0.41, 0.50) (-0.44, 0.58) (-2.02, 0.62) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.33 tokens/cycle over 5761 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 113 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 112.7 ms, wake +0.1 ms), 512 tokens in 10600 ms (48.2 tok/s), length, 1.32 tok/cycle; slot 3, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 387 cycles batched with other requests
+[kapitsa] KFlash: 191 cycles, 8.00 rows per cycle; cycles by rows 8:191; tokens per cycle expected 4.024, got 3.974; rate 0.1840 tok/ms; cost ms by rows 1:17.21 2:19.06 3:20.82 4:21.95 5:23.37 6:24.41 7:25.99 8:22.91; calibration (alpha, beta) by depth (-0.30, 0.74) (-0.74, 0.61) (-0.41, 0.50) (-0.44, 0.58) (-2.02, 0.62) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.34 tokens/cycle over 5766 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 114 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.5 ms, GPU 112.9 ms, wake +0.1 ms), 512 tokens in 10854 ms (47.1 tok/s), length, 1.30 tok/cycle; slot 2, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 387 cycles batched with other requests
+[kapitsa] checkpoints: prompt diverges at 1 of 369, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 362 overwrites an empty one
+[kapitsa] KFlash: 193 cycles, 8.00 rows per cycle; cycles by rows 8:193; tokens per cycle expected 4.027, got 3.969; rate 0.1833 tok/ms; cost ms by rows 1:16.75 2:18.60 3:20.36 4:21.50 5:22.91 6:23.95 7:25.53 8:22.43; calibration (alpha, beta) by depth (-0.30, 0.74) (-0.74, 0.61) (-0.41, 0.50) (-0.44, 0.58) (-2.02, 0.62) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.34 tokens/cycle over 5768 cycles
+[kapitsa] chat: prompt 369 (cached 0) in 369 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +5.3 ms, GPU 363.4 ms, wake +0.1 ms), 8 tokens in 55 ms (126.1 tok/s), length, 3.50 tok/cycle
+[kapitsa] checkpoints: prompt diverges at 1 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 5768 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 178 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.9 ms, GPU 176.2 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 5768 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +1.0 ms, GPU 174.4 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 145, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 138 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 5768 cycles
+[kapitsa] chat: prompt 145 (cached 0) in 178 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +2.1 ms, GPU 175.4 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 5768 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 176 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.7 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 5768 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 176 ms (+0.4 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.6 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 5768 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.8 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 146, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 139 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 5768 cycles
+[kapitsa] chat: prompt 146 (cached 0) in 175 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 175.0 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 7 of 147, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 140 overwrites an empty one
+[kapitsa] dflash: 1.34 tokens/cycle over 5768 cycles
+[kapitsa] chat: prompt 147 (cached 0) in 176 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.2 ms, GPU 175.1 ms, wake +0.1 ms), 1 tokens in 4 ms (0.0 tok/s), length
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] checkpoints: prompt diverges at 1 of 87, none usable, prefill from 0
+[kapitsa] checkpoints: query boundary at 80 overwrites an empty one
+[kapitsa] batch: 200 cycles, 6.0 rows each, 32.24 ms per cycle (GPU 31.51; idle before the verify 0.279)
+[kapitsa] KFlash: 198 cycles, 8.00 rows per cycle; cycles by rows 8:198; tokens per cycle expected 4.052, got 3.995; rate 0.1878 tok/ms; cost ms by rows 1:16.01 2:17.86 3:19.62 4:20.76 5:22.17 6:23.21 7:24.79 8:21.64; calibration (alpha, beta) by depth (-0.29, 0.73) (-0.77, 0.60) (-0.39, 0.53) (-0.44, 0.60) (-2.04, 0.58) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.37 tokens/cycle over 7088 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 114 ms (+0.6 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.4 ms, GPU 113.1 ms, wake +0.1 ms), 512 tokens in 11227 ms (45.5 tok/s), length, 1.55 tok/cycle; slot 2, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 328 cycles batched with other requests
+[kapitsa] KFlash: 198 cycles, 8.00 rows per cycle; cycles by rows 8:198; tokens per cycle expected 4.052, got 3.995; rate 0.1878 tok/ms; cost ms by rows 1:16.01 2:17.86 3:19.62 4:20.76 5:22.17 6:23.21 7:24.79 8:21.64; calibration (alpha, beta) by depth (-0.29, 0.73) (-0.77, 0.60) (-0.39, 0.53) (-0.44, 0.60) (-2.04, 0.58) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.37 tokens/cycle over 7096 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 113 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 112.6 ms, wake +0.1 ms), 512 tokens in 11038 ms (46.3 tok/s), length, 1.54 tok/cycle; slot 0, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 331 cycles batched with other requests
+[kapitsa] batch: 155 cycles, 5.3 rows each, 31.60 ms per cycle (GPU 30.95; idle before the verify 0.262)
+[kapitsa] KFlash batch: 2448 cycles; 2 members: 2.05 rows per cycle (by rows 2:1014 4:24 8:1), tokens per cycle expected 2.046, got 2.047, rate 0.0957 tok/ms, cost ms by rows 2:21.84 3:32.37 4:23.52 5:35.71 6:36.22 7:37.99 8:21.45; 3 members: 4.01 rows per cycle (by rows 4:769 8:1), tokens per cycle expected 3.964, got 3.966, rate 0.1475 tok/ms, cost ms by rows 3:48.66 4:28.28 5:83.48 6:62.48 7:55.91 8:52.41; 4 members: 6.00 rows per cycle (by rows 6:638 8:1), tokens per cycle expected 5.925, got 5.926, rate 0.1817 tok/ms, cost ms by rows 4:51.55 5:52.65 6:33.37 7:98.52 8:62.85; sampled calibration (alpha, beta) by depth (-0.40, 0.66) (-0.92, 0.64) (-0.74, 0.74) (-0.61, 0.71) (-0.65, 0.49) (0.00, 1.00) (0.00, 1.00)
+[kapitsa] KFlash: batch budget saved (2448 cycles) to /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/home-b/kflash/qwen3.6-35b-a3b-4bit-dflash2-b4-Apple_M4_Pro-batch.json
+[kapitsa] KFlash: 199 cycles, 8.00 rows per cycle; cycles by rows 8:199; tokens per cycle expected 4.050, got 3.990; rate 0.1866 tok/ms; cost ms by rows 1:17.47 2:19.32 3:21.08 4:22.21 5:23.62 6:24.66 7:26.25 8:23.19; calibration (alpha, beta) by depth (-0.29, 0.73) (-0.77, 0.60) (-0.39, 0.53) (-0.44, 0.60) (-2.04, 0.58) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.36 tokens/cycle over 7143 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 117 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 116.7 ms, wake +0.1 ms), 512 tokens in 11427 ms (44.7 tok/s), length, 1.44 tok/cycle; slot 1, waited 0 ms for it, turns given to other requests: 0 in the prefill, 0 while decoding; 355 cycles batched with other requests
+[kapitsa] KFlash: 204 cycles, 8.00 rows per cycle; cycles by rows 8:204; tokens per cycle expected 4.060, got 3.990; rate 0.1839 tok/ms; cost ms by rows 1:20.42 2:22.27 3:24.03 4:25.16 5:26.58 6:27.62 7:29.20 8:26.32; calibration (alpha, beta) by depth (-0.29, 0.73) (-0.77, 0.60) (-0.39, 0.53) (-0.44, 0.60) (-2.04, 0.58) (-1.12, 0.75) (-0.67, 0.47) (0.00, 1.00)
+[kapitsa] dflash: 1.37 tokens/cycle over 7148 cycles
+[kapitsa] chat: prompt 87 (cached 0) in 113 ms (+0.5 ms template/tokenize; last chunk: encoded by 0.2 ms, GPU start +0.1 ms, GPU 112.7 ms, wake +0.1 ms), 512 tokens in 11835 ms (43.2 tok/s), length, 1.41 tok/cycle; slot 3, waited 0 ms for it, turns given to other requests: 0 in the prefill, 1 while decoding; 355 cycles batched with other requests
+[kapitsa] KFlash: budget saved (204 cycles) to /private/tmp/claude-501/-Users-flaminis-Desktop-kapitsa--claude-worktrees-splash-1-4-0-analysis-3bbeaf/4668b80e-9efe-498c-aead-31aa6884d51c/scratchpad/home-b/kflash/qwen3.6-35b-a3b-4bit-dflash2-b4-Apple_M4_Pro.json
