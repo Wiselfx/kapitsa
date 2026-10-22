@@ -1450,7 +1450,8 @@ does. The Mac held about 6 GB in swap throughout. Result files, every run listed
 Each Kapitsa table below also carries a paragraph with that model's newest flag-free run on 0.2.2, which is after the
 M5 prefill kernels and the KFlash-tree default; the 27B's carries 2026-10-22 runs on main after the 16-row drafting
 block ([#266](https://github.com/nace-ai/kapitsa/pull/266)), two interleaved passes against an mlx-serve run of the same
-session; the other engines' rows are the 2026-10-19 session in every table.
+session; the other engines' rows are the 2026-10-19 session in every table except mlx-serve's 27B, which is the
+2026-10-22 pass beside Kapitsa's.
 Current main also peaks 0.3-0.8 GB above these rows on all four models (4.7 → 5.4 GB, 19.4 → 20.2, 20.8 → 21.4, 18.6 →
 18.9 GB). The growth is the SSD prefix cache ([#212](https://github.com/nace-ai/kapitsa/pull/212)), which is new since
 0.1.36 and on by default in `serve`: rebuilt binaries run with the table's own protocol (16K sweep, tool calls, cache
