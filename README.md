@@ -11,7 +11,7 @@ Kapitsa is an inference engine for Apple silicon that runs Qwen and Nemotron mod
 ## 🔥 What's new
 
 - [2026/10] 🚀 **KFlash: tree speculative decoding, up to 3.5× llama.cpp and nearly 2× oMLX.** One verify pass checks a whole tree of the drafter's guesses ([how it works](docs/kflash.md)).
-- [2026/10] 🏆 **Kapitsa: the fastest decode in 21 of 24 model and Mac pairs** against eight engines, up to 2.3× MLX ([poster](#benchmarks)).
+- [2026/10] 🏆 **Kapitsa: the fastest decode in 22 of 24 model and Mac pairs** against eight engines, up to 2.3× MLX ([poster](#benchmarks)).
 - [2026/10] 🤝 **KFlash budget: subagents decode together.** Three requests at once share one verify pass, up to **+23% total throughput** on the 27B.
 - [2026/10] ⚡ **QMT prefill: read the prompt up to 1.5× faster on M5.** Metal 4 matrix units for the prompt (4B, M5 Pro).
 - [2026/10] 💾 **SSD prefix cache: restart the server, keep the conversation.** A 16K-token follow-up on the 35B starts in **0.16 s instead of 17 s**, about 100× (`--disk-cache`).
@@ -54,7 +54,7 @@ kapitsa update                  # update now (it also updates itself)
 
 ## Benchmarks
 
-Kapitsa has the fastest decode in 21 of the 24 model and Mac pairs measured against eight engines ([how each number was measured](docs/benchmarks.md#how-the-readme-poster-was-measured)).
+Kapitsa has the fastest decode in 22 of the 24 model and Mac pairs measured against eight engines ([how each number was measured](docs/benchmarks.md#how-the-readme-poster-was-measured)).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/benchmarks-dark.webp">
