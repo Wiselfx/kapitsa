@@ -113,7 +113,7 @@ What each cell of the README's poster and its collapsed Nemotron table ran, Mac 
   units, each the mean of the engine's two runs ([results](../bench/results/2026-10-22-m5pro-27b-ane-split/README.md)). Kapitsa:
   592 tok/s 4K prefill (533 at 16K) and 76 tok/s decode (75.9 sampled, 85.0 greedy), from 459 / 77 before #318; one of
   its two runs is contention-flagged in the 16K prefill only, the other swap-flagged. mlx-serve, flag-free: 468 (457) and
-  86 (85.5 sampled, 90.9 greedy), from 464 / 78. **mlx-serve decodes 13% faster sampled and 7% greedy; Kapitsa reads the
+  86 (85.5 sampled, 90.9 greedy), from 464 / 78. **mlx-serve decodes 7% faster greedy (the firm number) and 8-13% sampled, depending on which Kapitsa runs are counted, with each engine's own two runs 8-15% apart; Kapitsa reads the
   4K prompt 1.27x as fast.** Two earlier flag-free Kapitsa runs on `3f7f4c8` alone (618 / 79, the cell
   [#332](https://github.com/nace-ai/kapitsa/pull/332) showed as a decode tie) read the same way against the pair: mlx-serve
   8% ahead on decode. The row stays mlx-serve's in the README's count of pairs.
@@ -1580,11 +1580,11 @@ pair Kapitsa now reads the 4K prompt 1.33x as fast (618 against 464) and leads s
 (618 / 79) for a while, with the sampled decode called a tie until mlx-serve was re-run in the same session, interleaved.
 
 That re-run is an ABBA pair the same evening (mlx-serve, Kapitsa, Kapitsa, mlx-serve; Kapitsa's two runs report
-`a4a32b7`, `3f7f4c8` plus [#328](https://github.com/nace-ai/kapitsa/pull/328), which leaves the 27B's path as it was
+`a4a32b7` (local to that session, `daf6e95` plus #332's docs and poster changes, landed as `29a35be`), `3f7f4c8` plus [#328](https://github.com/nace-ai/kapitsa/pull/328), which leaves the 27B's path as it was
 since its weight scale is above #328's floor, and the 0.2.8 version bump). mlx-serve 26.10.2 reads **85.5 / 90.9 tok/s**
 (T = 0.6 / greedy) and **468 / 457** prefill, both runs flag-free; Kapitsa reads **75.9 / 85.0** and **592 / 533**, one
 run contention-flagged in its 16K prefill (WebKit, 2.2% mean) and the other swap-flagged (other processes' memory, 0.1-0.7M
-pages out in three phases). **mlx-serve keeps the 27B's decode, 13% sampled and 7% greedy; Kapitsa reads the prompt 1.27x
+pages out in three phases). **mlx-serve keeps the 27B's decode, 7% greedy (the firm number, no overlap between runs) and 8-13% sampled (each engine's own two runs are 8-15% apart); Kapitsa reads the prompt 1.27x
 as fast at 4K and 1.17x at 16K.** Counting all four Kapitsa runs on this build (77.6 sampled) or only the flag-free two
 (79.2), mlx-serve is still 8-10% ahead, so the earlier tie was the cross-session comparison. The poster takes both
 engines' pair means (Kapitsa 592 / 76, mlx-serve 468 / 86), and the headline stays at 24 of 26

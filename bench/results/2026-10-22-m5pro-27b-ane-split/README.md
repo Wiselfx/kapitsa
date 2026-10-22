@@ -9,7 +9,9 @@ the poster's protocol: the harness, one config at a time under the GPU lock, pre
 - Mac: MacBook Pro M5 Pro 48 GB (20-core GPU), macOS 26.5.2 (25F84), AC power
 - Kapitsa: Release `kapitsa serve` with the DFlash2 drafter (KFlash trees, 16-row block), `--ctx 32768 --slots 1`, on
   qwen3.8-27b-4bit-mtp. The first two runs are main `3f7f4c8` (#318's merge). The pair's two runs report `a4a32b7`:
-  this branch on top of `cff1b1e` ([#328](https://github.com/nace-ai/kapitsa/pull/328)) and `daf6e95` (0.2.8). Neither
+  this branch on top of `cff1b1e` ([#328](https://github.com/nace-ai/kapitsa/pull/328)) and `daf6e95` (0.2.8).
+  `a4a32b7` is local to that session and not a commit in the repository: it is `daf6e95` plus #332's docs and poster
+  changes only, which landed as `29a35be`, the nearest reachable commit. Neither #328 nor 0.2.8
   changes the 27B's engine: #328 turns the verify-pass prefill off only below a weight scale of 3e9 and the 27B is 5.7e9,
   and 0.2.8 is a version bump.
 - mlx-serve 26.10.2 with DFlash2 (draft tree, block 8, `--no-mtp`), its pack rebuilt with
@@ -37,9 +39,11 @@ second run is other processes' memory use on this Mac during that run (the harne
 the same 20.5 GB as in its other runs).
 
 **mlx-serve decodes faster: 13% at T = 0.6 (85.5 against 75.9) and 7% greedy (90.9 against 85.0).** Kapitsa reads the
-prompt faster: 1.27x at 4K (592 against 468) and 1.17x at 16K. Neither engine's decode lead depends on which runs are
-Whichever of Kapitsa's runs on this build are counted (the pair 75.9, the two flag-free runs below 79.2, all four 77.6),
-mlx-serve's mean is 8-13% ahead on decode.
+prompt faster: 1.27x at 4K (592 against 468) and 1.17x at 16K. Greedy is the firm number (mlx-serve 90.8-91.0 against
+Kapitsa 84.7-85.3, no overlap). The sampled figure is softer: each engine's own two runs are 8-15% apart (mlx-serve 91.4
+and 79.7, Kapitsa 73.0 and 78.8), and in pass 2 alone the two are level (79.7 against 78.8). mlx-serve's lead does not
+depend on which of Kapitsa's runs on this build are counted (the pair 75.9, the two flag-free runs below 79.2, all four
+77.6): its mean is 8-13% ahead on sampled decode.
 
 ## Two earlier Kapitsa runs on `3f7f4c8`, flag-free
 
