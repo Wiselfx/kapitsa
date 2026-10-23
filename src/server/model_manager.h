@@ -9,6 +9,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -81,6 +82,18 @@ class ModelManager : public std::enable_shared_from_this<ModelManager> {
       eng = switch_to(requested_model, error_out);
       if (!eng) return nullptr;
     }
+    return std::make_shared<RequestGuard>(shared_from_this(), eng);
+  }
+
+  // The active engine for a request that never switches models (POST /v1/draft): null when `requested_model` names
+  // another one (with --allow-switch; without it the server serves its model whatever a request names)
+  std::shared_ptr<RequestGuard> acquire_current(const std::string& requested_model) {
+    std::shared_ptr<Engine> eng;
+    {
+      std::shared_lock<std::shared_mutex> lk(rw_mu_);
+      if (!allow_switch_ || is_current_model_unlocked(requested_model)) eng = engine_;
+    }
+    if (!eng) return nullptr;
     return std::make_shared<RequestGuard>(shared_from_this(), eng);
   }
 
@@ -195,6 +208,52 @@ class ModelManager : public std::enable_shared_from_this<ModelManager> {
     return engine_;
   }
 
+  // The same model loaded again with `opt` (several Macs: a pair's split made or undone, docs/usage.md). Requests in
+  // flight finish first (those of a split whose other Macs are lost end at once); new ones get 503 while it loads.
+  // `before` runs once the old engine is gone, before the new one loads (Qwen4Exp::set_split); when the new one fails,
+  // `undo` runs and the model loads again as it was. False then, with *error_out.
+  bool reload(const EngineOptions& opt, const std::function<void()>& before, const std::function<void()>& undo,
+              std::string* error_out = nullptr) {
+    if (switching_.exchange(true)) {
+      if (error_out) *error_out = "another model load is in progress";
+      return false;
+    }
+    struct Clear {
+      std::atomic<bool>& f;
+      ~Clear() { f = false; }
+    } clear{switching_};
+    std::unique_lock<std::shared_mutex> lk(rw_mu_);
+    in_flight_cv_.wait(lk, [&] { return in_flight_.load() == 0; });
+    stop_prefill();
+    engine_.reset();
+    if (before) before();
+    if (tui_) ui::loading_begin(ref_.name);
+    try {
+      engine_ = std::make_shared<Engine>(opt);
+    } catch (const std::exception& e) {
+      if (error_out) *error_out = e.what();
+      logi("loading %s again failed (%s); loading it as it was", ref_.name.c_str(), e.what());
+      if (undo) undo();
+      try {
+        engine_ = std::make_shared<Engine>(opt_);
+      } catch (const std::exception& e2) {
+        logi("loading %s as it was failed too: %s", ref_.name.c_str(), e2.what());
+        if (error_out) *error_out += std::string("; loading it as it was failed too: ") + e2.what();
+      }
+      if (tui_) ui::loading_end(ref_.name);
+      return false;
+    }
+    if (tui_) ui::loading_end(ref_.name);
+    opt_ = opt;
+    return true;
+  }
+  EngineOptions options() const {
+    std::shared_lock<std::shared_mutex> lk(rw_mu_);
+    return opt_;
+  }
+  // Requests in flight now
+  int in_flight() const { return in_flight_.load(); }
+
   // On a stop signal: the serving engine's KFlash state and SSD prefix cache conversations. A switch in progress
   // (it holds the lock while a model loads) has no engine worth saving, so this does not wait for it.
   void save_state() {
@@ -205,6 +264,10 @@ class ModelManager : public std::enable_shared_from_this<ModelManager> {
   }
 
   void prefill_after(const ChatRequest& r, const ChatResult& out) {
+    {  // the reply is a conversation POST /v1/draft can read ahead in, at once (a stream's was, before its end)
+      std::shared_lock<std::shared_mutex> rlk(rw_mu_);
+      if (engine_) engine_->remember_reply(r, out);
+    }
     std::lock_guard<std::mutex> lk(prefill_mu_);
     if (prefill_th_.joinable()) {
       prefill_th_.join();
