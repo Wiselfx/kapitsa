@@ -174,10 +174,14 @@ NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W
         tid, sg, xs, ws, p.K / 8, p.K / 64);                                                                       \
   }
 
-// Only the 64x64 tile is dispatched (src/model/qwen35.cpp); the wider and M-split shapes the tile experiments tried
-// are not instantiated. To sweep one of them again, add its line here: tools/bench_qmm.cpp finds kernels by name in
-// this source, so an absent line is an absent kernel ("kernel %s not found"), not a slower path.
+// Only these tiles are dispatched (src/model/qwen35.cpp, NI_QMT / NI_QMT_N128); the M-split shapes the tile
+// experiments tried are not instantiated. To sweep one of them again, add its line here: tools/bench_qmm.cpp finds
+// kernels by name in this source, so an absent line is an absent kernel ("kernel %s not found"), not a slower path.
+// n128 stages the same 64-row half tile of X for two weight tiles (a simdgroup holds 32 x 64 instead of 32 x 32), so
+// the 4 KB of X per K step feeds twice the MMA work; the per-element K accumulation order is untouched, which is what
+// makes it bitwise-equal to the n64 tile (NI_QMT_N128=0 is the parity leg).
 NI_QMT(qmt_m64_n64, 64, 64, 32)
+NI_QMT(qmt_m64_n128, 64, 128, 32)
 NI_QMTG(qmtg_m64_n64, 64, 64, 32)
 
 // qmt_m64_n64 over a view: the leading K columns of rows w_ld words / s_ld scale groups long (QmmLdParams, as

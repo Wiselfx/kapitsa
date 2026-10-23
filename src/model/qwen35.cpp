@@ -2160,10 +2160,30 @@ static bool qmt_on() {
     if (Gpu::get().apple_family() < 10) return false;
     bool ok = false;
     if (__builtin_available(macOS 26.0, *)) ok = true;
-    if (ok) logi("NI_QMT: dense prefill GEMMs on tensor_ops (qmt_m64_n64, qmtg_m64_n64), M >= 64");
+    if (ok) logi("NI_QMT: dense prefill GEMMs on tensor_ops (qmt_m64_n64 / n128, qmtg_m64_n64), M >= 64");
     return ok;
   }();
   return on;
+}
+
+// NI_QMT_N128 (read once; 1 default): the 4-bit projection GEMMs (qmt) use the 64x128 tile, which stages the same
+// 64-row half tile of X for two weight tiles (a simdgroup holds 32 x 64 products instead of 32 x 32, so 4 KB of X per
+// K step feeds twice the MMA work). The per-element accumulation order over K is untouched: NI_QMT_N128=0 is the
+// bitwise-parity leg. A 128-wide tile halves the threadgroup count, which is worse on the narrow projections, so 1
+// keeps it to N >= 2048 (27B projections: q 6144, o 5120, GDN qk 2048 / v,o 6144, down 17408 take n128; the 1024-wide
+// k/v keep n64); 2 = every shape whose N is a multiple of 128; 0 = n64 only (the bitwise-parity leg).
+static int qmt_n128_mode() {
+  static const int v = [] {
+    const int m = std::clamp(env_int("NI_QMT_N128", 1), 0, 2);
+    if (m) logi("NI_QMT_N128=%d: qmt 4-bit prefill GEMMs on the 64x128 tile (%s)", m,
+                m == 2 ? "every N % 128 == 0" : "N >= 2048");
+    return m;
+  }();
+  return v;
+}
+static bool qmt_n128_for(const QLinear& L) {
+  const int m = qmt_n128_mode();
+  return m > 0 && L.N % 128 == 0 && (m == 2 || L.N >= 2048);
 }
 
 void Qwen35::enc_rows_half(Encoder& e, const Buffer& x, const Tensor* norm, const Buffer& y, int T, int D) {
@@ -2237,11 +2257,13 @@ void Qwen35::enc_qmm_large(Encoder& e, const QLinear& L, const Buffer& xh, const
     return;
   }
   if (q.on && qmt_on() && M >= 64 && L.bits == 4 && L.gs == 64 && L.K % 64 == 0) {
-    e.use(pipe("qmt_m64_n64"));
+    const bool n128 = qmt_n128_for(L);
+    const uint32_t bn = n128 ? 128 : 64;
+    e.use(pipe(n128 ? "qmt_m64_n128" : "qmt_m64_n64"));
     kp::Qmm p{uint32_t(M), L.N, L.K, L.K, L.N, add ? 1u : 0u, uint32_t(L.gs), 0, 0};
     e.buf(0, xh); e.buf(1, L.w->buf); e.buf(2, L.s->buf); e.buf(3, L.b->buf); e.buf(4, y);
     e.val(5, p);
-    e.dispatch((L.N + 63) / 64, (uint32_t(M) + 63) / 64, 1, 128);
+    e.dispatch((L.N + bn - 1) / bn, (uint32_t(M) + 63) / 64, 1, 128);
     return;
   }
   if (q.on && L.bits == 4 && L.gs == 64 && L.K % 64 == 0) {
