@@ -44,12 +44,14 @@ NI_INLINE void qmt_dec(const QmtRaw r, threadgroup half* dst) {
 // NP = 1: Y; NP = 2: gate / up fused: the tile's first BN / 2 weight rows are gate rows n0h.., the next BN / 2 the up
 // rows of the same columns; simdgroup column 0 holds the gate products, column 1 the up products of the same
 // (row, column) elements (same op shape, same element index), and H = silu(g) * u as half comes out of column 0.
-template <int NP, int BM, int BN, int BK>
+// NSG: simdgroups per threadgroup (4 = 2 x 2 layout of 32-row x BN/2-column products, 8 = 2 x 4, i.e. 32 x BN/4).
+// Keeping the per-simdgroup product square at 32 x 32 while widening the tile is what the 8-simdgroup variant is for.
+template <int NP, int BM, int BN, int BK, int NSG = 4>
 NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W, const device bfloat* const thread* S,
                         const device bfloat* const thread* B, device void* Y, constant QmtParams& p, uint m0, uint n0,
                         uint tid, uint sg, threadgroup half* xs, threadgroup half* ws, uint wld, uint sld) {
-  constexpr int SM = BM / 2, SN = BN / 2;
-  const uint sm = sg / 2, sn = sg % 2;
+  constexpr int NC = NSG / 2, SM = BM / 2, SN = BN / NC, THREADS = NSG * 32;
+  const uint sm = sg / NC, sn = sg % NC;
   constexpr auto desc =
       matmul2d_descriptor(SM, SN, BK, false, true, false, matmul2d_descriptor::mode::multiply_accumulate);
   matmul2d<desc, execution_simdgroup> op;
@@ -63,21 +65,21 @@ NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W
   auto acc = op.template get_destination_cooperative_tensor<decltype(tX0), decltype(tW0), float>();
   _Pragma("clang loop unroll(full)")
   for (uint16_t i = 0; i < acc.get_capacity(); ++i) acc[i] = 0.0f;
-  constexpr int XN = BM * BK / 8, XP = (XN + 127) / 128;
+  constexpr int XN = BM * BK / 8, XP = (XN + THREADS - 1) / THREADS;
   uint xrow[XP], xk[XP], xr[XP];
   _Pragma("clang loop unroll(full)")
   for (int i = 0; i < XP; ++i) {
-    const uint j = tid + 128 * i;
+    const uint j = tid + THREADS * i;
     xr[i] = j / (BK / 8);
     xk[i] = (j % (BK / 8)) * 8;
     const uint m = m0 + xr[i];
     xrow[i] = j < XN && m < p.M ? m : 0xffffffffu;
   }
-  constexpr int WP = BN * BK / 16 / 128;
+  constexpr int WP = (BN * BK / 16 + THREADS - 1) / THREADS;
   uint wr[WP], wk[WP], wn[WP];
   _Pragma("clang loop unroll(full)")
   for (int i = 0; i < WP; ++i) {
-    const uint j = tid + 128 * i;
+    const uint j = tid + THREADS * i;
     wr[i] = j / (BK / 16);
     wk[i] = (j % (BK / 16)) * 16;
     wn[i] = NP == 2 ? min(n0 + (wr[i] % (BN / 2)), p.N - 1) : min(n0 + wr[i], p.N - 1);
@@ -97,7 +99,7 @@ NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W
   auto store = [&](uint b) {
     _Pragma("clang loop unroll(full)")
     for (int i = 0; i < XP; ++i)
-      if (!(XN % 128) || tid + 128 * i < XN) *(threadgroup uint4*)(xs + b * BM * BK + xr[i] * BK + xk[i]) = xv[i];
+      if (!(XN % THREADS) || tid + THREADS * i < XN) *(threadgroup uint4*)(xs + b * BM * BK + xr[i] * BK + xk[i]) = xv[i];
     _Pragma("clang loop unroll(full)")
     for (int i = 0; i < WP; ++i) qmt_dec(wv[i], ws + b * WBUF + wr[i] * BK + wk[i]);
   };
@@ -174,14 +176,32 @@ NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W
         tid, sg, xs, ws, p.K / 8, p.K / 64);                                                                       \
   }
 
+#define NI_QMT8(NAME, BM, BN, BK)                                                                                  \
+  [[kernel, max_total_threads_per_threadgroup(256)]] void NAME(                                                    \
+      const device half* X [[buffer(0)]], const device uint* Wd [[buffer(1)]], const device bfloat* Sd [[buffer(2)]], \
+      const device bfloat* Bd [[buffer(3)]], device float* Y [[buffer(4)]], constant QmtParams& p [[buffer(5)]],     \
+      uint2 tg [[threadgroup_position_in_grid]], uint tid [[thread_index_in_threadgroup]],                           \
+      uint sg [[simdgroup_index_in_threadgroup]]) {                                                                  \
+    threadgroup half xs[2 * BM * BK];                                                                              \
+    threadgroup half ws[2 * BN * BK];                                                                              \
+    const device uint* W[1] = {Wd};                                                                                \
+    const device bfloat* S[1] = {Sd};                                                                              \
+    const device bfloat* B[1] = {Bd};                                                                              \
+    qmt_tile<1, BM, BN, BK, 8>(X, W, S, B, Y, p, tg.y * BM, tg.x * BN,                                            \
+        tid, sg, xs, ws, p.K / 8, p.K / 64);                                                                       \
+  }
+
 // Only these tiles are dispatched (src/model/qwen35.cpp, NI_QMT / NI_QMT_N128); the M-split shapes the tile
 // experiments tried are not instantiated. To sweep one of them again, add its line here: tools/bench_qmm.cpp finds
 // kernels by name in this source, so an absent line is an absent kernel ("kernel %s not found"), not a slower path.
-// n128 stages the same 64-row half tile of X for two weight tiles (a simdgroup holds 32 x 64 instead of 32 x 32), so
-// the 4 KB of X per K step feeds twice the MMA work; the per-element K accumulation order is untouched, which is what
-// makes it bitwise-equal to the n64 tile (NI_QMT_N128=0 is the parity leg).
+// n128 stages the same 64-row half tile of X for two weight tiles, so the 4 KB of X per K step feeds twice the MMA
+// work; the per-element K accumulation order is untouched, which is what makes it bitwise-equal to the n64 tile
+// (NI_QMT_N128=0 is the parity leg). Two ways to hold a 64 x 128 tile: n128 keeps 4 simdgroups and gives each a
+// 32 x 64 product (measured 3.7x slower than n64: the non-square product loses the MMA shape), and n128w keeps the
+// simdgroup product square at 32 x 32 and uses 8 simdgroups (2 x 4 layout, 256 threads) instead.
 NI_QMT(qmt_m64_n64, 64, 64, 32)
 NI_QMT(qmt_m64_n128, 64, 128, 32)
+NI_QMT8(qmt_m64_n128w, 64, 128, 32)
 NI_QMTG(qmtg_m64_n64, 64, 64, 32)
 
 // qmt_m64_n64 over a view: the leading K columns of rows w_ld words / s_ld scale groups long (QmmLdParams, as

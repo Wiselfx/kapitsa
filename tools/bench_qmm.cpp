@@ -52,6 +52,7 @@ static int bits_for(const std::string& n) { return n.rfind("qmr8", 0) == 0 || n.
 
 static uint32_t threads_for(const std::string& name) {
   if (getenv("QMM_THREADS")) return atoi(getenv("QMM_THREADS"));
+  if (!name.empty() && name.back() == 'w') return 256;  // _n<bn>w: 8 simdgroups, square 32 x 32 products
   std::smatch m;
   if (std::regex_search(name, m, std::regex("_w([0-9])([0-9])_"))) return 32 * std::stoi(m[1]) * std::stoi(m[2]);
   return 128;
@@ -60,7 +61,7 @@ static uint32_t threads_for(const std::string& name) {
 int main(int argc, char** argv) {
   Gpu& g = Gpu::get();
   std::vector<Kern> kerns;
-  const std::regex full(".*_m([0-9]+)_n([0-9]+)(_ld)?$");
+  const std::regex full(".*_m([0-9]+)_n([0-9]+)(w?)(_ld)?$");
   std::smatch mt;
   std::string a1 = argc > 1 ? argv[1] : "qmm_b4";
   if (std::regex_match(a1, mt, full)) {
@@ -68,7 +69,7 @@ int main(int argc, char** argv) {
       std::string n = argv[i];
       if (!std::regex_match(n, mt, full)) fatal("not a kernel name: %s", n.c_str());
       kerns.push_back({n, std::stoi(mt[1]), std::stoi(mt[2]), threads_for(n), (n.find("_gu_") != std::string::npos || n.rfind("qmtg", 0) == 0), bits_for(n),
-                       mt[3].matched});
+                       mt[4].matched});
     }
   } else {
     std::vector<std::pair<int, int>> tiles = {{32, 32}, {64, 64}};
