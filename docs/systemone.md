@@ -94,8 +94,8 @@ many positions came from the cache (0: the request prefilled its state), under `
 not fit is rejected with 400 and a message that says which limit it hit, before any GPU work starts. The context
 can be raised to 131072 if the Mac has the memory for the KV cache.
 
-`--once request.json --repeat 5 --warmup 1` scores one request from a file and prints the measured latencies, which
-is how the numbers below were taken. `--encode request.json` needs no GPU at all: with only the tokenizer loaded it
+`--once request.json --repeat 5 --warmup 1` scores one request from a file and prints the measured latencies (min,
+median and max over the measured runs). `--encode request.json` needs no GPU at all: with only the tokenizer loaded it
 prints the encoded layout (state tokens, each branch's tokens, which rows are read, the option keys and legend),
 which is the fastest way to see what a request turns into.
 

@@ -427,6 +427,10 @@ curl http://127.0.0.1:8000/v1/messages -H 'Content-Type: application/json' -d '{
   "max_tokens": 1024, "messages": [{"role": "user", "content": "Write a haiku about unified memory."}]}'
 ```
 
+Drex decision models answer a state and a set of questions with a probability per option instead of generated text.
+They are served by a separate program, `build/systemone` (`POST /v1/systemone`), not by `kapitsa serve`:
+[docs/systemone.md](systemone.md).
+
 ### Reading ahead while the user types
 
 An app can send the draft of a conversation's next message to `POST /v1/draft` at each pause in the typing. The
