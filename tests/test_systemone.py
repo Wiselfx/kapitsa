@@ -169,8 +169,8 @@ def online(url):
         check("reply: a latency", isinstance(body.get("latency_ms"), (int, float)), body.get("latency_ms"))
         n = answers.get("n", {})
         check("noul: a probability of yes in 0..1", isinstance(n.get("noul"), (int, float)) and 0 <= n["noul"] <= 1, n)
-        check("noul: false and true", sorted((n.get("probabilities") or {})) == ["false", "true"], n)
-        check("noul: the two probabilities sum to 1", total(n.get("probabilities") or {}) == 1, n)
+        check("noul: only type and noul, as the reference answers (kev/api.py to_answers)",
+              sorted(n) == ["noul", "type"], n)
         c = answers.get("c", {})
         check("choice: one of the keys", c.get("choice") in ("a", "b"), c)
         check("choice: a probability per option, summing to 1", total(c.get("probabilities") or {}) == 1, c)
@@ -211,12 +211,11 @@ def online(url):
                                       ("choice", {"c": pick}, answers.get("c")),
                                       ("score", {"r": rate}, answers.get("r"))):
             st3, only = post(url, {"state": state, "questions": alone})
-            got = (only.get("answers") or {}).get(list(alone)[0], {}) if st3 == 200 else {}
-            same = (got.get("probabilities") or {}) == (expected or {}).get("probabilities")
-            check("restore: %s alone answers as it does with its siblings" % name, same, (got, expected))
+            got = (only.get("answers") or {}).get(list(alone)[0]) if st3 == 200 else None
+            check("restore: %s alone answers as it does with its siblings" % name,
+                  got is not None and got == expected, (got, expected))
         st4, reversed_body = post(url, {"state": state, "questions": {"r": rate, "c": pick, "n": noul}})
-        same = st4 == 200 and reversed_body["answers"].get("n", {}).get("probabilities") == \
-            answers.get("n", {}).get("probabilities")
+        same = st4 == 200 and all(reversed_body["answers"].get(k) == answers.get(k) for k in ("n", "c", "r"))
         check("restore: the question order does not change an answer", same, reversed_body.get("answers"))
 
         st5, batch = post(url, {"requests": [
@@ -225,8 +224,8 @@ def online(url):
         check("batch: both requests' answers come back", st5 == 200 and set(batch.get("answers", {})) == {"n", "q"},
               (st5, batch))
         if st5 == 200:
-            check("batch: the probabilities are the single-request ones",
-                  batch["answers"]["n"]["probabilities"] == answers["n"]["probabilities"],
+            check("batch: the answers are the single-request ones",
+                  batch["answers"]["n"] == answers["n"],
                   (batch["answers"].get("n"), answers.get("n")))
             check("batch: usage adds up the requests' tokens",
                   batch["usage"]["input_tokens"] > body["usage"]["input_tokens"], (batch.get("usage"), body.get("usage")))
