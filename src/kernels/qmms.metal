@@ -599,3 +599,104 @@ NI_INLINE void qv_moe_dn(const device half* X, uint x_ld, uint m0, uint rows, co
     if (r < rows) Y[yrows[m0 + r] * p.y_ld + n] = acc.thread_elements()[j];
   }
 }
+
+// ---- Flint's verify experts (flint.cpp enc_moe_tiles, NI_FLINT_VERIFY_TILES): the 35B's 8-row expert tiles ----
+// qmms_moe2_gu_b4 / qmms_moe_gu_b4's arithmetic with no shared expert, the products silu(gate) * up stored as fp32 rows in
+// sorted order: Flint's can exceed half, so flint_swiglu_scaled (mode 3) rounds them to half rows scaled where they would
+// overflow (the scale into the pair's routing weight), as Flint's prefill does; qmms_moe2_dn_b4 / qmms_moe_dn_b4 then
+// take those rows. FMA: experts of at most 2 rows (their first and only tile) as FMA matvecs (qv_moe_gu's), else every
+// tile on the 8-row MMA (a pair's numbers then do not depend on how many rows share its expert).
+template <int R>
+NI_INLINE void qv_moe_gu_f(const device half* X, const device uint* xrows, uint x_ld, uint m0, uint rows,
+                           const device uint32_t* const thread* W, const device bfloat* const thread* S,
+                           const device bfloat* const thread* B, device float* H, uint y_ld, uint n, uint K,
+                           uint gsh, uint lane) {
+  const uint2 rc = qs_lane_rc(lane);
+  const uint q = rc.y / 2, gpr = K / 64, wpr = K / 8, spr = K >> gsh;
+  const device half* xr[R];
+  _Pragma("clang loop unroll(full)")
+  for (int t = 0; t < R; ++t) xr[t] = X + xrows[m0 + min(uint(t), rows - 1)] * x_ld;
+  float ag[R], au[R];
+  _Pragma("clang loop unroll(full)")
+  for (int t = 0; t < R; ++t) ag[t] = au[t] = 0.0f;
+  for (uint g = 0; g < gpr; ++g) {
+    float xs[R][16];
+    qv_load_x<R>(xr, g, q, xs);
+    const uint si = n * spr + ((64 * g + 16 * q) >> gsh);
+    qv_dot<R>(W[0] + n * wpr, half(float(S[0][si])), half(float(B[0][si])), g, q, xs, ag);
+    qv_dot<R>(W[1] + n * wpr, half(float(S[1][si])), half(float(B[1][si])), g, q, xs, au);
+  }
+  _Pragma("clang loop unroll(full)")
+  for (int t = 0; t < R; ++t) {
+    ag[t] += simd_shuffle_xor(ag[t], 1);
+    ag[t] += simd_shuffle_xor(ag[t], 8);
+    au[t] += simd_shuffle_xor(au[t], 1);
+    au[t] += simd_shuffle_xor(au[t], 8);
+  }
+  if ((lane & 9) == 0)
+    _Pragma("clang loop unroll(full)")
+    for (int t = 0; t < R; ++t)
+      if (uint(t) < rows) H[(m0 + t) * y_ld + n] = silu(ag[t]) * au[t];
+}
+
+template <bool FMA>
+NI_INLINE void qmms_moe_gu_f(const device half* X, const device uint32_t* Wg, const device bfloat* Sg,
+                             const device bfloat* Bg, const device uint32_t* Wu, const device bfloat* Su,
+                             const device bfloat* Bu, device float* H, constant Qmm2Params& p, const device uint* tiles,
+                             const device uint* ntiles, const device uint* xrows, uint2 tg, uint sg, uint nsg,
+                             uint lane) {
+  if (tg.y >= ntiles[0]) return;
+  uint e, m0, rows;
+  qs_tile(p, tiles, tg.y, e, m0, rows);
+  const uint wo = e * p.w_expert_stride, so = e * p.s_expert_stride;
+  const device uint32_t* W[2] = {Wg + wo, Wu + wo};
+  const device bfloat* S[2] = {Sg + so, Su + so};
+  const device bfloat* B[2] = {Bg + so, Bu + so};
+  const uint2 rc = qs_lane_rc(lane);
+  const uint n = (tg.x * nsg + sg) * 8 + rc.x;  // N % 8 == 0 (checked on the host)
+  const uint gsh = p.gs == 32 ? 5u : 6u;
+  if (FMA) {  // see qmms_moe2_gu_b4
+    const bool first = tg.y == 0 || tiles[(tg.y - 1) * 3] != e;
+    if (first && rows == 1) {
+      qv_moe_gu_f<1>(X, xrows, p.x_ld, m0, rows, W, S, B, H, p.y_ld, n, p.K, gsh, lane);
+      return;
+    }
+    if (first && rows == 2) {
+      qv_moe_gu_f<2>(X, xrows, p.x_ld, m0, rows, W, S, B, H, p.y_ld, n, p.K, gsh, lane);
+      return;
+    }
+  }
+  const uint gpr = p.K / 64, wpr = p.K / 8, spr = p.K >> gsh;
+  const device half* x0 = rc.y < rows ? X + xrows[m0 + rc.y] * p.x_ld : nullptr;
+  const device half* x1 = rc.y + 1 < rows ? X + xrows[m0 + rc.y + 1] * p.x_ld : nullptr;
+  simdgroup_float8x8 ag = simdgroup_float8x8(0), au = simdgroup_float8x8(0);
+  const uint fm = rc.x, q = rc.y / 2;
+  for (uint g = 0; g < gpr; ++g) {
+    half2 a0[8], a1[8], b[8];
+    const uint si = n * spr + ((64 * g + 16 * q) >> gsh);
+    qs_dequant<4>(W[0] + n * wpr, half(float(S[0][si])), half(float(B[0][si])), g, q, a0);
+    qs_dequant<4>(W[1] + n * wpr, half(float(S[1][si])), half(float(B[1][si])), g, q, a1);
+    qs_gather(x0, x1, g, fm, b);
+    qs_mma8(ag, a0, b);
+    qs_mma8(au, a1, b);
+  }
+  _Pragma("clang loop unroll(full)")
+  for (int j = 0; j < 2; ++j) {
+    const uint r = rc.y + j;
+    if (r < rows) H[(m0 + r) * p.y_ld + n] = silu(ag.thread_elements()[j]) * au.thread_elements()[j];
+  }
+}
+
+#define NI_QMMS_GU_F(NAME, FMA)                                                                                       \
+  [[kernel]] void NAME(const device half* X [[buffer(0)]], const device uint32_t* Wg [[buffer(1)]],                    \
+                       const device bfloat* Sg [[buffer(2)]], const device bfloat* Bg [[buffer(3)]],                   \
+                       const device uint32_t* Wu [[buffer(4)]], const device bfloat* Su [[buffer(5)]],                 \
+                       const device bfloat* Bu [[buffer(6)]], device float* H [[buffer(7)]],                           \
+                       constant Qmm2Params& p [[buffer(8)]], const device uint* tiles [[buffer(9)]],                   \
+                       const device uint* ntiles [[buffer(10)]], const device uint* xrows [[buffer(11)]],              \
+                       uint2 tg [[threadgroup_position_in_grid]], uint sg [[simdgroup_index_in_threadgroup]],          \
+                       uint nsg [[simdgroups_per_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {             \
+    qmms_moe_gu_f<FMA>(X, Wg, Sg, Bg, Wu, Su, Bu, H, p, tiles, ntiles, xrows, tg, sg, nsg, lane);                      \
+  }
+NI_QMMS_GU_F(qmms_moe2_gu_f32, true)
+NI_QMMS_GU_F(qmms_moe_gu_f32, false)

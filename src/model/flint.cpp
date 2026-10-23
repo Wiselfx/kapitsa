@@ -1006,6 +1006,7 @@ void Flint::enc_moe_rows(Encoder& e, const FlintLayer& L, int R) {
     }
     return;
   }
+  if (enc_moe_tiles(e, L, R)) return;
   if (R <= 4 && (k + 1) * I <= 7168) {
     // 2-4 rows (a prompt-lookup verify): the distinct experts of the rows' top-k, each one's gate / up for the rows that
     // chose it (their threadgroups adjacent: the weights shared through the cache), then every row's down products
@@ -1057,6 +1058,90 @@ void Flint::enc_moe_rows(Encoder& e, const FlintLayer& L, int R) {
     e.val(10, mp);
     e.dispatch((D + rows * nsg - 1) / (rows * nsg), 1, 1, 32 * nsg);
   }
+}
+
+// NI_FLINT_VERIFY_TILES (read once; default 2, 0 = off): passes of at least this many rows (verify, short prompts) take
+// the routed experts on the 35B's 8-row expert tiles (enc_moe_tiles) instead of moe4_* (2-4 rows) or the per-row decode
+// kernels (5-8 rows)
+static int verify_tiles_min() {
+  static const int v = [] {
+    const char* s = getenv("NI_FLINT_VERIFY_TILES");
+    const int n = s ? atoi(s) : 2;
+    return n <= 0 ? 0 : std::max(n, 2);
+  }();
+  return v;
+}
+
+// NI_FLINT_VERIFY_FMA (read once; default 1): in enc_moe_tiles, experts of at most 2 rows as FMA matvecs
+// (qmms_moe2_*); 0 = every expert tile on the 8-row MMA (qmms_moe_*)
+static bool verify_fma() {
+  static const bool v = !getenv("NI_FLINT_VERIFY_FMA") || atoi(getenv("NI_FLINT_VERIFY_FMA")) != 0;
+  return v;
+}
+
+// The routed experts of R rows (2 <= R <= kMaxRows) after the router's top-k, as the 35B's short prefill runs them
+// (Qwen35::enc_moe_prefill_small): the rows normalized to half, their (row, slot) pairs grouped by expert into tiles of
+// <= 8 rows (moe_bucket), each tile's gate / up products for all of its rows from one read of the expert's weights
+// (qmms_moe2_gu_f32: fp32, as Flint's can exceed half), those rounded to half rows scaled where they would overflow
+// (flint_swiglu_scaled mode 3, as Flint's prefill does), the down products by pair (qmms_moe2_dn_b4), the shared
+// expert on the rows' matvecs, then the weighted sum into the residual (moe_combine). Every distinct expert is read once
+// per pass; moe4_* and the per-row kernels read an expert once for each row that chose it.
+bool Flint::enc_moe_tiles(Encoder& e, const FlintLayer& L, int R) {
+  const int vmin = verify_tiles_min();
+  if (!vmin || R < vmin || R > kMaxRows) return false;
+  const FlintMat &G = L.eg, &U = L.eu, &Dn = L.ed;
+  const FlintConfig& c = cfg_;
+  constexpr uint32_t bm = 8, nsg = 4;
+  auto fits = [](const FlintMat& W) {
+    return !W.iq && W.bits == 4 && W.gs == 64 && W.K % 64 == 0 && W.N % (8 * nsg) == 0;
+  };
+  if (!fits(G) || !fits(U) || !fits(Dn) || U.N != G.N || U.K != G.K || G.K != uint32_t(c.hidden) || Dn.K != G.N ||
+      Dn.N != uint32_t(c.hidden) || uint32_t(c.moe_I) != G.N)
+    return false;
+  alloc_prefill();
+  const uint32_t D = uint32_t(c.hidden), E = uint32_t(c.experts), k = uint32_t(c.top_k), P = uint32_t(R) * k;
+  enc_rows_half(e, x_, L.post_norm, pxh_, R);
+  const kp::Bucket bp{P, k, E, bm};
+  e.use(pipe("moe_bucket"));
+  e.buf(0, eidx_); e.buf(1, spair_); e.buf(2, stok_); e.buf(3, tiles_); e.buf(4, ntiles_);
+  e.val(5, bp);
+  e.dispatch(1, 1, 1, 1024);
+  const uint32_t max_tiles = (P + bm - 1) / bm + E;
+  const bool fma = verify_fma();
+  {
+    const kp::Qmm2 p{G.N, G.K, G.K, G.N, uint32_t(G.gs), uint32_t(size_t(G.N) * G.row_bytes() / 4),
+                     G.N * (G.K / uint32_t(G.gs)), 0xffffffffu};
+    e.use(pipe(fma ? "qmms_moe2_gu_f32" : "qmms_moe_gu_f32"));
+    e.buf(0, pxh_);
+    e.buf(1, G.w->buf); e.buf(2, G.s->buf); e.buf(3, G.b->buf);
+    e.buf(4, U.w->buf); e.buf(5, U.s->buf); e.buf(6, U.b->buf);
+    e.buf(7, phg_);
+    e.val(8, p);
+    e.buf(9, tiles_); e.buf(10, ntiles_); e.buf(11, stok_);
+    e.dispatch(G.N / (8 * nsg), max_tiles, 1, 32 * nsg);
+  }
+  enc_swiglu(e, phg_, phg_, ehh_, int(P), G.N, 3, &spair_, &ewts_);
+  {
+    const kp::Qmm2 q{Dn.N, Dn.K, Dn.K, Dn.N, uint32_t(Dn.gs), uint32_t(size_t(Dn.N) * Dn.row_bytes() / 4),
+                     Dn.N * (Dn.K / uint32_t(Dn.gs)), 0xffffffffu};
+    e.use(pipe(fma ? "qmms_moe2_dn_b4" : "qmms_moe_dn_b4"));
+    e.buf(0, ehh_);
+    e.buf(1, Dn.w->buf); e.buf(2, Dn.s->buf); e.buf(3, Dn.b->buf);
+    e.buf(4, yd_);
+    e.val(5, q);
+    e.buf(6, tiles_); e.buf(7, ntiles_); e.buf(8, spair_);
+    e.buf(9, Dn.w->buf); e.buf(10, Dn.s->buf); e.buf(11, Dn.b->buf);
+    e.dispatch(Dn.N / (8 * nsg), max_tiles, 1, 32 * nsg);
+  }
+  // the shared expert on every row (fp32 SwiGLU rows: no overflow), its down rows into ys_
+  enc_mv(e, {{&L.sg, mh_}, {&L.su, mh_}}, x_, R, L.post_norm, 0, true);
+  enc_mv(e, {{&L.sd, ys_}}, mh_, R, nullptr);
+  const kp::Combine cp{D, k};
+  e.use(pipe("moe_combine"));
+  e.buf(0, yd_); e.buf(1, ys_); e.buf(2, ewts_); e.buf(3, x_);
+  e.val(4, cp);
+  e.dispatch((D / 4 + 63) / 64, uint32_t(R), 1, 64);
+  return true;
 }
 
 void Flint::enc_rows(Encoder& e, Seq& s, int pos0, int R) {
@@ -1217,13 +1302,13 @@ void Flint::enc_moe_prefill(Encoder& e, const FlintLayer& L, int T) {
 }
 
 void Flint::enc_swiglu(Encoder& e, const Buffer& g, const Buffer& u, const Buffer& h, int rows, uint32_t I, uint32_t mode,
-                       const Buffer* sorted) {
+                       const Buffer* sorted, const Buffer* wts) {
   const SwigluP p{I, mode, uint32_t(cfg_.top_k)};
   e.use(pipe("flint_swiglu_scaled"));
   e.buf(0, g);
   e.buf(1, u);
   e.buf(2, h);
-  e.buf(3, pwts_);
+  e.buf(3, wts ? *wts : pwts_);
   e.buf(4, pscale_);
   e.val(5, p);
   e.buf(6, sorted ? *sorted : pwts_);

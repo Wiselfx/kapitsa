@@ -133,6 +133,7 @@ class Flint : public Model {
   void enc_prefill_rows(Encoder& e, Seq& s, int pos0, int T);   // GEMM pass; final hidden rows in px_
   void enc_layer_prefill(Encoder& e, Seq& s, int li, int pos0, int T);
   void enc_moe_rows(Encoder& e, const FlintLayer& L, int R);
+  bool enc_moe_tiles(Encoder& e, const FlintLayer& L, int R);  // 2-8 rows: the 35B's 8-row expert tiles
   void enc_moe_prefill(Encoder& e, const FlintLayer& L, int T);
   // IQ experts (src/kernels/wfmt_iq.metal): loading, and the MoE passes after the router's top-k
   void load_iq_experts();
@@ -141,7 +142,7 @@ class Flint : public Model {
   // SwiGLU of fp32 gate / up rows into half rows scaled where they would overflow (mode: where the scale goes, as
   // flint_swiglu_scaled's)
   void enc_swiglu(Encoder& e, const Buffer& g, const Buffer& u, const Buffer& h, int rows, uint32_t I, uint32_t mode,
-                  const Buffer* sorted = nullptr);
+                  const Buffer* sorted = nullptr, const Buffer* wts = nullptr);
   void enc_head(Encoder& e, const Buffer& x, int R, const Buffer& out, size_t ld);
   void enc_sample(Encoder& e, const Buffer& lrow, const Buffer& tokens, int out_index, const SamplingParams& sp,
                   uint32_t step);
