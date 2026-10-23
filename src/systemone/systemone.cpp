@@ -153,18 +153,6 @@ void validate_request(const ojson& body) {
   }
 }
 
-void append_py_string(std::string& out, const std::string& text);
-void append_py_json(std::string& out, const ojson& value);
-
-// Python json.dumps(value, ensure_ascii=False) with the default separators, for prompt text.
-void dumps_string(std::string& out, const std::string& text) {
-  append_py_string(out, text);
-}
-
-void dumps(std::string& out, const ojson& value) {
-  append_py_json(out, value);
-}
-
 }  // namespace
 
 Limits limits_from_env() {
