@@ -208,6 +208,10 @@ class Qwen4Exp : public Qwen35 {
   void enc_qsa_mask(Encoder& e, const Buffer& bk, int R, int pos0, int row0, uint32_t mwords);
   // attention of R rows over their key lists (q rows qo_ from q_row0; output attn_out_ rows from q_row0)
   void enc_attn_sparse(Encoder& e, const Buffer& kc, const Buffer& vc, int cap, int R, bool partials, int q_row0);
+  // the same rows over the union lists of the tiles of 8 mask rows (NI_QSA_UNION; mask rows qmask_ from q_row0,
+  // mwords words each, lists ulist_ / ucount_; q and output rows as enc_attn_sparse's)
+  void enc_attn_union(Encoder& e, const Buffer& kc, const Buffer& vc, int cap, int R, int pos0, int q_row0,
+                      uint32_t mwords);
   // the n-gram embedding block at layer c4_.ple_layer: rows staged in `rows` (fp32 for R rows, half for prefill)
   void enc_ple_rows(Encoder& e, Seq& s, int R, int pos0, const Buffer& rows);
   void enc_ple_prefill(Encoder& e, Seq& s, int T, int pos0, const Buffer& rows, Checkpoint* snap, int snap_row);
@@ -266,6 +270,7 @@ class Qwen4Exp : public Qwen35 {
   Buffer mtpX_;               // the MTP head's 4-stream state [T, hc*hidden] (mtp_post_: its rows after the layer)
   Buffer qscore_, qidx_, qcnt_;  // sparse attention: block scores [rows, blocks], key lists [rows, i_ld], counts
   Buffer qmask_;                 // sparse prefill: key bit rows [T, ceil(keys / 32)]
+  Buffer ulist_, ucount_;        // union prefill (NI_QSA_UNION): tile block lists [tiles, stride], their entry counts
   Buffer xr2_, hinv_;         // one-row gated residual (hc_down / hc_up): the injected row, its streams' inverse RMS
   Buffer hpart_;              // row gated residual: hc_down_sk's partial sums [S*D / 1024, kMaxVerify, rank]
   Buffer hx2_, hstat_;        // folded gated residual (NI_HC_FOLD): injected rows [kMaxVerify, S*D], per-chunk stats

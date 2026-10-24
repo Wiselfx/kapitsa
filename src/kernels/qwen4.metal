@@ -579,6 +579,194 @@ struct AttnSparseParams {
     }
 }
 
+// ---- union block-list prefill attention (NI_QSA_UNION): the lists path over tiles of 8 rows ----
+// One tile is 8 consecutive query rows. qsa_union_lists folds the tile's 8 mask rows (qsa_select_mask) into one
+// ascending list of (block, membership) entries, entry = block << 8 | the 8 rows' bits, so the tile's KV rows are
+// gathered once instead of once per row: neighbouring rows' selections overlap almost entirely, and
+// attn_sparse_rows pays every row's gather separately. attn_union_split scores each staged entry for the member
+// rows it names, cut causally per row, its list split over nsplit partials (attn_rows_reduce combines them); with
+// nsplit == 1 it writes the outputs directly, as attn_sparse_rows. The selected keys and every product are the
+// lists path's; the softmax accumulation order is the tile's list order, so the outputs move as a reorder, not as
+// a precision change.
+constant constexpr uint kUnionRows = 8;  // query rows per tile = membership bits per entry
+
+struct QsaUnionParams {
+  uint pos0;    // absolute position of this pass's row 0
+  uint rows;    // this pass's rows (mask rows 0..rows-1 of `mask`)
+  uint mwords;  // mask words per row
+  uint ratio;   // keys per block (a power of two, <= 16)
+  uint stride;  // entries per tile list
+};
+
+struct AttnUnionParams {
+  uint Hq, Hkv;
+  uint max_seq;
+  float scale;
+  uint pos0;    // absolute position of this pass's row 0
+  uint rows;    // this pass's rows
+  uint nsplit;  // splits per tile (1: the split kernel writes the outputs directly)
+  uint stride;  // entries per tile list
+  uint ratio;   // keys per block
+};
+
+// A mask word's block bits: bit j set when any of block j's ratio key bits in this word is set
+NI_INLINE uint qsa_block_bits(uint u, uint ratio) {
+  for (uint sh = ratio >> 1; sh; sh >>= 1) u |= u >> sh;  // fold each ratio-run onto its first bit
+  uint bb = 0;
+  for (uint j = 0; j < 32 / ratio; ++j) bb |= (u >> (j * ratio) & 1u) << j;
+  return bb;
+}
+
+// The union lists of the pass's ceil(rows / 8) tiles: entry = block << 8 | member rows' bits, ascending,
+// counts[tile] its entries, at most stride (8 * (topb + 1): every row contributes its topb selected blocks at
+// most and the incomplete one, all inside the tile's history, so the list never overflows). Each thread owns a
+// contiguous range of the tile's mask words and writes its entries from a scan of the per-thread entry counts.
+// grid: (tiles) x 256 threads
+[[kernel]] void qsa_union_lists(const device uint* mask [[buffer(0)]], device uint* lists [[buffer(1)]],
+                                device uint* counts [[buffer(2)]], constant QsaUnionParams& p [[buffer(3)]],
+                                uint tile [[threadgroup_position_in_grid]], uint tid [[thread_index_in_threadgroup]],
+                                uint sg [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+  threadgroup uint simd_counts[8];
+  const uint first = tile * kUnionRows, rows = min(kUnionRows, p.rows - first);
+  const uint bpr = 32 / p.ratio;                                        // blocks per mask word
+  const uint blocks = (p.pos0 + first + rows + p.ratio - 1) / p.ratio;  // the tile's history
+  const uint words = min((blocks * p.ratio + 31) / 32, p.mwords);
+  const uint per = (words + 255) / 256;
+  const uint w0 = min(tid * per, words), w1 = min(w0 + per, words);
+  device const uint* bits = mask + ulong(first) * p.mwords;
+  uint attended = 0;
+  for (uint w = w0; w < w1; ++w) {
+    uint any = 0;
+    for (uint r = 0; r < kUnionRows; ++r) any |= qsa_block_bits(r < rows ? bits[ulong(r) * p.mwords + w] : 0u, p.ratio);
+    const uint rem = blocks - w * bpr;  // in [1, bpr]: w < words
+    any &= rem >= bpr ? 0xffffffffu : (1u << rem) - 1u;
+    attended += popcount(any);
+  }
+  const uint incl = simd_prefix_inclusive_sum(attended);
+  if (lane == 31) simd_counts[sg] = incl;
+  threadgroup_barrier(mem_flags::mem_threadgroup);
+  uint before = incl - attended;
+  for (uint g = 0; g < sg; ++g) before += simd_counts[g];
+  device uint* list = lists + ulong(tile) * p.stride;
+  for (uint w = w0; w < w1; ++w) {
+    uint row_bits[kUnionRows], any = 0;
+    for (uint r = 0; r < kUnionRows; ++r) {
+      row_bits[r] = qsa_block_bits(r < rows ? bits[ulong(r) * p.mwords + w] : 0u, p.ratio);
+      any |= row_bits[r];
+    }
+    const uint rem = blocks - w * bpr;
+    any &= rem >= bpr ? 0xffffffffu : (1u << rem) - 1u;
+    while (any) {
+      const uint b = ctz(any);
+      any &= any - 1u;
+      uint entry = (w * bpr + b) << kUnionRows;
+#pragma unroll
+      for (uint r = 0; r < kUnionRows; ++r) entry |= (row_bits[r] >> b & 1u) << r;
+      if (before < p.stride) list[before] = entry;
+      ++before;
+    }
+  }
+  if (tid == 255) counts[tile] = min(before, p.stride);
+}
+
+// The tile's attention: every simdgroup takes one query head of the tile's rows over this split's entries (the
+// list's [s * per, (s + 1) * per), per = ceil(count / nsplit)), staging kSpTile / ratio entries (ratio <= 16) at
+// a time; each staged entry scores its block's keys for the member rows it names, cut causally per row. grid:
+// (Hkv * nsplit, tiles) x 32 * G threads
+[[kernel]] void attn_union_split(const device float* q [[buffer(0)]], const device half* kc [[buffer(1)]],
+                                 const device half* vc [[buffer(2)]], device float* part_o [[buffer(3)]],
+                                 device float* part_ml [[buffer(4)]], constant AttnUnionParams& p [[buffer(5)]],
+                                 const device uint* lists [[buffer(6)]], const device uint* counts [[buffer(7)]],
+                                 const device float* qg [[buffer(8)]], device float* out [[buffer(9)]],
+                                 uint2 tg [[threadgroup_position_in_grid]], uint tid [[thread_index_in_threadgroup]],
+                                 uint sg [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]],
+                                 uint2 ntg2 [[threads_per_threadgroup]]) {
+  threadgroup half ktile[kSpTile * kSpHD];
+  threadgroup half vtile[kSpTile * kSpHD];
+  const uint ntg = ntg2.x;
+  const uint kvh = tg.x % p.Hkv, s = tg.x / p.Hkv, tile = tg.y;
+  const uint G = p.Hq / p.Hkv;
+  const uint hq = kvh * G + sg;
+  const uint row0 = tile * kUnionRows, rows = min(kUnionRows, p.rows - row0);
+  const uint count = min(counts[tile], p.stride);
+  const uint per = (count + p.nsplit - 1) / p.nsplit;
+  const uint start = min(s * per, count), end = min(start + per, count);
+  const uint estep = kSpTile / p.ratio;  // entries staged together: ratio * estep <= kSpTile rows
+  const uint q4 = p.ratio * (kSpHD / 4);  // half4s per entry
+  const device uint* list = lists + ulong(tile) * p.stride;
+  float qv[kUnionRows][8], acc[kUnionRows][8], m[kUnionRows], l[kUnionRows];
+#pragma unroll
+  for (uint r = 0; r < kUnionRows; ++r) {
+    const bool live = r < rows;
+    for (int i = 0; i < 8; ++i) {
+      qv[r][i] = live ? q[((row0 + r) * p.Hq + hq) * kSpHD + lane * 8 + i] * p.scale : 0.0f;
+      acc[r][i] = 0.0f;
+    }
+    m[r] = -INFINITY;
+    l[r] = 0.0f;
+  }
+  const device half* kbase = kc + kvh * p.max_seq * kSpHD;
+  const device half* vbase = vc + kvh * p.max_seq * kSpHD;
+  for (uint g0 = start; g0 < end; g0 += estep) {
+    const uint ne = min(estep, end - g0);
+    for (uint i = tid; i < ne * q4; i += ntg) {
+      const uint ei = i / q4, c = i % q4;
+      // The last block's keys past the rows' positions are never scored but are staged to keep the addresses
+      // contiguous; clamped so the gather never reads past the KV (AGENTS.md: an OOB read can fault the GPU).
+      const uint row = min((list[g0 + ei] >> kUnionRows) * p.ratio + c / (kSpHD / 4), p.max_seq - 1);
+      ((threadgroup half4*)ktile)[i] = ((const device half4*)(kbase + row * kSpHD))[c % (kSpHD / 4)];
+      ((threadgroup half4*)vtile)[i] = ((const device half4*)(vbase + row * kSpHD))[c % (kSpHD / 4)];
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (sg < G) {
+      for (uint ei = 0; ei < ne; ++ei) {
+        const uint entry = list[g0 + ei], b0 = (entry >> kUnionRows) * p.ratio;
+#pragma unroll
+        for (uint tr = 0; tr < kUnionRows; ++tr) {
+          const uint posr = p.pos0 + row0 + tr;
+          const uint v = tr < rows && b0 <= posr ? min(p.ratio, posr + 1 - b0) : 0;
+          for (uint j = 0; j < v; ++j) {
+            const threadgroup half* kr = ktile + (ei * p.ratio + j) * kSpHD + lane * 8;
+            float sc = 0.0f;
+            for (int i = 0; i < 8; ++i) sc += qv[tr][i] * float(kr[i]);
+            sc = simd_sum(sc);
+            const float mn = max(m[tr], sc);
+            const float corr = metal::fast::exp(m[tr] - mn);
+            const float ew = metal::fast::exp(sc - mn);
+            l[tr] = l[tr] * corr + ew;
+            const threadgroup half* vr = vtile + (ei * p.ratio + j) * kSpHD + lane * 8;
+            for (int i = 0; i < 8; ++i) acc[tr][i] = acc[tr][i] * corr + ew * float(vr[i]);
+            m[tr] = mn;
+          }
+        }
+      }
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+  }
+  if (sg >= G) return;
+  if (p.nsplit == 1) {  // one split: the finished rows, exactly as attn_sparse_rows writes them
+#pragma unroll
+    for (uint tr = 0; tr < kUnionRows; ++tr) {
+      if (tr >= rows) continue;
+      for (int i = 0; i < 8; ++i) {
+        const uint d = lane * 8 + i, r = row0 + tr;
+        out[(r * p.Hq + hq) * kSpHD + d] = acc[tr][i] / l[tr] * sigmoid(qg[(r * p.Hq + hq) * 2 * kSpHD + kSpHD + d]);
+      }
+    }
+    return;
+  }
+#pragma unroll
+  for (uint tr = 0; tr < kUnionRows; ++tr) {
+    if (tr >= rows) continue;
+    const uint base = ((row0 + tr) * p.Hq + hq) * p.nsplit + s;
+    for (int i = 0; i < 8; ++i) part_o[base * kSpHD + lane * 8 + i] = acc[tr][i];
+    if (lane == 0) {
+      part_ml[base * 2 + 0] = m[tr];
+      part_ml[base * 2 + 1] = l[tr];
+    }
+  }
+}
+
 // ---- residual-stream moves (rows of S*D; grid: (ceil(D / 256), R) x 256, a thread per channel of a row) ----
 // X[r, s, c] = y[r, c] for every stream (the embedding repeated), then y = 0
 [[kernel]] void hc_expand(device float* X [[buffer(0)]], device float* y [[buffer(1)]], constant HcParams& p [[buffer(2)]],

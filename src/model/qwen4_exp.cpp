@@ -1021,6 +1021,14 @@ struct AttnSparseParams {
   float scale;
   uint32_t nchunks, i_ld;
 };
+struct QsaUnionParams {
+  uint32_t pos0, rows, mwords, ratio, stride;
+};
+struct AttnUnionParams {
+  uint32_t Hq, Hkv, max_seq;
+  float scale;
+  uint32_t pos0, rows, nsplit, stride, ratio;
+};
 }  // namespace
 
 // A scratch buffer grown while a prompt is encoded: the command buffers already committed for it (the earlier layers
@@ -1100,6 +1108,55 @@ void Qwen4Exp::enc_attn_sparse(Encoder& e, const Buffer& kc, const Buffer& vc, i
   e.buf(0, part_o_); e.buf(1, part_ml_); e.buf(2, qg_); e.buf(3, attn_out_);
   e.val(4, rp);
   e.dispatch(cfg_.hq, uint32_t(R), 1, cfg_.head_dim);
+}
+
+// The lists path over tiles of 8 rows (NI_QSA_UNION): the union list of a tile's mask rows, then the tile's
+// attention over it, its KV rows gathered once instead of once per row. A tile is a threadgroup of 32 * G threads
+// where attn_sparse_rows has one per row, so nsplit splits the lists to keep the GPU busy when the pass has few
+// tiles (about two threadgroups per core at least, the partials within ~64 MB); one split writes the outputs
+// directly and skips the partials and the reduce. Same keys and products as the per-row lists path; the softmax
+// order is the tile's list order, so the outputs move as a reorder.
+void Qwen4Exp::enc_attn_union(Encoder& e, const Buffer& kc, const Buffer& vc, int cap, int R, int pos0, int q_row0,
+                              uint32_t mwords) {
+  const uint32_t G = uint32_t(cfg_.hq / cfg_.hkv);
+  const float scale = 1.0f / std::sqrt(float(cfg_.head_dim));
+  const size_t qoff = size_t(q_row0) * cfg_.hq * cfg_.head_dim * 4;
+  const uint32_t tiles = (uint32_t(R) + 7) / 8;
+  const uint32_t stride = uint32_t(8 * (c4_.ix_budget / c4_.ix_ratio + 1));  // topb blocks + the incomplete one, a row
+  const size_t lneed = size_t(tiles) * stride * 4;
+  if (ulist_.size < lneed) regrow(e, ulist_, lneed, "qsa_union_lists");
+  if (ucount_.size < size_t(tiles) * 4) regrow(e, ucount_, size_t(tiles) * 4, "qsa_union_counts");
+  static const uint32_t uspl = [] {
+    const char* v = getenv("NI_QSA_UNION_SPLITS");
+    return uint32_t(std::clamp(v && *v ? atoi(v) : 4, 1, 8));
+  }();
+  const uint32_t cores = uint32_t(std::max(1, Gpu::get().core_count()));
+  uint32_t nsplit = std::min(uspl, std::max(1u, 2 * cores / std::max(1u, tiles * uint32_t(cfg_.hkv))));
+  while (nsplit > 1 && size_t(R) * cfg_.hq * nsplit * cfg_.head_dim * 4 > (size_t(64) << 20)) --nsplit;
+  const QsaUnionParams up{uint32_t(pos0), uint32_t(R), mwords, uint32_t(c4_.ix_ratio), stride};
+  e.use(pipe("qsa_union_lists"));
+  e.buf(0, qmask_, size_t(q_row0) * mwords * 4); e.buf(1, ulist_); e.buf(2, ucount_);
+  e.val(3, up);
+  e.dispatch(tiles, 1, 1, 256);
+  const AttnUnionParams ap{uint32_t(cfg_.hq), uint32_t(cfg_.hkv), uint32_t(cap), scale, uint32_t(pos0), uint32_t(R),
+                           nsplit, stride, uint32_t(c4_.ix_ratio)};
+  if (nsplit > 1) {
+    const size_t need = size_t(R) * cfg_.hq * nsplit * cfg_.head_dim * 4;
+    if (part_o_.size < need) regrow(e, part_o_, need, "part_o");
+    if (part_ml_.size < need / cfg_.head_dim * 2) regrow(e, part_ml_, need / cfg_.head_dim * 2, "part_ml");
+  }
+  e.use(pipe("attn_union_split"));
+  e.buf(0, qo_, qoff); e.buf(1, kc); e.buf(2, vc); e.buf(3, part_o_); e.buf(4, part_ml_);
+  e.val(5, ap);
+  e.buf(6, ulist_); e.buf(7, ucount_); e.buf(8, qg_, qoff * 2); e.buf(9, attn_out_, qoff);
+  e.dispatch(uint32_t(cfg_.hkv) * nsplit, tiles, 1, 32 * G);
+  if (nsplit > 1) {
+    kp::AttnRows rp{uint32_t(cfg_.hq), uint32_t(cfg_.hkv), 0, 0, uint32_t(cap), scale, nsplit};
+    e.use(pipe("attn_rows_reduce"));
+    e.buf(0, part_o_); e.buf(1, part_ml_); e.buf(2, qg_, qoff * 2); e.buf(3, attn_out_, qoff);
+    e.val(4, rp);
+    e.dispatch(cfg_.hq, uint32_t(R), 1, cfg_.head_dim);
+  }
 }
 
 void Qwen4Exp::enc_attn4(Encoder& e, Seq& s, int li, const Layer& L, const Qwen4Layer& F, int pos, const Buffer& u) {
@@ -1255,13 +1312,24 @@ void Qwen4Exp::enc_attn4_prefill(Encoder& e, Seq& s, int li, const Layer& L, con
     // its cost grows with the union of a 32-query block's selections, at worst the context); past that, per-row key
     // lists and a gather kernel without MMA (attn_sparse_rows: ~budget keys per row whatever the context). Synthetic
     // 4-layer pack, a 2048-row chunk: 11.7 vs 24.8 ms at 4k keys, 35 vs 24 ms at 16k. NI_QSA_PF=mask / list forces one.
+    // NI_QSA_UNION=1 takes the lists side over tiles of 8 rows instead (the mask rows folded into one union list per
+    // tile, its KV gathered once; enc_attn_union), which moves the outputs as a reorder.
     static const char* pf = getenv("NI_QSA_PF");
     const bool lists = pf && *pf ? !strcmp(pf, "list") : pos0 + T > 8192;
+    static const char* un = getenv("NI_QSA_UNION");
+    const bool uni = un && atoi(un) != 0 && c4_.ix_ratio >= 1 && (c4_.ix_ratio & (c4_.ix_ratio - 1)) == 0 &&
+                     c4_.ix_ratio <= 16;  // the union kernel stages 16 / ratio entries at a time
     if (lists) {
+      const uint32_t mwords = uint32_t(pos0 + T + 31) / 32;
       for (int r0 = 0; r0 < T; r0 += per) {
         const int n = std::min(per, T - r0);
-        enc_qsa_select(e, s.ixb[size_t(li)], n, pos0 + r0, r0);
-        enc_attn_sparse(e, s.kc[size_t(li)], s.vc[size_t(li)], s.cap, n, false, r0);
+        if (uni) {
+          enc_qsa_mask(e, s.ixb[size_t(li)], n, pos0 + r0, r0, mwords);
+          enc_attn_union(e, s.kc[size_t(li)], s.vc[size_t(li)], s.cap, n, pos0 + r0, r0, mwords);
+        } else {
+          enc_qsa_select(e, s.ixb[size_t(li)], n, pos0 + r0, r0);
+          enc_attn_sparse(e, s.kc[size_t(li)], s.vc[size_t(li)], s.cap, n, false, r0);
+        }
       }
     } else {
       const uint32_t mwords = uint32_t(pos0 + T + 31) / 32;
