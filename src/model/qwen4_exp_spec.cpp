@@ -27,6 +27,17 @@ struct HcParams {
   float eps;
 };
 
+// NI_FNX_VERIFY_TILES (read once; 0 = the per-row kernels, N = 2..8: the fewest rows of a verify pass that take the
+// tiles, see enc_moe_tiles_rows)
+int fnx_verify_tiles_min() {
+  static const int v = [] {
+    const char* s = getenv("NI_FNX_VERIFY_TILES");
+    const int n = s ? atoi(s) : 0;
+    return n < 2 ? 0 : std::min(n, Qwen35::kMaxVerify);
+  }();
+  return v;
+}
+
 }  // namespace
 
 void Qwen4Exp::enc_rows(Encoder& e, const std::vector<RowSeg>& segs, const Buffer& x, int R, uint32_t x_ld) {
@@ -123,6 +134,8 @@ void Qwen4Exp::enc_moe4_rows(Encoder& e, const Layer& L, int R, bool mtp_layer) 
     e.dispatch(uint32_t(R), 1, 1, 32);
   }
   if (L.eg.q20) {
+    // the 8-row expert tiles (NI_FNX_VERIFY_TILES, default off) or the per-row kernels
+    if (enc_moe_tiles_rows(e, L, R, mtp_layer)) return;
     // Q2_0 experts (check_formats: a 4-bit shared expert): unique experts, gate/up, down for R <= kMaxVerify rows
     q20::enc_verify(e, q20_rows_fetch(e, L, R, ridx_, pred), q20_shared(L), q20_shape(), R, xrn_, ridx_, rwts_, eh_,
                     yb_, ue_, uw_.view(0, 512), uw_.view(1024, 1024), un_);
@@ -176,6 +189,67 @@ void Qwen4Exp::enc_moe4_rows(Encoder& e, const Layer& L, int R, bool mtp_layer) 
   e.buf(6, eh_); e.buf(7, ridx_); e.buf(8, rwts_); e.buf(9, yb_);
   e.val(10, dp);
   e.dispatch((D + rows * nsg - 1) / (rows * nsg), R, 1, 32 * nsg);
+}
+
+// A verify pass's routed experts on the short-prefill's 8-row tiles: the pass's R * k (row, slot) pairs go through
+// moe_bucket3 (one tile per expert for up to 8 of its pairs), then q20::enc_prefill's qmms_moe_gu_q20 /
+// qmms_moe_dn_q20 read an expert's weights once for its tile, the MMA padded to 8 rows, where moe_q20_unique +
+// moe_q20v_gate_up / moe_q20_down read them once per pair on the matvec rows. Same bytes at R = 8 (an expert of a
+// pass that wide takes about one pair), the 8-row MMA instead of the FMA rows; measurement decides.
+bool Qwen4Exp::enc_moe_tiles_rows(Encoder& e, const Layer& L, int R, bool mtp_layer) {
+  const int vmin = fnx_verify_tiles_min();
+  if (!vmin || R < vmin || R > kMaxVerify) return false;
+  const int D = cfg_.hidden, k = cfg_.top_k, E = cfg_.experts, SI = cfg_.shared_I;
+  const QLinear &G = L.eg, &U = L.eu, &Dn = L.ed;
+  // Q2_0 experts on the small-prefill shapes, and the prefill's buffers R rows deep: R <= tmax_ keeps the sorted
+  // pairs, tiles and half rows inside them
+  if (mtp_layer || !G.q20 || !U.q20 || !Dn.q20 || R > tmax_) return false;
+  if (U.N != G.N || U.K != G.K || G.K != uint32_t(D) || Dn.K != G.N || Dn.N != uint32_t(D)) return false;
+  if (G.N != uint32_t(cfg_.moe_I)) return false;
+  if (G.K % 64 || Dn.K % 64) return false;
+  constexpr uint32_t bm = 8, nsg = 4;
+  if ((G.N / 8) % nsg) return false;
+  if ((Dn.N / 8) % nsg) return false;
+  // the shared expert on the dense path (4-bit group 64 on the qmms kernels), as enc_moe_prefill_small runs it
+  if (L.sg.N != L.su.N || L.sg.K != L.su.K || L.sg.bits != L.su.bits || L.su.N != uint32_t(SI)) return false;
+  if (L.sg.K != uint32_t(D) || L.sd.K != uint32_t(SI) || L.sd.N != uint32_t(D)) return false;
+  if (!qmms_ok(L.sg) || !qmms_ok(L.su) || !qmms_ok(L.sd)) return false;
+  const uint32_t Ru = uint32_t(R), P = Ru * uint32_t(k);
+  const int li = layer_index(L);
+  const bool pred = store_ && !store_->complete() && li >= 0 && li + 1 < hi_;
+  // the block input rows are normalized already (the router's rows): a plain cast, no second norm
+  enc_rows_half(e, xrn_, nullptr, xh_, R, D);
+  const kp::Bucket2 bp{P, uint32_t(k), uint32_t(E), bm, 0};
+  // the same bucket kernel the prefill's tiles use (NI_MOE_BUCKET3=0: the two-kernel form, as qwen35.cpp)
+  static const char* bucket = [] {
+    const char* v = getenv("NI_MOE_BUCKET3");
+    return v && atoi(v) == 0 ? "moe_bucket2" : "moe_bucket3";
+  }();
+  e.use(pipe4(bucket));
+  e.buf(0, ridx_); e.buf(1, spair_); e.buf(2, stok_); e.buf(3, tiles_); e.buf(4, ntiles_);
+  e.val(5, bp);
+  e.dispatch(1, 1, 1, 1024);
+  const uint32_t max_tiles = (P + bm - 1) / bm + uint32_t(E);
+  // the shared expert on all rows: half h in hh_ (row stride shared_I), down into ys_
+  if (!enc_qmm_gu(e, L.sg, L.su, xh_, hh_, R)) {
+    enc_qmm(e, L.sg, xh_, sgb_, R, false);
+    enc_qmm(e, L.su, xh_, sub_, R, false);
+    const uint32_t ns = Ru * uint32_t(SI);
+    e.use(pipe4("swiglu_half"));
+    e.buf(0, sgb_); e.buf(1, sub_); e.buf(2, hh_); e.val(3, ns);
+    e.dispatch((ns + 255) / 256, 1, 1, 256);
+  }
+  enc_qmm(e, L.sd, hh_, ys_, R, false);
+  // the routed experts: an expert's weights once for its tile (xrows stok_ -> xh_ rows, yrows spair_ -> yd_ rows)
+  q20::enc_prefill(e, q20_rows_fetch(e, L, R, ridx_, pred), q20_shape(), int(bm), max_tiles, xh_, hhalf_, yd_, tiles_,
+                   ntiles_, stok_, spair_);
+  // k weighted routed rows (yd_, by pair) + the shared expert's row (ys_) into the block's output
+  const kp::Combine cp{uint32_t(D), uint32_t(k)};
+  e.use(pipe4("moe_combine"));
+  e.buf(0, yd_); e.buf(1, ys_); e.buf(2, rwts_); e.buf(3, yb_);
+  e.val(4, cp);
+  e.dispatch((uint32_t(D) / 4 + 63) / 64, Ru, 1, 64);
+  return true;
 }
 
 // The MoE's down projection of R <= 4 rows (h in eh_ rows of k + 1 slots, routing idx / wts), added to yb_:

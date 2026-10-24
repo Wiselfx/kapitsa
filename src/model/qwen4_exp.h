@@ -172,6 +172,11 @@ class Qwen4Exp : public Qwen35 {
   void enc_rows(Encoder& e, const std::vector<RowSeg>& segs, const Buffer& x, int R, uint32_t x_ld = 0);
   // the MoE of R rows of xrn_ into yb_ (router on the row kernels, the 512-expert top-k per row, the experts)
   void enc_moe4_rows(Encoder& e, const Layer& L, int R, bool mtp_layer);
+  // The MoE of R verify rows on the short-prefill's 8-row expert tiles (NI_FNX_VERIFY_TILES): each tile of at most 8
+  // (row, slot) pairs with the same expert reads that expert's weights once (moe_bucket3 + q20::enc_prefill's
+  // qmms_moe_gu_q20 / qmms_moe_dn_q20), the shared expert on the dense path, then moe_combine. False: the caller
+  // keeps the per-row kernels (moe_q20v_gate_up / moe_q20_down).
+  bool enc_moe_tiles_rows(Encoder& e, const Layer& L, int R, bool mtp_layer);
   // streamed Q2_0 experts (src/model/expert_store.h)
   q20::Experts q20_fetch(Encoder& e, const Layer& L, const Buffer& ids, uint32_t n, int T,
                          const std::function<void()>& between) override;
