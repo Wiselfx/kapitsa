@@ -169,7 +169,10 @@ class Qwen4Exp : public Qwen35 {
     bool add = false;
     uint32_t y_ld = 0;
   };
-  void enc_rows(Encoder& e, const std::vector<RowSeg>& segs, const Buffer& x, int R, uint32_t x_ld = 0);
+  // pair8: the callers on the decode / verify side; only they may take the R == 8 token-pair dispatch (prefill-encode
+  // keeps the per-row kernels at every R, so its outputs stay bitwise what they are on main)
+  void enc_rows(Encoder& e, const std::vector<RowSeg>& segs, const Buffer& x, int R, uint32_t x_ld = 0,
+                bool pair8 = false);
   // the MoE of R rows of xrn_ into yb_ (router on the row kernels, the 512-expert top-k per row, the experts)
   void enc_moe4_rows(Encoder& e, const Layer& L, int R, bool mtp_layer);
   // streamed Q2_0 experts (src/model/expert_store.h)
@@ -188,7 +191,7 @@ class Qwen4Exp : public Qwen35 {
   // R rows (verify / MTP) of the token mixers on the row GEMVs; u in xrn_, output to yb_
   void enc_gdn4_rows(Encoder& e, Seq& s, int li, const Layer& L, int R);
   void enc_attn4_rows(Encoder& e, const Seq& s, const Layer& L, const Qwen4Layer& F, const Buffer& kc, const Buffer& vc,
-                      const Buffer& ik, const Buffer& bk, int pos, int R);
+                      const Buffer& ik, const Buffer& bk, int pos, int R, bool pair8);
   // the MTP layer over R rows of mtpX_ at positions mpos0.. (moe: also its MoE; the history passes skip it)
   void enc_mtp_layer_rows(Encoder& e, Seq& s, int mpos0, int R, bool moe);
   // the blocks; their outputs go to yb_

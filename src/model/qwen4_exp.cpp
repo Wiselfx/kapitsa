@@ -1196,7 +1196,7 @@ void Qwen4Exp::enc_ple_rows(Encoder& e, Seq& s, int R, int pos0, const Buffer& r
   if (R == 1) {
     enc_qmv_multi(e, {{&ple_key_, ple_k_}, {&ple_val_, ple_v_}}, rows, nullptr);
   } else {
-    enc_rows(e, {{&ple_key_, ple_k_}, {&ple_val_, ple_v_}}, rows, R);
+    enc_rows(e, {{&ple_key_, ple_k_}, {&ple_val_, ple_v_}}, rows, R, 0, true);
   }
   const PleParams p{uint32_t(R), uint32_t(cfg_.hidden), uint32_t(c4_.hc), uint32_t(pos0), cfg_.eps, kRing,
                     uint32_t(c4_.ngram)};
