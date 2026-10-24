@@ -110,6 +110,16 @@ over a pair of simdgroups (`qattn_t_g8d2s8`, the 35B's default on the M5 from 20
 against `qattn_t_g8s4k16` (prefill 1.1e-4, decode 6.2-6.5e-4 mean KL, one near-tie flip in 192 rows) but is 1.27x the
 floor's gate: accepted for the default on the same terms. The drift was dumped on the 4-bit pack only; the 35B's 5/6/8-bit
 and bf16 packs take the same attention path (it does not read the weights) and were not dumped.
+The fourth, and the first on Flash-Next, is the q20 pack's 6-bit group-64 dense prefill GEMMs (M ≥ 64) on a
+tensor_ops tile (`qmt6_m64_n64`, `NI_QMT6`, that model's default from 2026-10-24, #510, merged as 075c3ff2): one
+32-K `matmul2d` per step reassociates the K reduction the shipped path computes as four 8-K simdgroup MMAs, over
+`qrf_load_w`'s exact half-domain decode (bit-for-bit the values the shipped path feeds its MMAs). Gated with
+`tools/logit_compare.py --reorder` against `tools/logit_floors/flash-next-q20.m5.json`'s own `reorder_gate`, it
+flips nothing (0 flips on all three dumped paths, top-1 agreement 1.0) and leaves greedy ids bitwise identical
+with the flag on and off (one ids md5 on all four ABBA 4K-prefill legs, and the 85-token decode md5 on both
+arms), but the authoritative run's prefill `max_nll_change` was 0.0381 against the gate's 0.0349: 1.09x the gate
+rather than inside it (+9.1%). The orchestrator accepted that departure for the default under the project's
+governance ledger (RULINGS v2.16 item 75: the pre-registered silence rule fired at the ratification deadline).
 Requests decoded together can legitimately differ at near-ties from alone (docs/architecture.md); a single-stream path
 must not change.
 
