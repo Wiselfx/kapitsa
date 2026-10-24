@@ -279,8 +279,11 @@ NI_QTM20_DN(qmtm_dn_q20_m64_n64_o_slot, 64, 64, 32, false, true)
 // dispatch before these run); gu also binds descx (buffer 12), the tile's gathered token rows. tiles, ntiles and
 // xrows stay bound (unused: rows == 0 in desc is ntiles[0]'s early return here, descx is xrows). The descriptor's
 // one load replaces the tiles -> slots -> xrows dependent chain inside every tile; DESC skips only threadgroup
-// stores whose values are never read. Same addresses, same arithmetic, bitwise the same outputs. Staged kernels
-// only: NI_MOE_STAGE=0 keeps the shipped ones.
+// stores whose values are never read. A dead row still runs the matmul on the stale threadgroup X (uninitialised
+// at step 0) the skipped zero-fill leaves behind; that is safe because the matmul is row-independent — a dead
+// row's products stay in its own accumulators, and no dead accumulator is ever stored. Same addresses and
+// arithmetic by inspection; outputs not yet compared on a GPU. Staged kernels only: NI_MOE_STAGE=0 keeps the
+// shipped ones.
 #define NI_QTM20_GU_D(NAME, BM, BN, BK, SLOT)                                                                          \
   [[kernel, max_total_threads_per_threadgroup(128)]] void NAME(                                                        \
       const device half* X [[buffer(0)]], const device uchar* w0 [[buffer(1)]], const device uchar* w1 [[buffer(2)]],  \

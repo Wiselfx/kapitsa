@@ -170,8 +170,8 @@ bool qtm_prefill() {
 // NI_MOE_QTM_DESC (read once; default off): the bm-64 qtm-tile prefill resolves each tile's expert, its plane /
 // slot-page byte offsets, its rows and (gate/up) its gathered token rows in one q20_desc dispatch before the tiles,
 // and the "_d" tile twins read that descriptor in one load instead of chasing tiles -> slots -> xrows in dependent
-// loads inside every tile, and skip threadgroup stores whose values are never read. Same addresses, same
-// arithmetic, bitwise the same outputs. Staged kernels only: NI_MOE_STAGE=0 keeps the shipped twins.
+// loads inside every tile, and skip threadgroup stores whose values are never read. Same addresses and
+// arithmetic by inspection; outputs not yet compared on a GPU. Staged kernels only: NI_MOE_STAGE=0 keeps the shipped twins.
 bool qtm_desc() {
   static const bool on = [] {
     const char* v = getenv("NI_MOE_QTM_DESC");

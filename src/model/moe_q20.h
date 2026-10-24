@@ -76,7 +76,7 @@ bool qtm_prefill();
 // NI_MOE_QTM_DESC (read once; default off): the bm-64 qtm-tile prefill resolves each tile's descriptor (expert,
 // plane / slot-page byte offsets, rows, gate/up gathered token rows) in one q20_desc dispatch before the tiles and
 // runs the "_d" twins that read it in one load a tile instead of chasing tiles -> slots -> xrows inside every tile.
-// Bitwise the same outputs by construction (same addresses, same arithmetic); staged kernels only.
+// Same addresses and arithmetic by inspection; outputs not yet compared on a GPU; staged kernels only.
 bool qtm_desc();
 
 }  // namespace ni::q20
