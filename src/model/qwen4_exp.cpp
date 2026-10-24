@@ -754,6 +754,18 @@ void Qwen4Exp::init_store(const std::string& dir) {
 
 // a prefill chunk's MoE: a chunk of 64+ rows routes most of the next layer's experts, so every one of them not in
 // memory is read during this layer; shorter ones only read what they route
+
+// A length knob: a name's non-negative number, or the default with a warning (NI_EXPERT_CAP warns the same way).
+static int knob(const char* name, int dflt) {
+  const char* v = getenv(name);
+  if (!v || !*v) return dflt;
+  char* end = nullptr;
+  const long x = strtol(v, &end, 10);
+  if (end != v && !*end && x >= 0 && x <= 1 << 20) return int(x);
+  logi("%s=%s is not a length between 0 and %d, ignored: using %d", name, v, 1 << 20, dflt);
+  return dflt;
+}
+
 q20::Experts Qwen4Exp::q20_fetch(Encoder& e, const Layer& L, const Buffer& ids, uint32_t n, int T,
                                  const std::function<void()>& between) {
   const int li = layer_index(L);
@@ -763,15 +775,9 @@ q20::Experts Qwen4Exp::q20_fetch(Encoder& e, const Layer& L, const Buffer& ids, 
   // The read-ahead of the whole next layer costs the store's size on an 85-token prompt (1232 ms of a 1613 ms TTFT),
   // and only a chunk of 64+ rows routes most of that layer anyway: NI_PRED_ALL_MIN is the shortest chunk that pays it
   // (default 64, the constant it replaces).
-  static const int pred_all_min = [] {
-    const char* v = getenv("NI_PRED_ALL_MIN");
-    return v && *v ? atoi(v) : 64;
-  }();
+  static const int pred_all_min = knob("NI_PRED_ALL_MIN", 64);
   // NI_SCAN_MIN: the shortest chunk whose sweep leaves the recency order alone (default 16, the constant it replaces).
-  static const int scan_min = [] {
-    const char* v = getenv("NI_SCAN_MIN");
-    return v && *v ? atoi(v) : 16;
-  }();
+  static const int scan_min = knob("NI_SCAN_MIN", 16);
   const bool all = T >= pred_all_min && nl >= 0;
   store_->begin(e, li - lo_, ids, n, nullptr, 0, all ? nl : -1, all, /*scan=*/T > scan_min);
   if (between) between();
