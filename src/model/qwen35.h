@@ -724,6 +724,8 @@ class Qwen35 : public Model {
   // prefill-only
   Buffer mtp_e_, mtp_u_, mtp_x_, mtp_post_, xrn_, samp_, dlog_, ue_, uw_, un_, mh_;
   Buffer xh_, hh_, ridx_, rwts_, spair_, stok_, tiles_, ntiles_, hg_, hu_, hhalf_, yd_, sgb_, sub_, ys_;
+  // NI_MOE_QTM_DESC: the qtm-tile prefill's per-tile descriptors (moe_q20.cpp's enc_prefill)
+  Buffer descg_, descd_, descx_;
   // 8-row verify (allocated on first use)
   bool v8_ready_ = false;
   Buffer v8g_, v8u_;  // split MLP: fp32 gate / up rows [8][I]

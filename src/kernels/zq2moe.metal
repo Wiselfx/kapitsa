@@ -653,3 +653,55 @@ NI_Q20RM_GU(qrm_gu_q20_m32_n64, false, 4, 64, 4)
 NI_Q20RM_GU(qrm_gu_q20_m32_n64_slot, true, 4, 64, 4)
 NI_Q20RM_DN(qrm_dn_q20_m32_n128, false, 4, 128, 4)
 NI_Q20RM_DN(qrm_dn_q20_m32_n128_slot, true, 4, 128, 4)
+
+// ---- the qtm20 prefill's tile descriptor (NI_MOE_QTM_DESC; src/model/moe_q20.cpp's enc_prefill) ----
+// What each bucket tile's qmtm_*_q20_m64_n64_d twins (src/kernels/tensor/qmt_moe_q20.metal) need, resolved once
+// here instead of chased tiles -> slots -> xrows in dependent global loads inside every tile kernel:
+//   descg / descd, [2 * max_tiles] uint4: [2t] = {codes byte offset lo, hi, d byte offset lo, hi} — arena: both
+//     pairs are the slot's page offset (the plane offsets come from Q20Slot inside the kernels), stacked: e * the
+//     plane's per-expert stride (codes in words, d in halfs); [2t + 1] = {m0, rows, chunk, 0}, rows == 0 marking
+//     the tiles past ntiles (the twins' early return, ntiles[0]'s role in the shipped kernels).
+//   descx, [64 * max_tiles] uint: descx[64t + r] = the gate/up tile's gathered token row xrows[m0 + r], with the
+//     dead-row sentinel 0xffffffff for r >= rows (the twins read it instead of xrows).
+// One write a thread, all independent: max_tiles threadgroups of 64 threads, thread r of threadgroup t writes one
+// descx word and r == 0 the tile's descriptor.
+struct Q20DescParams {
+  uint wcs_g, wds_g, wcs_d, wds_d;  // stacked per-expert strides (codes words / d halfs), gate-up and down
+  uint slot;                        // 1: an arena's slot table
+};
+kernel void q20_desc(const device uint* tiles [[buffer(0)]], const device uint* ntiles [[buffer(1)]],
+                     const device uint* slots [[buffer(2)]], device uint4* descg [[buffer(3)]],
+                     device uint4* descd [[buffer(4)]], device uint* descx [[buffer(5)]],
+                     const device uint* xrows [[buffer(6)]], constant Q20DescParams& p [[buffer(7)]],
+                     uint t [[threadgroup_position_in_grid]], uint r [[thread_index_in_threadgroup]]) {
+  if (t >= ntiles[0]) {  // a tail sentinel: rows = 0 returns the twins; their speculative descx loads stay in bounds
+    if (r == 0) {
+      descg[t * 2 + 1] = uint4(0u);
+      descd[t * 2 + 1] = uint4(0u);
+    }
+    descx[t * 64u + r] = 0xffffffffu;
+    return;
+  }
+  const uint e = tiles[t * 3 + 0], m0 = tiles[t * 3 + 1], rows = tiles[t * 3 + 2] - m0;
+  if (r == 0) {
+    uint4 g0, d0;
+    uint chunk = 0u;
+    if (p.slot != 0u) {  // the slot word = chunk << 28 | a 16 KiB page (q20_mat20's decode; planes added in-kernel)
+      const uint sw = slots[e];
+      const ulong po = ulong(sw & 0x0FFFFFFFu) * 16384ul;
+      g0 = uint4(uint(po), uint(po >> 32), uint(po), uint(po >> 32));
+      d0 = g0;
+      chunk = (sw >> 28) != 0u ? 1u : 0u;
+    } else {
+      const ulong gc = ulong(e) * p.wcs_g * 4ul, gd = ulong(e) * p.wds_g * 2ul;
+      const ulong dc = ulong(e) * p.wcs_d * 4ul, dd = ulong(e) * p.wds_d * 2ul;
+      g0 = uint4(uint(gc), uint(gc >> 32), uint(gd), uint(gd >> 32));
+      d0 = uint4(uint(dc), uint(dc >> 32), uint(dd), uint(dd >> 32));
+    }
+    descg[t * 2] = g0;
+    descg[t * 2 + 1] = uint4(m0, rows, chunk, 0u);
+    descd[t * 2] = d0;
+    descd[t * 2 + 1] = uint4(m0, rows, chunk, 0u);
+  }
+  descx[t * 64u + r] = r < rows ? xrows[m0 + r] : 0xffffffffu;
+}

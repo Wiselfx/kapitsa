@@ -26,6 +26,10 @@ SlotParams slot_params(const Experts& x) {
   return SlotParams{x.lay.gc, x.lay.gd, x.lay.uc, x.lay.ud, x.lay.dc, x.lay.dd};
 }
 
+struct DescParams {  // Q20DescParams (zq2moe.metal's q20_desc)
+  uint32_t wcs_g, wds_g, wcs_d, wds_d, slot;
+};
+
 Pipeline pipe(const std::string& base, const Experts& x) {
   const std::string n = x.arena ? base + "_slot" : base;
   // the qmt tiles live in the Metal 4 tensor library, as qwen35.cpp's qmt kernels do (compile_extra is keyed)
@@ -163,6 +167,19 @@ bool qtm_prefill() {
   return on;
 }
 
+// NI_MOE_QTM_DESC (read once; default off): the bm-64 qtm-tile prefill resolves each tile's expert, its plane /
+// slot-page byte offsets, its rows and (gate/up) its gathered token rows in one q20_desc dispatch before the tiles,
+// and the "_d" tile twins read that descriptor in one load instead of chasing tiles -> slots -> xrows in dependent
+// loads inside every tile, and skip threadgroup stores whose values are never read. Same addresses, same
+// arithmetic, bitwise the same outputs. Staged kernels only: NI_MOE_STAGE=0 keeps the shipped twins.
+bool qtm_desc() {
+  static const bool on = [] {
+    const char* v = getenv("NI_MOE_QTM_DESC");
+    return v && *v && atoi(v) != 0;
+  }();
+  return on;
+}
+
 namespace {
 
 // NI_MOE_STAGE (qwen35.cpp's switch of the same name): with 0, the "_o" twins keep main's element stores
@@ -178,9 +195,11 @@ const char* stage_sfx() {
 
 void enc_prefill(Encoder& e, const Experts& x, const Shape& sh, int bm, uint32_t max_tiles, const Buffer& xh,
                  const Buffer& H, const Buffer& Y, const Buffer& tiles, const Buffer& ntiles, const Buffer& xrows,
-                 const Buffer& yrows) {
+                 const Buffer& yrows, const Buffer& desc_g, const Buffer& desc_d, const Buffer& desc_x) {
   if (bm != 8 && bm != 32 && bm != 64) fatal("q20::enc_prefill: tiles of %d rows (8, 32 or 64)", bm);
   const bool small = bm == 8, qtm = bm == 64;  // qtm: the tensor_ops tile (src/kernels/tensor/qmt_moe_q20.metal)
+  // NI_MOE_QTM_DESC: the q20_desc writer + the "_d" twins; only the staged tiles have twins
+  const bool dsc = qtm && qtm_desc() && !stage_sfx()[0];
   const SlotParams L = slot_params(x);
   // N, K, x_ld, y_ld, gs, expert strides (words, halfs), shared_e (no shared tiles)
   const kp::Qmm2 pg{sh.I, sh.D, sh.D, sh.I, 64u, sh.I * (sh.D / 16), sh.I * (sh.D / 64), sh.E + 1};
@@ -188,7 +207,21 @@ void enc_prefill(Encoder& e, const Experts& x, const Shape& sh, int bm, uint32_t
   constexpr uint32_t nsg = 4;  // the small-T kernels: 4 simdgroups of 8 weight rows
   // the qtm tile: BN / 2 gate + BN / 2 up columns a tile (BN = 64), so its gu grid is twice qrm's and its dn grid is
   // the qrm dn grid at half its BN; buffer slots are the qrm_*_q20 ones in every mode
-  e.use(pipe(small ? "qmms_moe_gu_q20" : qtm ? "qmtm_gu_q20_m64_n64" + std::string(stage_sfx()) : "qrm_gu_q20_m32_n64",
+  if (dsc) {
+    // the per-tile descriptors, resolved once (zq2moe.metal's q20_desc): threadgroup t, thread r writes the desc_x
+    // word t * 64 + r and r == 0 the tile's 32-byte descriptor; the twins read them in one load a tile
+    const DescParams dp{pg.w_expert_stride, pg.s_expert_stride, pd.w_expert_stride, pd.s_expert_stride,
+                        x.arena ? 1u : 0u};
+    e.use(Gpu::get().pipeline("q20_desc"));
+    e.buf(0, tiles); e.buf(1, ntiles); e.buf(2, x.arena ? x.slots : x.dc);
+    e.buf(3, desc_g); e.buf(4, desc_d); e.buf(5, desc_x);
+    e.buf(6, xrows);
+    e.val(7, dp);
+    e.dispatch(max_tiles, 1, 1, 64);
+  }
+  e.use(pipe(small ? "qmms_moe_gu_q20"
+                   : qtm ? "qmtm_gu_q20_m64_n64" + std::string(dsc ? "_d" : "") + stage_sfx()
+                         : "qrm_gu_q20_m32_n64",
              x));
   e.buf(0, xh);
   bind_gu(e, x, 1);
@@ -196,9 +229,10 @@ void enc_prefill(Encoder& e, const Experts& x, const Shape& sh, int bm, uint32_t
   e.val(6, pg);
   e.buf(7, tiles); e.buf(8, ntiles); e.buf(9, xrows);
   e.val(10, L);
+  if (dsc) { e.buf(11, desc_g); e.buf(12, desc_x); }
   e.dispatch(small ? sh.I / (8 * nsg) : qtm ? sh.I / 32 : sh.I / 64, max_tiles, 1, small ? 32 * nsg : 128);
   e.use(pipe(small ? "qmms_moe_dn_q20"
-                   : qtm ? "qmtm_dn_q20_m64_n64" + std::string(stage_sfx())
+                   : qtm ? "qmtm_dn_q20_m64_n64" + std::string(dsc ? "_d" : "") + stage_sfx()
                          : "qrm_dn_q20_m32_n128",
              x));
   e.buf(0, H);
@@ -207,6 +241,7 @@ void enc_prefill(Encoder& e, const Experts& x, const Shape& sh, int bm, uint32_t
   e.val(5, pd);
   e.buf(6, tiles); e.buf(7, ntiles); e.buf(8, yrows);
   e.val(9, L);
+  if (dsc) e.buf(10, desc_d);
   e.dispatch(small ? sh.D / (8 * nsg) : qtm ? sh.D / 64 : sh.D / 128, max_tiles, 1, small ? 32 * nsg : 128);
 }
 

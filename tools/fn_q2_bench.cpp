@@ -391,7 +391,7 @@ void report(const char* what, const Err& e, double tol) {
 
 // ---- the bucketing (moe_bucket3, format-independent) for prefill ----
 struct Tiles {
-  Buffer idx, yrows, xrows, tiles, ntiles;
+  Buffer idx, yrows, xrows, tiles, ntiles, descg, descd, descx;
   uint32_t P = 0, max_tiles = 0;
 };
 
@@ -404,6 +404,10 @@ Tiles bucket(Encoder& e, const std::vector<uint32_t>& idx, int T, uint32_t bm) {
   t.xrows = abuf(size_t(t.P) * 4, "xrows");
   t.tiles = abuf(size_t(t.max_tiles) * 12, "tiles");
   t.ntiles = abuf(16, "ntiles");
+  // NI_MOE_QTM_DESC descriptors (the bm-64 qtm path reads them; allocated, unused in every other mode)
+  t.descg = abuf(size_t(t.max_tiles) * 32, "descg");
+  t.descd = abuf(size_t(t.max_tiles) * 32, "descd");
+  t.descx = abuf(size_t(t.max_tiles) * 256, "descx");
   const kp::Bucket2 bp{t.P, TOPK, E, bm, 0u};
   e.use(Gpu::get().pipeline("moe_bucket3"));
   e.buf(0, t.idx); e.buf(1, t.yrows); e.buf(2, t.xrows); e.buf(3, t.tiles); e.buf(4, t.ntiles);
@@ -583,7 +587,7 @@ void run_check(const Model& m, const Arena& A) {
       auto e = g.begin();
       const Tiles t = bucket(*e, idx, T, bm);
       q20::enc_prefill(*e, a ? xa : xs, shape, int(bm), t.max_tiles, s.xh, s.H, s.Y, t.tiles, t.ntiles, t.xrows,
-                       t.yrows);
+                       t.yrows, t.descg, t.descd, t.descx);
       e->commit();
       e->wait();
       out[a].assign(s.Y.as<float>(), s.Y.as<float>() + size_t(P) * D);
@@ -720,7 +724,8 @@ void run_bench(const Model& m, const Arena& A) {
     auto q2 = [&](const q20::Experts& x) {
       return time([&](Encoder& e, int c) {
         const Tiles& t = tl[size_t(c) % tl.size()];
-        q20::enc_prefill(e, x, shape, int(bm), t.max_tiles, s.xh, s.H, s.Y, t.tiles, t.ntiles, t.xrows, t.yrows);
+        q20::enc_prefill(e, x, shape, int(bm), t.max_tiles, s.xh, s.H, s.Y, t.tiles, t.ntiles, t.xrows, t.yrows,
+                         t.descg, t.descd, t.descx);
       });
     };
     const double t4 = m.have4 ? time([&](Encoder& e, int c) {
@@ -1084,7 +1089,7 @@ void run_store(int layers, int passes) {
             x = store.experts(l);
           }
           q20::enc_prefill(*e, x, shape, int(bm), t.max_tiles, xh[size_t(l)], s.H, st ? yr[size_t(l)] : ys[size_t(l)],
-                           t.tiles, t.ntiles, t.xrows, t.yrows);
+                           t.tiles, t.ntiles, t.xrows, t.yrows, t.descg, t.descd, t.descx);
         }
         e->commit();
         e->wait();

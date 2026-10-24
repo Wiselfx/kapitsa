@@ -63,12 +63,20 @@ void enc_verify(Encoder& e, const Experts& x, const Shared& s, const Shape& sh, 
 // xrows into H (half [pairs, I], sorted rows), down into Y (fp32 [pairs, D], rows by pair through yrows). bm 8: the
 // small-T kernels (experts of 1-2 rows by FMAs), bm 32: the qrm-design kernels, bm 64: the qmt tile (tensor_ops
 // matmul2d, src/kernels/tensor/qmt_moe_q20.metal — the caller gates it on the hardware, as NI_MOE_QTM does).
+// desc_g / desc_d (32 bytes a tile of max_tiles) and desc_x (256 bytes a tile): the NI_MOE_QTM_DESC descriptors
+// (qtm_desc()), written and read by the bm-64 path only; unused otherwise.
 void enc_prefill(Encoder& e, const Experts& x, const Shape& sh, int bm, uint32_t max_tiles, const Buffer& xh,
                  const Buffer& H, const Buffer& Y, const Buffer& tiles, const Buffer& ntiles, const Buffer& xrows,
-                 const Buffer& yrows);
+                 const Buffer& yrows, const Buffer& desc_g, const Buffer& desc_d, const Buffer& desc_x);
 
 // NI_MOE_QTM_Q20 (read once; default on): the bm-64 qmt-tile prefill of enc_prefill. The caller also gates on the
 // hardware (the tile needs the M5's matrix units, as qmt_on() in qwen35.cpp checks for the 4-bit qmt kernels).
 bool qtm_prefill();
+
+// NI_MOE_QTM_DESC (read once; default off): the bm-64 qtm-tile prefill resolves each tile's descriptor (expert,
+// plane / slot-page byte offsets, rows, gate/up gathered token rows) in one q20_desc dispatch before the tiles and
+// runs the "_d" twins that read it in one load a tile instead of chasing tiles -> slots -> xrows inside every tile.
+// Bitwise the same outputs by construction (same addresses, same arithmetic); staged kernels only.
+bool qtm_desc();
 
 }  // namespace ni::q20

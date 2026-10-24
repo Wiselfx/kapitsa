@@ -461,9 +461,16 @@ void Qwen35::prewarm_pipelines() {
         // qtm-q20: the bm-64 tensor_ops prefill tiles (enc_moe_prefill_fused's gate; the qrm prefill names above
         // compile anyway, two kernels' worth)
         if (q20::qtm_prefill() && qmt_on() && L.eg.K % 64 == 0 && L.ed.K % 64 == 0 && L.eg.N % 32 == 0 &&
-            L.ed.N % 64 == 0)
+            L.ed.N % 64 == 0) {
           for (const char* n : {"qmtm_gu_q20_m64_n64", "qmtm_dn_q20_m64_n64"})
             names.insert(std::string(n) + moe_stage_sfx() + (q20_arena() ? "_slot" : ""));
+          // NI_MOE_QTM_DESC: the descriptor writer (main library) and the "_d" twins (staged kernels only)
+          if (q20::qtm_desc() && !moe_stage_sfx()[0]) {
+            names.insert("q20_desc");
+            for (const char* n : {"qmtm_gu_q20_m64_n64_d", "qmtm_dn_q20_m64_n64_d"})
+              names.insert(std::string(n) + (q20_arena() ? "_slot" : ""));
+          }
+        }
       } else if (L.eg.iq) {  // llama.cpp's IQ blocks (qwen35_iq.cpp)
         const bool t16 = cfg_.moe_I == 512 && cfg_.shared_I == 512;
         for (const std::string& n : {"moei_gu_rows_" + L.eg.fmt() + "_r2", "moe8i_gu_" + L.eg.fmt(),
@@ -985,6 +992,10 @@ std::vector<Qwen35::ActBuf> Qwen35::act_layout(const Qwen35Config& c, int T, int
       {&Qwen35::stok_, (Pm + S) * 4, "stok"},
       {&Qwen35::tiles_, (Pm + S + size_t(std::max(c.experts, 1)) + 1) * 3 * 4, "tiles"},
       {&Qwen35::ntiles_, 16, "ntiles"},
+      // NI_MOE_QTM_DESC descriptors: the bm-64 tile worst case (32 B a tile + 64 gathered token rows a tile)
+      {&Qwen35::descg_, ((Pm + S + 63) / 64 + size_t(std::max(c.experts, 1)) + 1) * 32, "descg"},
+      {&Qwen35::descd_, ((Pm + S + 63) / 64 + size_t(std::max(c.experts, 1)) + 1) * 32, "descd"},
+      {&Qwen35::descx_, ((Pm + S + 63) / 64 + size_t(std::max(c.experts, 1)) + 1) * 256, "descx"},
       {&Qwen35::hg_, (c.moe ? (iq_only ? 1 : P) : hgu_rows) * I * 4, "hg"},
       {&Qwen35::hu_, (c.moe ? (iq_only ? 1 : P) : hgu_rows) * I * 4, "hu"},
       {&Qwen35::hhalf_, (P + S) * I * 2, "hhalf"},
@@ -2607,7 +2618,8 @@ bool Qwen35::enc_moe_prefill_small(Encoder& e, const Layer& L, int T, const Buff
   if (q20) {
     // Q2_0 (never folded): the shared expert first, while a streamed-expert store loads the routed ones
     const q20::Experts X = q20_fetch(e, L, ridx_, uint32_t(P), T, enc_shared);
-    q20::enc_prefill(e, X, q20_shape(), bm, max_tiles, xh_, hhalf_, yd_, tiles_, ntiles_, stok_, spair_);
+    q20::enc_prefill(e, X, q20_shape(), bm, max_tiles, xh_, hhalf_, yd_, tiles_, ntiles_, stok_, spair_, descg_,
+                     descd_, descx_);
   } else {
     // expert strides in words / scale groups (generic formats: N rows of row_bytes; bf16 has no groups)
     const uint32_t gws = uint32_t(size_t(G.N) * G.row_bytes() / 4), gss = G.dense() ? 0u : G.N * (G.K / G.gs);
@@ -2888,6 +2900,12 @@ bool Qwen35::enc_moe_prefill_fused(Encoder& e, const Layer& L, int T, const Buff
     qtm20_logged = true;
     logi("NI_MOE_QTM_Q20: routed Q2_0 expert GEMMs on tensor_ops (qmtm_gu_q20_m64_n64, qmtm_dn_q20_m64_n64, 64-row tiles)");
   }
+  static bool qtm20d_logged = false;
+  if (qtm20 && q20::qtm_desc() && !moe_stage_sfx()[0] && !qtm20d_logged) {
+    qtm20d_logged = true;
+    logi("NI_MOE_QTM_DESC: q20_desc resolves the tile descriptors, the _d twins read them "
+         "(qmtm_gu_q20_m64_n64_d, qmtm_dn_q20_m64_n64_d)");
+  }
   const int S = fold ? T : 0;
   if (!xh_ready) enc_rows_half(e, xbuf, L.post_norm, xh_, T, D);
   enc_proj(e, {{&L.router, rlog_, false}, {&L.shared_gate, slog_, false}}, xh_, T);
@@ -2916,7 +2934,8 @@ bool Qwen35::enc_moe_prefill_fused(Encoder& e, const Layer& L, int T, const Buff
   if (q20) {
     // Q2_0 (never folded): the shared expert first, while a streamed-expert store loads the routed ones
     const q20::Experts X = q20_fetch(e, L, ridx_, uint32_t(P), T, enc_shared);
-    q20::enc_prefill(e, X, q20_shape(), bm, max_tiles, xh_, hhalf_, yd_, tiles_, ntiles_, stok_, spair_);
+    q20::enc_prefill(e, X, q20_shape(), bm, max_tiles, xh_, hhalf_, yd_, tiles_, ntiles_, stok_, spair_, descg_,
+                     descd_, descx_);
   }
   // gate + up + SwiGLU: hhalf_ row r = sorted row r (pairs grouped by expert, then shared rows)
   if (!q20) {

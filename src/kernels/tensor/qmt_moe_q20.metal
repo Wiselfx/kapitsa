@@ -76,8 +76,10 @@ NI_INLINE void qtm20_dec(const Qtm20Raw r, threadgroup half* dst) {
 // One bucket tile (rows = the tile's live rows, m0 = its first sorted row) at output columns n0:
 // NP = 2 writes half(silu(g) * u) to H row m0 + m; NP = 1 writes fp32 Y[yrows[m0 + m]]. xrows == nullptr: the tile's
 // X rows are contiguous (down); otherwise xrows maps them to token rows (gate/up). qmt_moe.metal's qtmm_tile with
-// the Q2_0 weight read.
-template <int NP, int BM, int BN, int BK, bool STG = true>
+// the Q2_0 weight read. DESC (the NI_MOE_QTM_DESC "_d" twins): xrows is the tile's pre-gathered descx slice (row r
+// of BM, zq2moe.metal's q20_desc), and the X zero-fill stores plus the dead row-half's epilogue staging writes —
+// values no store ever reads — are skipped; the addresses and arithmetic are otherwise the same.
+template <int NP, int BM, int BN, int BK, bool STG = true, bool DESC = false>
 NI_INLINE void qtmm20_tile(const device half* X, thread const Q20MatT* M, device void* Y, constant Qmm2Params& p,
                            uint m0, uint rows, uint n0, const device uint* xrows, const device uint* yrows, uint tid,
                            uint sg, threadgroup half* xs, threadgroup half* ws) {
@@ -103,7 +105,7 @@ NI_INLINE void qtmm20_tile(const device half* X, thread const Q20MatT* M, device
     xr[i] = j / (BK / 8);
     xk[i] = (j % (BK / 8)) * 8;
     const uint r = xr[i];
-    xrow[i] = j < XN && r < rows ? (xrows ? xrows[m0 + r] : m0 + r) : 0xffffffffu;
+    xrow[i] = j < XN && r < rows ? (xrows ? xrows[DESC ? xr[i] : m0 + r] : m0 + r) : 0xffffffffu;
   }
   constexpr int WP = BN * BK / 16 / 128;
   uint wr[WP], wk[WP], wn[WP];
@@ -129,7 +131,8 @@ NI_INLINE void qtmm20_tile(const device half* X, thread const Q20MatT* M, device
   auto store = [&](uint b) {
     _Pragma("clang loop unroll(full)")
     for (int i = 0; i < XP; ++i)
-      if (!(XN % 128) || tid + 128 * i < XN) *(threadgroup uint4*)(xs + b * BM * BK + xr[i] * BK + xk[i]) = xv[i];
+      if ((!(XN % 128) || tid + 128 * i < XN) && (!DESC || xrow[i] != 0xffffffffu))
+        *(threadgroup uint4*)(xs + b * BM * BK + xr[i] * BK + xk[i]) = xv[i];
     _Pragma("clang loop unroll(full)")
     for (int i = 0; i < WP; ++i) qtm20_dec(wv[i], ws + b * WBUF + wr[i] * BK + wk[i]);
   };
@@ -138,7 +141,8 @@ NI_INLINE void qtmm20_tile(const device half* X, thread const Q20MatT* M, device
   threadgroup_barrier(mem_flags::mem_threadgroup);
   const uint steps = p.K / BK;
   // a simdgroup whose SM rows are all past the tile's live rows skips its products (its outputs are never stored);
-  // part of the staged kernels only, so the *_o ones (NI_MOE_STAGE=0) are main's kernel exactly
+  // part of the staged kernels only, so the *_o ones (NI_MOE_STAGE=0) are main's kernel exactly. DESC also skips
+  // the dead half's epilogue staging writes below — their values are never read (every row store guards r < rows)
   const bool live = !STG || sm * SM < rows;
   for (uint st = 0; st < steps; ++st) {
     const bool more = st + 1 < steps;
@@ -153,7 +157,7 @@ NI_INLINE void qtmm20_tile(const device half* X, thread const Q20MatT* M, device
   if (NP == 2) {
     // up products to threadgroup memory (ws is free after the last barrier), then the gate column combines them
     threadgroup float* ex = (threadgroup float*)ws + (sm * 32 + (tid & 31)) * acc.get_capacity();
-    if (sn == 1)
+    if (sn == 1 && (!DESC || live))
       for (uint16_t i = 0; i < acc.get_capacity(); ++i) ex[i] = acc[i];
     threadgroup_barrier(mem_flags::mem_threadgroup);
     if (!STG) {  // main's element stores (NI_MOE_STAGE=0)
@@ -170,7 +174,7 @@ NI_INLINE void qtmm20_tile(const device half* X, thread const Q20MatT* M, device
     // H goes out as whole rows (SN halfs each) through xs, as the down tile's fp32 rows do
     static_assert(BM * SN * 2 <= 2 * BM * BK * 2 && (SN * 2) % 16 == 0, "qtmm20_tile: H staging");
     threadgroup half* hs = xs;
-    if (sn == 0)
+    if (sn == 0 && (!DESC || live))
       for (uint16_t i = 0; i < acc.get_capacity(); ++i) {
         if (!acc.is_valid_element(i)) continue;
         const auto ix = acc.get_multidimensional_index(i);
@@ -200,11 +204,13 @@ NI_INLINE void qtmm20_tile(const device half* X, thread const Q20MatT* M, device
     return;
   }
   threadgroup float* st = (threadgroup float*)(sm ? xs : ws);
-  _Pragma("clang loop unroll(full)")
-  for (uint16_t i = 0; i < acc.get_capacity(); ++i) {
-    if (!acc.is_valid_element(i)) continue;
-    const auto ix = acc.get_multidimensional_index(i);
-    st[ix[1] * BN + sn * SN + ix[0]] = acc[i];
+  if (!DESC || live) {
+    _Pragma("clang loop unroll(full)")
+    for (uint16_t i = 0; i < acc.get_capacity(); ++i) {
+      if (!acc.is_valid_element(i)) continue;
+      const auto ix = acc.get_multidimensional_index(i);
+      st[ix[1] * BN + sn * SN + ix[0]] = acc[i];
+    }
   }
   threadgroup_barrier(mem_flags::mem_threadgroup);
   constexpr int Q = BN / 4;  // float4 per row
@@ -266,3 +272,68 @@ NI_QTM20_GU(qmtm_gu_q20_m64_n64_o, 64, 64, 32, false, false)
 NI_QTM20_GU(qmtm_gu_q20_m64_n64_o_slot, 64, 64, 32, false, true)
 NI_QTM20_DN(qmtm_dn_q20_m64_n64_o, 64, 64, 32, false, false)
 NI_QTM20_DN(qmtm_dn_q20_m64_n64_o_slot, 64, 64, 32, false, true)
+
+// ---- the NI_MOE_QTM_DESC "_d" twins (src/model/moe_q20.cpp's enc_prefill) ----
+// Bindings as NI_QTM20_{GU,DN} plus desc (buffer 11 gu / 10 dn): the tile's descriptor, [2t] = {codes byte offset
+// lo, hi, d byte offset lo, hi} and [2t + 1] = {m0, rows, chunk, 0} (zq2moe.metal's q20_desc writes it in one
+// dispatch before these run); gu also binds descx (buffer 12), the tile's gathered token rows. tiles, ntiles and
+// xrows stay bound (unused: rows == 0 in desc is ntiles[0]'s early return here, descx is xrows). The descriptor's
+// one load replaces the tiles -> slots -> xrows dependent chain inside every tile; DESC skips only threadgroup
+// stores whose values are never read. Same addresses, same arithmetic, bitwise the same outputs. Staged kernels
+// only: NI_MOE_STAGE=0 keeps the shipped ones.
+#define NI_QTM20_GU_D(NAME, BM, BN, BK, SLOT)                                                                          \
+  [[kernel, max_total_threads_per_threadgroup(128)]] void NAME(                                                        \
+      const device half* X [[buffer(0)]], const device uchar* w0 [[buffer(1)]], const device uchar* w1 [[buffer(2)]],  \
+      const device uchar* w2 [[buffer(3)]], const device uchar* w3 [[buffer(4)]], device half* H [[buffer(5)]],        \
+      constant Qmm2Params& p [[buffer(6)]], const device uint* tiles [[buffer(7)]],                                    \
+      const device uint* ntiles [[buffer(8)]], const device uint* xrows [[buffer(9)]],                                 \
+      constant Q20Slot& L [[buffer(10)]], const device uint4* desc [[buffer(11)]],                                     \
+      const device uint* descx [[buffer(12)]], uint2 tg [[threadgroup_position_in_grid]],                              \
+      uint tid [[thread_index_in_threadgroup]], uint sg [[simdgroup_index_in_threadgroup]]) {                          \
+    const uint4 d0 = desc[tg.y * 2], d1 = desc[tg.y * 2 + 1];                                                          \
+    if (d1.y == 0u) return; /* rows == 0: a tile past ntiles */                                                        \
+    threadgroup half xs[2 * BM * BK];                                                                                  \
+    threadgroup half ws[2 * BN * BK];                                                                                  \
+    const uint m0 = d1.x, rows = d1.y;                                                                                 \
+    const ulong o0 = ulong(d0.x) | (ulong(d0.y) << 32), o1 = ulong(d0.z) | (ulong(d0.w) << 32);                         \
+    Q20MatT M[2];                                                                                                      \
+    if (SLOT) { /* both offsets are the slot's page offset; the chunk bit is d1.z (q20_mat20's decode) */               \
+      const device uchar* b = (d1.z != 0u ? w1 : w0) + o0;                                                             \
+      M[0] = Q20MatT{(const device uint32_t*)(b + L.gc), (const device half*)(b + L.gd)};                              \
+      M[1] = Q20MatT{(const device uint32_t*)(b + L.uc), (const device half*)(b + L.ud)};                              \
+    } else {                                                                                                           \
+      M[0] = Q20MatT{(const device uint32_t*)(w0 + o0), (const device half*)(w1 + o1)};                                \
+      M[1] = Q20MatT{(const device uint32_t*)(w2 + o0), (const device half*)(w3 + o1)};                                \
+    }                                                                                                                  \
+    qtmm20_tile<2, BM, BN, BK, true, true>(X, M, H, p, m0, rows, tg.x * (BN / 2), descx + tg.y * BM, nullptr, tid, sg, \
+                                           xs, ws);                                                                    \
+  }
+
+#define NI_QTM20_DN_D(NAME, BM, BN, BK, SLOT)                                                                          \
+  [[kernel, max_total_threads_per_threadgroup(128)]] void NAME(                                                        \
+      const device half* X [[buffer(0)]], const device uchar* w0 [[buffer(1)]], const device uchar* w1 [[buffer(2)]],  \
+      const device uchar* w2 [[buffer(3)]], device float* Y [[buffer(4)]], constant Qmm2Params& p [[buffer(5)]],       \
+      const device uint* tiles [[buffer(6)]], const device uint* ntiles [[buffer(7)]],                                 \
+      const device uint* yrows [[buffer(8)]], constant Q20Slot& L [[buffer(9)]],                                       \
+      const device uint4* desc [[buffer(10)]], uint2 tg [[threadgroup_position_in_grid]],                              \
+      uint tid [[thread_index_in_threadgroup]], uint sg [[simdgroup_index_in_threadgroup]]) {                          \
+    const uint4 d0 = desc[tg.y * 2], d1 = desc[tg.y * 2 + 1];                                                          \
+    if (d1.y == 0u) return;                                                                                            \
+    threadgroup half xs[2 * BM * BK];                                                                                  \
+    threadgroup half ws[2 * BN * BK];                                                                                  \
+    const uint m0 = d1.x, rows = d1.y;                                                                                 \
+    const ulong o0 = ulong(d0.x) | (ulong(d0.y) << 32), o1 = ulong(d0.z) | (ulong(d0.w) << 32);                         \
+    Q20MatT M[1];                                                                                                      \
+    if (SLOT) {                                                                                                        \
+      const device uchar* b = (d1.z != 0u ? w1 : w0) + o0;                                                             \
+      M[0] = Q20MatT{(const device uint32_t*)(b + L.dc), (const device half*)(b + L.dd)};                              \
+    } else {                                                                                                           \
+      M[0] = Q20MatT{(const device uint32_t*)(w0 + o0), (const device half*)(w1 + o1)};                                \
+    }                                                                                                                  \
+    qtmm20_tile<1, BM, BN, BK, true, true>(X, M, Y, p, m0, rows, tg.x * BN, nullptr, yrows, tid, sg, xs, ws);          \
+  }
+
+NI_QTM20_GU_D(qmtm_gu_q20_m64_n64_d, 64, 64, 32, false)
+NI_QTM20_GU_D(qmtm_gu_q20_m64_n64_d_slot, 64, 64, 32, true)
+NI_QTM20_DN_D(qmtm_dn_q20_m64_n64_d, 64, 64, 32, false)
+NI_QTM20_DN_D(qmtm_dn_q20_m64_n64_d_slot, 64, 64, 32, true)
