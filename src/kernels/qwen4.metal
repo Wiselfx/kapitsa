@@ -724,7 +724,7 @@ NI_INLINE uint qsa_block_bits(uint u, uint ratio) {
 #pragma unroll
         for (uint tr = 0; tr < kUnionRows; ++tr) {
           const uint posr = p.pos0 + row0 + tr;
-          const uint v = tr < rows && b0 <= posr ? min(p.ratio, posr + 1 - b0) : 0;
+          const uint v = tr < rows && (entry >> tr & 1u) && b0 <= posr ? min(p.ratio, posr + 1 - b0) : 0;
           for (uint j = 0; j < v; ++j) {
             const threadgroup half* kr = ktile + (ei * p.ratio + j) * kSpHD + lane * 8;
             float sc = 0.0f;
