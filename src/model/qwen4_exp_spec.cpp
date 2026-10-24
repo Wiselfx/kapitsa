@@ -29,7 +29,8 @@ struct HcParams {
 
 }  // namespace
 
-void Qwen4Exp::enc_rows(Encoder& e, const std::vector<RowSeg>& segs, const Buffer& x, int R, uint32_t x_ld) {
+void Qwen4Exp::enc_rows(Encoder& e, const std::vector<RowSeg>& segs, const Buffer& x, int R, uint32_t x_ld,
+                        bool verify) {
   if (segs.empty()) return;
   const uint32_t K = segs[0].L->K;
   // NI_ROWS_OLD=1: Qwen35's verify GEMVs (qmvrc1 / qmvr2 / qmvr4 / the 8-row MMA GEMM)
@@ -62,37 +63,48 @@ void Qwen4Exp::enc_rows(Encoder& e, const std::vector<RowSeg>& segs, const Buffe
       continue;
     }
     // 4 rows of 4/8-bit: two token pairs per weight block (qmvp: 60 vs 69 us for 16384 x 2560, 832 vs 990 us for
-    // the LM head on the M5 Max); else a simdgroup per token row
-    const bool qmvp = sp0 && R == 4;
-    e.use(pipe4(qmvp ? "qmvp_multi" : sp0 ? "qmvs_multi" : "qmvs_multi_" + f0.fmt()));
-    struct {
-      uint32_t K, R, nseg, x_ld, N[4], tg_begin[5], bits[4], y_ld[4], add[4];
-    } p{};
-    p.K = K;
-    p.R = uint32_t(R);
-    p.nseg = uint32_t(same.size());
-    p.x_ld = x_ld ? x_ld : K;
-    uint32_t tg = 0;
-    for (size_t i = 0; i < 4; ++i) {
-      const RowSeg& sg = *same[std::min(i, same.size() - 1)];
-      if (i < same.size()) {
-        p.N[i] = sg.L->N;
-        p.bits[i] = uint32_t(sg.L->bits);
-        p.y_ld[i] = sg.y_ld ? sg.y_ld : sg.L->N;
-        p.add[i] = sg.add ? 1u : 0u;
-        p.tg_begin[i] = tg;
-        tg += (sg.L->N + 7) / 8;
+    // the LM head on the M5 Max); else a simdgroup per token row. NI_QMV_BLOCKS=1 sends a verify pass' 4/8-bit rows
+    // as R/4 blocks of four rows through the pair-packed kernel instead. That is not bitwise against qmvs_multi:
+    // tools/fn_check.cpp's test_qmvs_rows holds qmvp_multi to 1e-4 against the decode kernels and qmvs_multi to 0
+    // (the same per-lane K blocks, group scales and reduction, reordered by fast math).
+    static const bool blocks = env_on("NI_QMV_BLOCKS");
+    const int blk = blocks && verify && sp0 && R > 4 && R % 4 == 0 && R <= Qwen35::kMaxVerify ? 4 : R;
+    const uint32_t xl = x_ld ? x_ld : K;
+    auto emit = [&](int r0, int n) {
+      const bool qmvp = sp0 && n == 4;
+      e.use(pipe4(qmvp ? "qmvp_multi" : sp0 ? "qmvs_multi" : "qmvs_multi_" + f0.fmt()));
+      struct {
+        uint32_t K, R, nseg, x_ld, N[4], tg_begin[5], bits[4], y_ld[4], add[4];
+      } p{};
+      p.K = K;
+      p.R = uint32_t(n);
+      p.nseg = uint32_t(same.size());
+      p.x_ld = xl;
+      uint32_t tg = 0;
+      for (size_t i = 0; i < 4; ++i) {
+        const RowSeg& sg = *same[std::min(i, same.size() - 1)];
+        if (i < same.size()) {
+          p.N[i] = sg.L->N;
+          p.bits[i] = uint32_t(sg.L->bits);
+          p.y_ld[i] = sg.y_ld ? sg.y_ld : sg.L->N;
+          p.add[i] = sg.add ? 1u : 0u;
+          p.tg_begin[i] = tg;
+          tg += (sg.L->N + 7) / 8;
+        }
+        e.buf(int(i * 4 + 0), sg.L->w->buf);
+        e.buf(int(i * 4 + 1), sg.L->s->buf);
+        e.buf(int(i * 4 + 2), sg.L->b->buf);
+        const uint32_t yl = sg.y_ld ? sg.y_ld : sg.L->N;
+        e.buf(int(i * 4 + 3),
+              sg.y.view(size_t(r0) * yl * 4, size_t(n - 1) * yl * 4 + size_t(sg.L->N) * 4));
       }
-      e.buf(int(i * 4 + 0), sg.L->w->buf);
-      e.buf(int(i * 4 + 1), sg.L->s->buf);
-      e.buf(int(i * 4 + 2), sg.L->b->buf);
-      e.buf(int(i * 4 + 3), sg.y);
-    }
-    p.tg_begin[same.size()] = tg;
-    e.buf(16, x);
-    e.val(17, p);
-    if (qmvp) e.dispatch(tg, 1, 1, 128);
-    else e.dispatch(uint32_t(R), tg, 1, 64);
+      p.tg_begin[same.size()] = tg;
+      e.buf(16, x.view(size_t(r0) * xl * 4, size_t(n - 1) * xl * 4 + size_t(K) * 4));
+      e.val(17, p);
+      if (qmvp) e.dispatch(tg, 1, 1, 128);
+      else e.dispatch(uint32_t(n), tg, 1, 64);
+    };
+    for (int r0 = 0; r0 < R; r0 += blk) emit(r0, std::min(blk, R - r0));
   }
 }
 
@@ -110,7 +122,7 @@ void Qwen4Exp::enc_moe4_rows(Encoder& e, const Layer& L, int R, bool mtp_layer) 
   const bool pred = L.eg.q20 && store_ && !store_->complete() && li >= 0 && li + 1 < hi_;
   std::vector<RowSeg> segs = {{&L.router, rlog_}, {&L.shared_gate, slog_}};
   if (pred) segs.push_back({&layers_[size_t(li + 1)].router, plog_});
-  enc_rows(e, segs, xrn_, R);
+  enc_rows(e, segs, xrn_, R, 0, true);
   kp::Topk tp{uint32_t(cfg_.experts), uint32_t(k), cfg_.norm_topk ? 1u : 0u};
   e.use(pipe4("moe_topk512"));
   e.buf(0, rlog_); e.buf(1, slog_); e.buf(2, ridx_); e.buf(3, rwts_);
@@ -195,7 +207,7 @@ void Qwen4Exp::enc_moe4_down(Encoder& e, const Layer& L, int R, const Buffer& id
 void Qwen4Exp::enc_gdn4_rows(Encoder& e, Seq& s, int li, const Layer& L, int R) {
   const int D = cfg_.hidden, VD = cfg_.lin_hv * cfg_.lin_dv;
   const uint32_t C = 2 * cfg_.lin_hk * cfg_.lin_dk + cfg_.lin_hv * cfg_.lin_dv;
-  enc_rows(e, {{&L.qkv, qkv_}, {&L.z, zb_}, {&L.b, bb_}, {&L.a, ab_}}, xrn_, R);
+  enc_rows(e, {{&L.qkv, qkv_}, {&L.z, zb_}, {&L.b, bb_}, {&L.a, ab_}}, xrn_, R, 0, true);
   kp::GdnVerify gv{uint32_t(R), uint32_t(s.n_pend), uint32_t(cfg_.lin_hk), uint32_t(cfg_.lin_hv), C, cfg_.eps};
   e.use(pipe4("gdn_prep_verify"));
   e.buf(0, qkv_); e.buf(1, ab_); e.buf(2, bb_); e.buf(3, s.conv[size_t(li)]);
@@ -210,13 +222,13 @@ void Qwen4Exp::enc_gdn4_rows(Encoder& e, Seq& s, int li, const Layer& L, int R) 
   e.buf(9, s.pend_k[size_t(li)]); e.buf(10, s.pend_g[size_t(li)]); e.buf(11, s.pend_d[size_t(li)]);
   e.val(12, gv);
   e.dispatch(uint32_t(cfg_.lin_hv), 1, 1, 1024);
-  enc_rows(e, {{&L.out, yb_, false, uint32_t(D)}}, gout_, R, uint32_t(VD));
+  enc_rows(e, {{&L.out, yb_, false, uint32_t(D)}}, gout_, R, uint32_t(VD), true);
 }
 
 // Attention of R rows (u in xrn_) at positions pos.. against the cache (kc, vc) and the indexer's caches (ik, bk)
 void Qwen4Exp::enc_attn4_rows(Encoder& e, const Seq& s, const Layer& L, const Qwen4Layer& F, const Buffer& kc,
                               const Buffer& vc, const Buffer& ik, const Buffer& bk, int pos, int R) {
-  enc_rows(e, {{&L.q, qg_}, {&L.k, kr_}, {&L.v, vr_}, {&F.iqk, iqk_}}, xrn_, R);
+  enc_rows(e, {{&L.q, qg_}, {&L.k, kr_}, {&L.v, vr_}, {&F.iqk, iqk_}}, xrn_, R, 0, true);
   kp::AttnPrep ap{uint32_t(R), uint32_t(cfg_.hq), uint32_t(cfg_.hkv), uint32_t(cfg_.head_dim), uint32_t(cfg_.rot_dims),
                   uint32_t(pos), uint32_t(s.cap), cfg_.eps, cfg_.theta};
   e.use(pipe4(mrope(s) ? "attn_prep_m" : "attn_prep"));
@@ -229,7 +241,7 @@ void Qwen4Exp::enc_attn4_rows(Encoder& e, const Seq& s, const Layer& L, const Qw
   if (qsa_sparse(pos + R - 1)) {  // rows that see > budget + ratio - 1 tokens: their selected blocks (the others: all)
     enc_qsa_select(e, bk, R, pos, 0);
     enc_attn_sparse(e, kc, vc, s.cap, R, true, 0);
-    enc_rows(e, {{&L.o, yb_}}, attn_out_, R);
+    enc_rows(e, {{&L.o, yb_}}, attn_out_, R, 0, true);
     return;
   }
   const uint32_t Lmax = uint32_t(pos + R);
@@ -251,7 +263,7 @@ void Qwen4Exp::enc_attn4_rows(Encoder& e, const Seq& s, const Layer& L, const Qw
   e.buf(0, part_o_); e.buf(1, part_ml_); e.buf(2, qg_); e.buf(3, attn_out_);
   e.val(4, rp);
   e.dispatch(cfg_.hq, uint32_t(R), 1, cfg_.head_dim);
-  enc_rows(e, {{&L.o, yb_}}, attn_out_, R);
+  enc_rows(e, {{&L.o, yb_}}, attn_out_, R, 0, true);
 }
 
 void Qwen4Exp::encode_verify(Encoder& e, Seq& s, int pos, int R, const SamplingParams& sp, uint32_t step, bool v8) {
@@ -284,7 +296,7 @@ void Qwen4Exp::encode_verify(Encoder& e, Seq& s, int pos, int R, const SamplingP
   enc_hop(e, Remote::Kind::verify, s, pos, R);
   s.n_pend = 0;  // folded by this verify; commit_rows() sets the new count
   enc_gr_rows(e, mix_, R, x_, 0, true, injM_, injA_, xrn_, uint32_t(D));
-  enc_rows(e, {{&lm_head_, logits_}}, xrn_, R);
+  enc_rows(e, {{&lm_head_, logits_}}, xrn_, R, 0, true);
   const uint32_t V = uint32_t(cfg_.vocab), chunk = 2048, ntg = (V + chunk - 1) / chunk;
   const uint32_t K = sp.temperature > 0 ? uint32_t(std::clamp(sp.top_k <= 0 ? 32 : sp.top_k, 1, 32)) : 1u;
   kp::TopkStage ts{V, K, chunk};
