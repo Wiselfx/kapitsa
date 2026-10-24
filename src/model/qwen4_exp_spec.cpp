@@ -117,9 +117,12 @@ void Qwen4Exp::enc_moe4_rows(Encoder& e, const Layer& L, int R, bool mtp_layer) 
   e.val(4, tp);
   e.dispatch(uint32_t(R), 1, 1, 32);
   if (pred) {
+    // 0q: the read-ahead's top (k + j) per row — a superset of the routing's top k (see init_store's clamp; the width
+    // is top_k when NI_Q20_RECALL is unset, so the shipped dispatch is unchanged)
+    const kp::Topk tpp{uint32_t(cfg_.experts), pred_k_, cfg_.norm_topk ? 1u : 0u};
     e.use(pipe4("moe_topk512"));
     e.buf(0, plog_); e.buf(1, slog_); e.buf(2, pidx_); e.buf(3, pwts_);
-    e.val(4, tp);
+    e.val(4, tpp);
     e.dispatch(uint32_t(R), 1, 1, 32);
   }
   if (L.eg.q20) {

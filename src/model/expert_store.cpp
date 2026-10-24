@@ -64,6 +64,33 @@ double auto_store_cap(bool apple10) {
   return cap;
 }
 
+// 0q: the two read-ahead levers. Parsed once, and the rider is logged when it is on: a leg that moves it has to be able
+// to prove from its own log which arm it ran (no booked leg prints an env it was not given).
+int q20_recall() {
+  static const int j = [] {
+    const char* s = getenv("NI_Q20_RECALL");
+    if (!s || !*s) return 0;
+    const int v = atoi(s);
+    if (v <= 0) return 0;
+    if (v > 15) {
+      logi("0q: NI_Q20_RECALL=%d is above the top-k kernels' 15-expert headroom, using 15", v);
+      return 15;
+    }
+    return v;
+  }();
+  return j;
+}
+
+bool q20_rider() {
+  static const bool on = [] {
+    const char* s = getenv("NI_Q20_RIDER");
+    const bool v = s && *s && atoi(s) != 0;
+    if (v) logi("0q: NI_Q20_RIDER=1: the read-ahead is issued inside the miss window, before the blocking wait");
+    return v;
+  }();
+  return on;
+}
+
 // ---- ExpertCache ----
 
 ExpertCache::ExpertCache(const std::vector<std::string>& files, const std::vector<LayerSrc>& layers, uint32_t E,
@@ -228,20 +255,15 @@ void ExpertCache::serve(const Req& r) {
     ++misses;
   }
   const double t_rd = Encoder::host_ms();
-  for (int k : keys)
-    while (pending_[size_t(k)].load(std::memory_order_acquire) > 0) relax();
-  const double t_loaded = Encoder::host_ms();
-  // the predictions are copied before the go (the GPU rewrites them in its next layer)
+  // the predictions are copied before the go (the GPU rewrites them in its next layer); before the wait is just as
+  // safe, because the go event that lets this layer run is set below
   std::vector<uint32_t> pred;
   if (r.pred_layer >= 0 && !r.pred_all && r.pred) pred.assign(r.pred, r.pred + r.npred);
-  std::atomic_thread_fence(std::memory_order_seq_cst);
-  sync_.set(r.go);
-  const double t_go = Encoder::host_ms();
-  if (r.warm && sync_.warm) sync_.warm();
-  active_ = keys;
+  const bool ahead_layer = r.pred_layer >= 0 && uint32_t(r.pred_layer) < L_;
   // read ahead (a read-ahead expert enters the order as recent, unrouted: its first routed use counts as its first)
   uint64_t pf = 0;
-  if (r.pred_layer >= 0 && uint32_t(r.pred_layer) < L_) {
+  auto read_ahead = [&] {
+    if (!ahead_layer) return;
     auto ahead = [&](uint32_t e) {
       const int k = int(uint32_t(r.pred_layer) * E_ + e);
       const Where w = Where(where_[size_t(k)]);
@@ -262,7 +284,24 @@ void ExpertCache::serve(const Req& r) {
       for (uint32_t e : pred)
         if (e < E_) mark_[e] = 0;
     }
-  }
+  };
+  // 0q rider (NI_Q20_RIDER=1): read ahead inside the miss window instead of after the go. The blocking loads are
+  // queued first and the reader pool serves its queue in order, so they are not displaced; but the extra reads do
+  // contend, so the sign of the trade is the A/B leg's to price, not this comment's. Off = exactly the shipped order.
+  const bool rider = ahead_layer && !r.pred_all && q20_rider();
+  if (rider) read_ahead();
+  // the read-wait counter starts after the rider, so the rider's own issue time is not scored as a wait; off, it starts
+  // where the shipped code starts it, and a default run's counters are the shipped ones to the instruction
+  const double t_wait = rider ? Encoder::host_ms() : t_rd;
+  for (int k : keys)
+    while (pending_[size_t(k)].load(std::memory_order_acquire) > 0) relax();
+  const double t_loaded = Encoder::host_ms();
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+  sync_.set(r.go);
+  const double t_go = Encoder::host_ms();
+  if (r.warm && sync_.warm) sync_.warm();
+  active_ = keys;
+  if (!rider) read_ahead();
   std::lock_guard<std::mutex> lk(st_mu_);
   ++st_.handshakes;
   st_.lookups += keys.size();
@@ -272,7 +311,7 @@ void ExpertCache::serve(const Req& r) {
   st_.prefetches += pf;
   st_.prefetch_used += used;
   st_.stall_ms += t_go - t_ready;
-  st_.read_wait_ms += t_loaded - t_rd;
+  st_.read_wait_ms += t_loaded - t_wait;
 }
 
 // ---- replacement: ARC (Megiddo and Modha) over (layer, expert) keys; T1 / T2 in the arena, B1 / B2 their ghosts ----

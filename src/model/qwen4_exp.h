@@ -242,6 +242,10 @@ class Qwen4Exp : public Qwen35 {
   bool q20_pack_ = false, stream_ = false;
   std::unique_ptr<q20::ExpertStore> store_;
   Buffer plog_, pidx_, pwts_;
+  // 0q (NI_Q20_RECALL): the width of the read-ahead prediction, top_k + j clamped to the top-k kernel's register bound.
+  // 0 = the store is absent or complete, so nothing predicts; the prediction buffers below are sized from it, and
+  // Req.npred is R * pred_k_ (wider than the routed R * top_k, which is what makes it a recall superset).
+  uint32_t pred_k_ = 0;
   std::vector<Qwen4Layer> l4_;
   GatedRes mix_;              // the final mix (no injection)
   // PLE

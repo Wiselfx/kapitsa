@@ -746,9 +746,20 @@ void Qwen4Exp::init_store(const std::string& dir) {
   Gpu::get().make_resident(store_->buffers());
   if (!store_->complete()) {
     Gpu& g = Gpu::get();
+    // 0q (NI_Q20_RECALL=<j>): the read-ahead predicts the next layer's top (k + j) experts, the routing keeps its own
+    // top k. The top-k kernels hold the selected k in per-lane register arrays — 16 for moe_topk512 / moe_topk's MAXPER,
+    // 8 for moe_topk256 (E == 256) — so the widened width is clamped there and the width actually used is logged: a
+    // prediction wider than the kernel can select would overrun those arrays, and a filled store predicts nothing.
+    const uint32_t kcap = E == 512 ? 16u : (E == 256 ? 8u : 16u);
+    const uint32_t k = uint32_t(cfg_.top_k);
+    const uint32_t j = uint32_t(q20::q20_recall());
+    pred_k_ = k + std::min(j, kcap > k ? kcap - k : 0u);
+    if (j || q20::q20_rider())
+      logi("0q: NI_Q20_RECALL=%u -> read-ahead width %u (top_k %u, j %u, kernel bound %u)%s", j, pred_k_, k,
+           pred_k_ - k, kcap, q20::q20_rider() ? ", rider on" : "");
     plog_ = g.alloc(size_t(kMaxVerify) * E * 4, "pred_logits");
-    pidx_ = g.alloc(size_t(kMaxVerify) * cfg_.top_k * 4, "pred_idx");
-    pwts_ = g.alloc(size_t(kMaxVerify) * (cfg_.top_k + 1) * 4, "pred_wts");
+    pidx_ = g.alloc(size_t(kMaxVerify) * pred_k_ * 4, "pred_idx");
+    pwts_ = g.alloc(size_t(kMaxVerify) * (pred_k_ + 1) * 4, "pred_wts");
   }
 }
 
@@ -792,7 +803,10 @@ q20::Experts Qwen4Exp::q20_rows_fetch(Encoder& e, const Layer& L, int R, const B
   const int li = layer_index(L);
   if (!store_ || li < 0) return q20_experts(L);
   const uint32_t n = uint32_t(R * cfg_.top_k);
-  store_->begin(e, li - lo_, idx, n, pred ? &pidx_ : nullptr, n, pred ? li + 1 - lo_ : -1, false, false, /*warm=*/true);
+  // 0q: the prediction is wider than the routing when NI_Q20_RECALL is set (pred_k_ > top_k): pidx_ holds R * pred_k_
+  // ids, so the handshake passes that count, not the routed one
+  const uint32_t np = pred ? uint32_t(R) * (pred_k_ ? pred_k_ : uint32_t(cfg_.top_k)) : 0;
+  store_->begin(e, li - lo_, idx, n, pred ? &pidx_ : nullptr, np, pred ? li + 1 - lo_ : -1, false, false, /*warm=*/true);
   store_->end(e);
   return store_->experts(li - lo_);
 }
@@ -1164,9 +1178,12 @@ void Qwen4Exp::enc_moe4(Encoder& e, const Layer& L, const Buffer& u) {
   e.val(4, tp);
   e.dispatch(1, 1, 1, 32);
   if (pred) {
+    // 0q: the read-ahead's top (k + j) — a superset of the routing's top k, so every expert this row will route next
+    // layer is predicted and j more are read on speculation (pred_k_ == top_k when NI_Q20_RECALL is unset)
+    const kp::Topk tpp{E, pred_k_, cfg_.norm_topk ? 1u : 0u};
     e.use(topk);
     e.buf(0, plog_); e.buf(1, slog_); e.buf(2, pidx_); e.buf(3, pwts_);
-    e.val(4, tp);
+    e.val(4, tpp);
     e.dispatch(1, 1, 1, 32);
   }
   if (q20) {

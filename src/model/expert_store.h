@@ -155,6 +155,18 @@ double auto_store_cap(bool apple10);
 // can pick different sizes.
 size_t available_memory();
 
+// ---- 0q levers (16d250da): env-gated, off by default, so a default run's bytes, order and counters are unchanged ----
+// NI_Q20_RECALL=<j>: the read-ahead predicts the next layer's top (k + j) experts instead of its top k. The caller widens
+// the prediction buffer and passes the wider count as Req.npred; the store reads whatever npred says, so this side has no
+// bytes of its own to change. The top-k kernels keep the selected k in per-lane registers (arrays of 8 or 16), so the
+// caller clamps k + j to that bound and logs the width it settled on.
+// NI_Q20_RIDER=<u>: issue that read-ahead inside the miss window — right after the blocking loads are queued, before the
+// wait for them — instead of after the go, so the prefetch overlaps this layer's wait rather than the GPU's compute. The
+// blocking loads are queued first and the reader pool serves them in order, but extra reads do contend, so which way the
+// sign goes is the A/B's to price.
+int q20_recall();  // NI_Q20_RECALL, 0..15; 0 (off) unless asked for
+bool q20_rider();  // NI_Q20_RIDER=1
+
 // One plane of a layer's stacked experts in a pack file: expert e's bytes at off + e * stride, len of them
 struct PlaneSrc {
   int file = -1;
