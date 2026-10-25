@@ -185,6 +185,20 @@ class Qwen4Exp : public Qwen35 {
   };
   void enc_rows(Encoder& e, const std::vector<RowSeg>& segs, const Buffer& x, int R, uint32_t x_ld = 0,
                 bool pair8 = false);
+  // tensor_ops 8-row verify (opt-in): R == 8 batches with K % 256 == 0 go to qmm6t (f6g64) / qmm8t (4-bit)
+  // over x8_prep2's T tables instead of the simdgroup row kernels. Apple10 GPUs and macOS 26 only (qmm8t's
+  // operand layout gives wrong logits on an M4 Pro), NI_FN8T_D=1 to engage; NI_FN8T_NT / _KS / _PF / _LO are
+  // the A/B overrides.
+  static bool fn8t_d();
+  // one same-format group of enc_rows as x8_prep2's T tables + group sums, then the tensor GEMM; false when
+  // the format or shape has no tensor path (the caller keeps the simdgroup kernels)
+  bool enc_rows8t(Encoder& e, const std::vector<const RowSeg*>& same, const Buffer& x, uint32_t x_ld, uint32_t K);
+  // tensor_ops 8-row verify of the Q2_0 experts (opt-in): the unique planes' gate/up, down and combine on the
+  // matrix units (src/kernels/tensor/qmt8v.metal) instead of moe_q20v_gate_up / moe_q20_down. NI_FN8T_E=1 to
+  // engage (implies fn8t_d()'s hardware gate and its T-table buffers); false when the shape or format has no
+  // tensor path (the caller keeps q20::enc_verify)
+  static bool fn8t_e();
+  bool enc_moe_experts8t(Encoder& e, const q20::Experts& x, const q20::Shared& s, const q20::Shape& sh, int R);
   // the MoE of R rows of xrn_ into yb_ (router on the row kernels, the 512-expert top-k per row, the experts)
   void enc_moe4_rows(Encoder& e, const Layer& L, int R, bool mtp_layer);
   // streamed Q2_0 experts (src/model/expert_store.h)
@@ -291,6 +305,16 @@ class Qwen4Exp : public Qwen35 {
   Buffer xr2_, hinv_;         // one-row gated residual (hc_down / hc_up): the injected row, its streams' inverse RMS
   Buffer hpart_;              // row gated residual: hc_down_sk's partial sums [S*D / 1024, kMaxVerify, rank]
   Buffer hx2_, hstat_;        // folded gated residual (NI_HC_FOLD): injected rows [kMaxVerify, S*D], per-chunk stats
+  // NI_FN8T_D's tables: one set for xrn_'s rows (K = hidden), one for gout_ / attn_out_'s (K = t8kg_; the two
+  // never share an enc_rows call). v8x_ / v8g_ are sinks for x8_prep2's unconditional v8-layout table writes —
+  // aliasing them onto the T tables would race the two write blocks.
+  Buffer t8x_, t8xl_, s8x_, s8xl_, v8x_, v8xl_;
+  Buffer t8g_, t8gl_, s8g_, s8gl_, v8g_, v8gl_;
+  uint32_t t8kg_ = 0;         // the K the second set was sized for (0: not allocated)
+  // NI_FN8T_E's expert buffers (qmt8v): he8_ the fp32 h planes [8 k + 1][8][Imax] (plane 8 k the shared expert),
+  // ht8* / hs8* the routed planes' permuted half T tables [8 k][8][I] + lo and group sums [8 k][I / 64][8] + lo,
+  // hst8* / hss8* the shared plane's (stride SI), out8_ the old out planes [8][k + 1][D] qmt8v_combine sums.
+  Buffer he8_, ht8_, ht8l_, hs8_, hs8l_, hst8_, hst8l_, hss8_, hss8l_, out8_;
   uint32_t qidx_ld_ = 0;
   int ple_pf_flip_ = 0, ple_dec_next_ = 0;
   void* ple_ev_ = nullptr;    // MTLSharedEvent: tickets of gathers done by completion handlers

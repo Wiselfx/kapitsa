@@ -413,6 +413,7 @@ bool Qwen35::enc_x8(Encoder& e, const Buffer& x, int R, int K, const Tensor* nor
   e.buf(6, v8tl_);
   e.buf(7, v8sl_);
   e.buf(8, wt ? v8tt_ : v8tl_);  // (unused unless write_t)
+  e.buf(9, v8tl_);               // (unused unless write_t_lo, which only Qwen4Exp's fn8t path sets)
   if (v8w_R_) v8_disp(e, uint32_t(K / 256), 1, 1, kV8wY, 256);  // a wide tree verify: the live row tiles
   else e.dispatch(v2 ? uint32_t(K / 256) : 8u, 1, 1, 256);
   return wt;
