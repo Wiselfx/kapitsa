@@ -50,3 +50,39 @@ The run writes `/tmp/fnx-full/STOREFIX-DONE` when G1, G2 and G3 pass, and `/tmp/
 failed gate on every other exit (a gate miss, an aborted B leg, an A leg abort that leaves a G2 pair unscored, the time
 cap, or an error). On PASS, w32k STORE=auto is rerun under the same rules, and that figure replaces each 32K figure
 tagged 'store=22 (non-default)'.
+
+## Amendment 2 (ROUND 368): G2 re-run with the old arm pinned
+
+Written and committed before any leg of this re-run. Amendment 1 was the 0.2 GB G3 tolerance (822bbc86).
+
+**What happened.** The first run (04:25 to 04:39 on 26 Oct) wrote `STOREFIX-FAIL`. All its rows are tagged 'ran
+without GO (R354 not met)'. Every A leg (origin/main at STORE=auto, store 26.1 to 27.6 GB) aborted at pressure 4, so G2
+was not scorable. The B legs ran clean: w32k B prefilled at 650.9 tok/s (-2.2% against 665.5) and decoded at 54.3 tok/s
+(+1.9% against 53.3), and the B stores were 22.9 to 24.4 GB. G1 and G3 stay as booked. This amendment re-runs G2 only.
+
+**Arms.** These are the same binaries and shas as above. A is origin/main 64309d33 with `NI_EXPERT_STORE=23` pinned, so
+its store is the size B picks and it does not fall under the envelope. B is this branch at 974027e2 with STORE=auto.
+Both use `--spec 2`, 512 tokens and the w4k chat-templated prompt (4048 tokens).
+
+**Order (15 minutes at most).** First a warm-up: A, w4k, 32 tokens, discarded. Then w4k A1, B1, B2, A2. Each leg gets
+one attempt. A leg is skipped and booked NOT RUN when fewer than 3 minutes of the 15 remain (2 minutes for the warm-up).
+The envelope is R280/R282 with the level floor at 10% (`RV_MINLEVEL=10`), pressure at most 2, and load recorded per
+R292. The run starts only on the orchestrator's explicit GO.
+
+**Scoring** (`score.py`, in the order applied):
+
+1. Every one of the four legs must be clean: rc 0, no abort, level_min at or above 10%, pressure at most 2. Otherwise
+   the result is NOT SCORED.
+2. If the two A prefills, or the two B prefills, differ by more than 10%, the result is NOT SCORED (noisy).
+3. If a pair's A and B logged store sizes differ by more than 1.5 GB, the result is NOT SCORED (store mismatch).
+4. **G2 PASS** requires all of the following:
+   - B's median is within 3% of A's median, for prefill tok/s and for decode tok/s.
+   - For each metric, the two pairs' B/A changes agree in sign, or both are within 3%.
+   - The ids of all four legs are identical.
+   - All four legs pass the ROUND 242 ids check.
+
+   Anything else is FAIL.
+
+**Outcome.** The run writes `/tmp/fnx-full/STOREFIX-G2-DONE` with `PASS`, `FAIL: <gate>` or `NOT SCORED: <reason>` on
+every exit path. #601 leaves draft only when G1, G2 and G3 have all passed. If the result is PASS, w32k STORE=auto is
+rerun under the same rules, as written under Outcome above.
