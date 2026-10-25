@@ -53,13 +53,14 @@ struct StoreStats {
 // The automatic store size (NI_EXPERT_STORE unset), a pure function of its inputs (bytes):
 //   all: every expert; least: three layers' experts; left: what the memory budget leaves the store;
 //   used / keep: the process's GPU memory so far / the budget's reserve (KV, tools); ram: hw.memsize;
-//   avail: the system's available memory now (0 = unknown); cap: the process's GPU memory as a share of the RAM
-//   (0 = no cap).
-// Steps: min(left, all); then no more than avail less max(4 GB, RAM/12) of headroom (another resident model shrinks
-// the store rather than raising memory pressure); then, for a store short of all the experts, the RAM-share cap.
-// Neither guard goes below least.
+//   avail: the system's available memory now (0 = unknown); later: what the process still allocates after the store
+//   (its KV caches and slots' state, the budget's reserve), which avail does not show yet; cap: the process's GPU
+//   memory as a share of the RAM (0 = no cap).
+// Steps: min(left, all); then no more than avail less later and max(4 GB, RAM/12) of headroom (another resident model
+// shrinks the store rather than raising memory pressure); then, for a store short of all the experts, the RAM-share
+// cap. Neither guard goes below least.
 struct AutoStoreIn {
-  size_t all = 0, least = 0, left = 0, used = 0, keep = 0, ram = 0, avail = 0;
+  size_t all = 0, least = 0, left = 0, used = 0, keep = 0, ram = 0, avail = 0, later = 0;
   double cap = 0;
 };
 enum class AutoStoreWhy { Budget, All, Avail, Cap };
@@ -76,7 +77,7 @@ inline AutoStore auto_store_size(const AutoStoreIn& in) {
   r.why = in.left >= in.all ? AutoStoreWhy::All : AutoStoreWhy::Budget;
   r.headroom = auto_store_headroom(in.ram);
   if (in.avail) {
-    const size_t lim = std::max(in.least, in.avail > r.headroom ? in.avail - r.headroom : 0);
+    const size_t lim = std::max(in.least, in.avail > r.headroom + in.later ? in.avail - r.headroom - in.later : 0);
     if (lim < r.bytes) r.bytes = lim, r.why = AutoStoreWhy::Avail;
   }
   if (r.bytes < in.all && in.cap > 0) {
@@ -117,8 +118,8 @@ inline std::string auto_store_reason(const AutoStore& st, const AutoStoreIn& in)
     case AutoStoreWhy::Avail:
       snprintf(b, sizeof b,
                "%.1f GB rather than the %.1f GB the budget leaves (the system's available memory %.1f GB less %.1f GB "
-               "headroom: other processes hold the rest)",
-               double(st.bytes) / 1e9, left, double(in.avail) / 1e9, double(st.headroom) / 1e9);
+               "headroom and %.1f GB for the KV cache: other processes hold the rest)",
+               double(st.bytes) / 1e9, left, double(in.avail) / 1e9, double(st.headroom) / 1e9, double(in.later) / 1e9);
       break;
     case AutoStoreWhy::Cap:
       snprintf(b, sizeof b,
@@ -139,8 +140,8 @@ inline std::string auto_store_short(const AutoStore& st, const AutoStoreIn& in) 
     case AutoStoreWhy::All: snprintf(b, sizeof b, "all %.1f GB of experts resident, no SSD reads", all); break;
     case AutoStoreWhy::Budget: snprintf(b, sizeof b, "%.1f of %.1f GB of experts, what the budget leaves", gb, all); break;
     case AutoStoreWhy::Avail:
-      snprintf(b, sizeof b, "%.1f GB, not the %.1f GB the budget leaves: %.1f GB available less %.1f headroom", gb, left,
-               double(in.avail) / 1e9, double(st.headroom) / 1e9);
+      snprintf(b, sizeof b, "%.1f GB, not the %.1f GB the budget leaves: %.1f GB available less %.1f headroom, %.1f KV", gb,
+               left, double(in.avail) / 1e9, double(st.headroom) / 1e9, double(in.later) / 1e9);
       break;
     case AutoStoreWhy::Cap:
       snprintf(b, sizeof b, "%.1f GB, not the %.1f GB the budget leaves: the %.0f%% RAM-share cap (NI_EXPERT_CAP=0 lifts it)",

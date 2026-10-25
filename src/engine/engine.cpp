@@ -307,8 +307,8 @@ Engine::Engine(const EngineOptions& o) : opts_(o) {
     // Qwen3.8-Flash-Next; a Q2_0 pack's expert store takes what the budget leaves after the slots' state and one
     // conversation's KV cache (up to 32K tokens)
     const MemPlan mp = model_plan(opts_.model_dir, opts_.prefill_chunk);
-    auto m = std::make_unique<Qwen4Exp>(opts_.model_dir, opts_.prefill_chunk,
-                                        flash_next_model_budget(mp, opts_.slots, opts_.context, budget_));
+    const size_t mb = flash_next_model_budget(mp, opts_.slots, opts_.context, budget_);
+    auto m = std::make_unique<Qwen4Exp>(opts_.model_dir, opts_.prefill_chunk, mb, nullptr, budget_ > mb ? budget_ - mb : 0);
     q35_ = m.get();
     model_ = std::move(m);
   } else if (Dory::is_model(opts_.model_dir)) {

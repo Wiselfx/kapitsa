@@ -62,6 +62,7 @@ q20::AutoStoreIn planned_store(const MemPlan& m, int slots, int ctx, size_t budg
   in.used = m.weights - std::min(m.weights, m.store_least) + m.mtp + m.activations;
   in.keep = size_t(1) << 29;
   in.left = mb > in.used + in.keep ? mb - in.used - in.keep : 0;
+  in.later = in.keep + (budget > mb ? budget - mb : 0);  // as Qwen4Exp::init_store: the reserve and what was set apart
   in.ram = size_t(ram_bytes()), in.avail = q20::available_memory();
   in.cap = q20::auto_store_cap(apple10);
   return in;

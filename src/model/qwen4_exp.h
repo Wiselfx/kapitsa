@@ -65,9 +65,11 @@ class Qwen4Exp : public Qwen35 {
   // mem_budget: the GPU memory the model may hold, its KV caches and slots' state set apart (0: the default budget as
   // default_mem_budget(), less a 16K-token cache); a pack with Q2_0 routed experts keeps as many of them in memory
   // as that leaves room for and streams the rest (NI_EXPERT_STORE=<GB>|all|off sets it). split: this model's, instead
-  // of the process's (tools that hold a whole model beside a split one)
+  // of the process's (tools that hold a whole model beside a split one). set_apart: what the caller set apart from
+  // its budget for mem_budget (KV caches, slots' state), allocated after the store: the available-memory guard keeps
+  // it out of the store too
   explicit Qwen4Exp(const std::string& model_dir, int prefill_chunk = 2048, size_t mem_budget = 0,
-                    const Split* split = nullptr);
+                    const Split* split = nullptr, size_t set_apart = 0);
   ~Qwen4Exp() override;
   // config.json's (text_config's) model_type is qwen4_exp_text / qwen4_exp
   static bool is_model(const std::string& model_dir);
@@ -189,7 +191,7 @@ class Qwen4Exp : public Qwen35 {
   // next layer to predict, its router ran on the same rows into pidx_
   q20::Experts q20_rows_fetch(Encoder& e, const Layer& L, int R, const Buffer& idx, bool pred);
   void init_store(const std::string& dir);
-  size_t mem_budget_arg_ = 0;
+  size_t mem_budget_arg_ = 0, set_apart_ = 0;
   // DFlash2 capture of layer `layer`'s output rows [pos0, pos0 + R): their 4 streams' mean (stream_mean)
   void enc_capture4(Encoder& e, int layer, int pos0, int R);
   // whether layer `layer`'s enc_capture4 skips (its early-returns exactly): the NI_HC_PRECOMB fold gate

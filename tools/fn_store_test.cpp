@@ -282,6 +282,14 @@ void case_auto_size() {
   in.cap = 0, in.avail = size_t(13 * GB);  // a 17.8 GB model resident: 13 GB available -> 8.7 GB
   r = auto_store_size(in);
   CHECK(r.why == AutoStoreWhy::Avail && r.bytes == in.avail - (size_t(4) << 30), "auto: avail %zu", r.bytes);
+  // ... less what the process allocates after the store: a 32K-token prompt in a tool (ni_run) on a 48 GB M5 Pro, 29.9 GB
+  // available, the tools' reserve (a 16K-token KV cache at 31616 bytes a token, and 1.5 GiB: 2.1 GB) -> 23.5 GB, not the
+  // 25.6 GB that ran at memorystatus level 9%
+  in.avail = size_t(29.9 * GB), in.later = size_t(31616) * 16384 + (size_t(3) << 29);
+  r = auto_store_size(in);
+  CHECK(r.why == AutoStoreWhy::Avail && r.bytes == in.avail - (size_t(4) << 30) - in.later, "auto: avail, later %zu",
+        r.bytes);
+  in.later = 0;
   in.avail = size_t(5 * GB);  // nearly nothing available: no less than three layers' experts
   r = auto_store_size(in);
   CHECK(r.why == AutoStoreWhy::Avail && r.bytes == in.least, "auto: least %zu", r.bytes);
@@ -312,9 +320,9 @@ void case_auto_size() {
   CHECK(t.rfind("13.8 GB rather than the 29.9 GB the budget leaves (the process's GPU memory within 40% of the RAM", 0) == 0 &&
             !strcmp(auto_store_why_name(r.why), "ram_share_cap"),
         "auto: cap text '%s'", t.c_str());
-  in.cap = 0, in.avail = size_t(13 * GB), r = auto_store_size(in), t = auto_store_reason(r, in);
-  CHECK(t == "8.7 GB rather than the 29.9 GB the budget leaves (the system's available memory 13.0 GB less 4.3 GB "
-             "headroom: other processes hold the rest)" &&
+  in.cap = 0, in.avail = size_t(13 * GB), in.later = size_t(0.5 * GB), r = auto_store_size(in), t = auto_store_reason(r, in);
+  CHECK(t == "8.2 GB rather than the 29.9 GB the budget leaves (the system's available memory 13.0 GB less 4.3 GB "
+             "headroom and 0.5 GB for the KV cache: other processes hold the rest)" &&
             !strcmp(auto_store_why_name(r.why), "available_memory"),
         "auto: avail text '%s'", t.c_str());
   in.avail = 0, in.left = size_t(60 * GB), r = auto_store_size(in), t = auto_store_reason(r, in);
@@ -326,11 +334,11 @@ void case_auto_size() {
   t = auto_store_short(r, in);
   CHECK(t == "all 34.2 GB of experts resident, no SSD reads", "auto: all short '%s'", t.c_str());
   in.left = size_t(29.9 * GB), in.avail = size_t(13 * GB), r = auto_store_size(in), t = auto_store_short(r, in);
-  CHECK(t == "8.7 GB, not the 29.9 GB the budget leaves: 13.0 GB available less 4.3 headroom", "auto: avail short '%s'",
+  CHECK(t == "8.2 GB, not the 29.9 GB the budget leaves: 13.0 GB available less 4.3 headroom, 0.5 KV", "auto: avail short '%s'",
         t.c_str());
   for (AutoStoreWhy w : {AutoStoreWhy::All, AutoStoreWhy::Budget, AutoStoreWhy::Avail, AutoStoreWhy::Cap}) {
     AutoStoreIn big;
-    big.all = big.left = big.avail = big.ram = size_t(999.9 * GB), big.cap = 1.0;
+    big.all = big.left = big.avail = big.ram = big.later = size_t(999.9 * GB), big.cap = 1.0;
     AutoStore b;
     b.bytes = b.headroom = size_t(999.9 * GB), b.why = w;
     const std::string sh = auto_store_short(b, big), lg = auto_store_reason(b, big);
