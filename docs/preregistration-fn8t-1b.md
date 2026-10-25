@@ -277,6 +277,27 @@ orchestrator.
 - Threshold immutability: once any fn8t-2 leg (including the bench) has
   been witnessed, this section is frozen by the same rule as fn8t-1b.
 
+### Terminal contract (ROUND 348)
+
+The battery's EXIT trap writes exactly one terminal file on every exit
+path, precondition failures and cap exits included:
+`/tmp/fn8t2-gate/FN8T2-TERMINAL`, one line, one of
+
+- `FN8T-2-DONE <ts> rc=0`
+- `FN8T-2-FAIL <ts> rc=N <reason>`
+- `FN8T-2-VOID <ts> rc=N <reason>`
+
+Cap and tripwire-class stops fold into FAIL or VOID with the reason in the
+text; the class carries no tripwire terminal of its own (bitwise class — a
+U1/U4 divergence is FAIL-bug, VOID covers envelope aborts). The battery
+`mkdir -p`s `/tmp/fn8t2-gate` and never writes terminals under
+`/tmp/fn8t-gate` (fn8t-1b's gate dir). If fn8t-2 is dropped, the
+orchestrator writes `FN8T-2-WITHDRAWN <ts> <reason>` to the same path. The
+downstream waiter (cd6e8136's slot-8b) gates on
+`^FN8T-2-(DONE|FAIL|VOID|WITHDRAWN)` in that file. Real runs only (R324):
+dry runs and tests pin the terminal path to a scratch dir and never touch
+the live file.
+
 ### Evidence base booked at commit time
 
 U = 44.0 distinct experts per layer per turn (DFlash2 4K, dyn4k-1 store
