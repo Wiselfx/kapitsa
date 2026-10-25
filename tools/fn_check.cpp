@@ -940,7 +940,7 @@ void test_hc_rows(int bits) {
         run(("hc_down_sk3_n" + std::to_string(nr) + sfx).c_str(), bind_down(c4), RK / (8 * nr), KC, 1, 256);
         run(("hc_up_mix4_c4" + sfx).c_str(), bind_up(c4), D / (16 * 4), 1, 1, 256);
       }
-      run(("hc_down_sk3_n" + std::to_string(nr) + sfx).c_str(), bind_down(c8), RK / (8 * nr), KC, 1, 256);
+      run(("hc_down_sk4_n" + std::to_string(nr) + sfx).c_str(), bind_down(c8), RK / (8 * nr), KC, 1, 256);
       run(("hc_up_mix8_c4" + sfx).c_str(), bind_up(c8), D / (16 * 4), 1, 1, 256);
       auto diff = [](Buf& x, Buf& z) {
         size_t bad = 0;
@@ -961,7 +961,7 @@ void test_hc_rows(int bits) {
         snprintf(nm, sizeof nm, "hc_up_mix4%s R=%u %s == one-row", sfx.c_str(), R, mode ? "inject" : "plain");
         report(nm, all(c4), 0);
       }
-      snprintf(nm, sizeof nm, "hc_up_mix8%s R=%u %s == one-row", sfx.c_str(), R, mode ? "inject" : "plain");
+      snprintf(nm, sizeof nm, "hc_down_sk4+hc_up_mix8%s R=%u %s == one-row", sfx.c_str(), R, mode ? "inject" : "plain");
       report(nm, all(c8), 0);
     }
 }
@@ -1152,7 +1152,7 @@ void test_hc_timing() {
                    {"hc_down_sk3_n2_b6", "hc_up_mix3_c2_b6", 2, 2, false, 4},
                    {"hc_down_sk3_n2_b6", "hc_up_mix4_c2_b6", 2, 2, false, 4},
                    {"hc_down_sk3_n2_b6", "hc_up_mix4_c4_b6", 2, 4, false, 4},
-                   {"hc_down_sk3_n2_b6", "hc_up_mix8_c4_b6", 2, 4, false, 8}};
+                   {"hc_down_sk4_n2_b6", "hc_up_mix8_c4_b6", 2, 4, false, 8}};
   const uint32_t rmax = getenv("FN_HC_RMAX") ? uint32_t(atoi(getenv("FN_HC_RMAX"))) : 8;
   for (uint32_t R = 1; R <= rmax; ++R) {
     std::vector<V> vs;

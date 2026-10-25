@@ -936,7 +936,9 @@ void Qwen4Exp::enc_gr_rows(Encoder& e, const GatedRes& g, int R, const Buffer& X
     constexpr int nr = 2, cpt = 2;
     const bool r8 = hc8 && R > 4 && R <= 8 && rank <= 384 && D % 64 == 0;
     if (hc3 && (R <= 4 || r8) && rank <= 512 && rank % (8 * nr) == 0 && D % (16 * cpt) == 0) {
-      e.use(pipe("hc_down_sk3_n" + std::to_string(nr) + b));
+      // R = 5..8: hc_down_sk4, hc_down_sk3 with each row's inputs staged once per threadgroup, the weight codes read
+      // once for every row and the rows' stats spread over the threadgroups (bitwise the same; fn_check FN_ROWS)
+      e.use(pipe((r8 ? "hc_down_sk4_n" : "hc_down_sk3_n") + std::to_string(nr) + b));
       e.buf(0, X, x_row0 * SD * 4); e.buf(1, yb_); e.buf(2, inj_prev); e.buf(3, g.norm->buf);
       e.buf(4, g.inj ? g.inj.w->buf : g.norm->buf); e.buf(5, g.down.w->buf); e.buf(6, g.down.s->buf);
       e.buf(7, g.down.b->buf); e.buf(8, hpart_); e.buf(9, hx2_); e.buf(10, hstat_);
@@ -952,7 +954,7 @@ void Qwen4Exp::enc_gr_rows(Encoder& e, const GatedRes& g, int R, const Buffer& X
         static bool logged = false;
         if (!logged) {
           logged = true;
-          fprintf(stderr, "[kapitsa] NI_HC8: hc_down_sk3_n2%s + hc_up_mix8_c4%s on %d verify rows (rank %u)\n", b.c_str(),
+          fprintf(stderr, "[kapitsa] NI_HC8: hc_down_sk4_n2%s + hc_up_mix8_c4%s on %d verify rows (rank %u)\n", b.c_str(),
                   b.c_str(), R, rank);
         }
       }
