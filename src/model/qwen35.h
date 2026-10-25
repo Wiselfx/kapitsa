@@ -470,6 +470,10 @@ class Qwen35 : public Model {
   virtual std::string formats_summary() const;
   // The block drafter (DFlash2) binds to this layout (Qwen3.5-family trunks; not Qwen3.8-Flash-Next's)
   virtual bool block_drafter_ok() const { return true; }
+  // The batched verify (encode_verify_multi) walks this layout's state (Qwen3.5-family trunks; a subclass whose
+  // single-sequence verify is overridden — Qwen4Exp's 4-stream GDN and indexer — has no matching batched one and
+  // opts out: its requests take turns instead of silently verifying through the wrong implementation)
+  virtual bool verify_multi_ok() const { return true; }
 
  protected:
   // Subclasses (Qwen4Exp) that load the checkpoint themselves: members only, nothing read

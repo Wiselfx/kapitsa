@@ -1276,6 +1276,7 @@ void Qwen35::encode_verify_multi(Encoder& e, const std::vector<VerifyGroup>& gro
     R += gr.R;
   }
   if (groups.empty() || R > 8) fatal("encode_verify_multi: %d rows", R);
+  if (!verify_multi_ok()) fatal("encode_verify_multi: this model has no batched verify (its single-sequence verify is overridden)");
   if (v8_rlim_) fatal("encode_verify_multi: a verify row limit is set");
   if (v8_tree_) fatal("encode_verify_multi: a verify tree is set");
   v8_alloc();

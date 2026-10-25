@@ -137,6 +137,9 @@ class Qwen4Exp : public Qwen35 {
   // the indexer's KV), so a tree drafting pass would verify the wrong rows; DFlash2's set_tree reads this and keeps
   // the chain, and the wide verifies stay off on every MoE target (verify_wide_ok)
   bool verify_tree_ok() const override { return false; }
+  // no batched verify yet: Qwen35::encode_verify_multi folds rows through the base layout, which does not know the
+  // 4-stream GDN state or the indexer's KV; until this class grows its own batched fold, batched requests take turns
+  bool verify_multi_ok() const override { return false; }
 
   // Debug (tools/fn_eval): the residual stream after the last pass, rows of hc * hidden floats
   Buffer residual() const { return x_; }

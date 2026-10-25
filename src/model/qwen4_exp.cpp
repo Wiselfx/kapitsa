@@ -880,9 +880,13 @@ void Qwen4Exp::enc_capture4(Encoder& e, int layer, int pos0, int R) {
   const int lo = std::max(pos0, cap_->pos_base), hi = std::min(pos0 + R, cap_->pos_base + cap_->rows);
   if (lo >= hi) return;
   const uint32_t D = uint32_t(cfg_.hidden), S = uint32_t(c4_.hc), r0 = uint32_t(lo - pos0);
+  // ROUND 241(1) diagnostic: NI_DFLASH_CAPY=0 captures the stream mean WITHOUT the pending MoE-output
+  // injection (mean(X) instead of mean(X + injM * y)) — the one feed-convention freedom no local artifact
+  // pins. Default (unset or nonzero): has_y = 1, the documented contract, the identical code path.
+  static const uint32_t hasy = getenv("NI_DFLASH_CAPY") && !atoi(getenv("NI_DFLASH_CAPY")) ? 0u : 1u;
   const struct {
     uint32_t R, D, S, ld, col0, dst_row0, has_y;
-  } p{uint32_t(hi - lo), D, S, cap_->ld, uint32_t(cap_->slot[size_t(layer)]) * D, uint32_t(lo - cap_->pos_base), 1u};
+  } p{uint32_t(hi - lo), D, S, cap_->ld, uint32_t(cap_->slot[size_t(layer)]) * D, uint32_t(lo - cap_->pos_base), hasy};
   e.use(pipe("hc_capture_mean"));
   e.buf(0, x_, size_t(r0) * S * D * 4); e.buf(1, yb_, size_t(r0) * D * 4); e.buf(2, injM_, size_t(r0) * S * 4);
   e.buf(3, cap_->dst);

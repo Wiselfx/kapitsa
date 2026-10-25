@@ -1179,6 +1179,9 @@ int Engine::batch_rows(int n) const {
     return v && *v ? atoi(v) : -1;
   }();
   if (mode == 0 || n < 2 || n > 8 || (!dfl_ && !lili_) || (mode < 0 && !batch_measured_)) return 0;
+  // a model whose single-sequence verify is overridden has no batched verify to fold its rows with (Qwen4Exp): its
+  // requests take turns instead of running Qwen35::encode_verify_multi over a layout it does not walk
+  if (dfl_ && q35_ && !q35_->verify_multi_ok()) return 0;
   // a 16-row drafting block has no batched cycle: it drafts a depth-15 lattice with the pair kernel, and the batch loop
   // drafts 7-token chains (encode_draft with tree = false), so the requests take turns instead
   if (dfl_ && dfl_->block() > DFlash2::kB) return 0;
