@@ -404,6 +404,9 @@ Engine::Engine(const EngineOptions& o) : opts_(o) {
       dfl_ = std::make_unique<DFlash2>(*q35_, dir, 0, rows16);
       dfl_dir_ = dir;
       logi("DFlash2: drafting from %s (%d-row blocks)", dir.c_str(), block_rows);
+      if (!q35_->verify_multi_ok())
+        logi("DFlash2: this target's single-sequence verify is overridden: it has no batched verify to fold batch "
+             "rows with (batch_rows 0), so concurrent requests take turns");
       DFlash2::prewarm_pipelines();
       spec_ = false;
       // the plan against what loading took (rings and the first prefill's buffers come later)
