@@ -1793,6 +1793,32 @@ void dump_cases(const std::string& dir) {
   write("anthropic-count.json", api::dump(ojson{{"input_tokens", 1234}}));
 }
 
+// paren_call_postfix: minja reads no `.`/`[` after a call (Nanbeige 4.3's template, `visible_text(m).startswith(...)`,
+// aborted kapitsa serve at load), so chat_template_source puts such calls in parentheses. CPU only, no model.
+void paren_call_postfix_unit() {
+  const std::string macro = "{%- macro f(x) %}{{ x }}{% endmacro %}";
+  auto render = [&](const std::string& src) {
+    try {
+      auto t = minja::Parser::parse(paren_call_postfix(src), {});
+      auto ctx = minja::Context::make(minja::Value(nlohmann::ordered_json{{"s", "<a>x</a>"}}));
+      return t->render(ctx);
+    } catch (const std::exception& e) {
+      return std::string("error: ") + e.what();
+    }
+  };
+  // the Nanbeige 4.3 template's line, cut down
+  check(render(macro + "{{ s is string and not(f(s).startswith('<a>') and f(s).endswith('</a>')) }}") == "False",
+        "paren_call_postfix: not(f(s).startswith(..) and f(s).endswith(..)) renders as Jinja does");
+  check(render(macro + "{{ f(f(s)[1:3]).upper() }}") == "A>", "paren_call_postfix: nested calls with a subscript");
+  // left as written: keywords, method calls, filters, strings, comments and text outside the tags
+  for (const std::string& same :
+       {std::string("{{ not(s).startswith('<') }}"), std::string("{{ s.upper().lower()[0] }}"),
+        std::string("{{ s|replace('a', 'b')|length }}"), std::string("{{ 'f(x).y' }}{# f(x).y #} f(x).y"),
+        std::string("{% if (s) %}{% for c in range(2) %}{{ c }}{% endfor %}{% endif %}")})
+    check(paren_call_postfix(same) == same, "paren_call_postfix: unchanged: " + same);
+  check(paren_call_postfix(macro + "{{ f(s).y }}") == macro + "{{ (f(s)).y }}", "paren_call_postfix: the rewrite");
+}
+
 // A folder whose config.json is an architecture Kapitsa does not run is refused by unsupported_model(), the function
 // the engine's constructor, model_plan and `kapitsa serve|bench|doctor` all refuse with (issue 447: Gemma 4 fell
 // through to the Qwen3.5 loader and aborted in nlohmann instead of a message). CPU only: config.json files, no model.
@@ -1865,6 +1891,7 @@ int main(int argc, char** argv) {
   history_gate_unit();
   kflash_lookup_unit();
   unsupported_model_unit();
+  paren_call_postfix_unit();
   std::vector<std::string> dirs;
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "--dump" && i + 1 < argc) dump_cases(argv[++i]);
