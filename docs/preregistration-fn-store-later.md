@@ -40,7 +40,8 @@ A leg is skipped and booked NOT RUN when fewer than 9 minutes of the 45 remain.
 - **G2, no cost at 4K.** In each pair (A1, B1) and (B2, A2), B's prefill tok/s and decode tok/s are each within 3% of
   A's. The ids of all four w4k legs are identical (the store's size decides what is resident, not what is computed).
 - **G3, the store is the size the test pins.** Each B leg logs its store size, and the reason line names the KV
-  reserve. The size equals the logged available memory less 4.3 GB headroom less the logged reserve, to 0.1 GB. When the
+  reserve. The size equals the logged available memory less 4.3 GB headroom less the logged reserve, to 0.2 GB (the
+  four figures are each logged to 0.1 GB). When the
   logged available memory is within 0.5 GB of the test's 29.9 GB, the size is between 23.0 and 24.0 GB.
 
 ## Outcome
