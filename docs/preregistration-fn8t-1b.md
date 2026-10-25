@@ -173,6 +173,46 @@ Amendment (G1 tripwire cell): orchestrator ROUND 273, committed before any
 gate leg was witnessed — the only point this procedure lets a threshold
 change.
 
+## Envelope amendment (orchestrator ROUND 359): r3b legs run the shared R280/R282 abort code
+
+Ordered by the orchestrator (ROUND 359), committed 2026-10-26. The fn8t-w1
+r3b retry legs replace the stricter abort envelope earlier `fn8t_leg.sh`
+revisions carried (the per-10 s +500 MB swap-growth clause, pressure ≥ 4)
+with the same abort code every other GPU job on this machine runs — the
+shared R280/R282 envelope monitor plus ROUND 356's floor clause. A leg
+aborts (VOID, rerunnable once; not a FAIL — Arms quiet-leg rule) on any
+in-leg sample where:
+
+- swap delta from leg start > 3072 MB, or
+- swap used > 12288 MB, or
+- `kern.memorystatus_vm_pressure_level` > 2, or
+- `kern.memorystatus_level` < 10% (fixed floor, ROUND 356; the canonical
+  monitor's 15%-with-others / 10%-alone switch is pinned to 10).
+
+There is no load-phase exemption. Evidence motivating the amendment: r3's
+g1-b aborts (+1147 MB / +1675 MB swap growth, pressure 2) sit well inside
+the shared code's normal model-load behavior and would not have aborted
+under these rules.
+
+Implementation, live and orchestrator-verified against the files
+(ROUND 363(c)) before r3b launch: `fn8t_leg.sh` sha256
+`db75772ccb27b38946cf4e64da7ca98b43c598b5e067aaff0780217179f6841d`,
+battery `fn8t.sh` sha256
+`d44d5dab66195a2f235e266a669fc73dfc6fbc52ba95cc754a038c3229041057`,
+waiter `fn8t_w1_r3b_waiter.sh` sha256
+`a0bb81f035823b4376a62896d8fb898667289812e7815b7db4813feb3306d06b`.
+
+Ordering disclosure: ROUND 359 reached the owner session after ROUND 363
+confirmed r3b armed; the r3b gate opened (pf.yield cleared 04:39:48 with
+STOREFIX's finish) and the battery launched 04:41:18, before this commit
+landed. At commit time no r3b leg result was booked: g1-a did not re-run
+(RESUME reuse, ROUND 356, booked `rc=skipped-resume-r356`), and g1-b was
+mid-leg — attempt 1 envelope-aborted 04:43:18 on the floor clause alone
+(`memorystatus_level` 9% < 10%, swap +376 MB, pressure 2 — the three swap
+clauses all passed; the leg's own ~30 GB q20-full resident set holds the
+level down for the leg's duration), with its single retry started 04:43:48.
+The envelope the live legs implement is byte-identical to the spec above.
+
 ## fn8t-2 extension (A07): cross-row expert union + down retune
 
 The orchestrator (ROUND 279) booked the port plan's Port 2 / A07 as fn8t-2
