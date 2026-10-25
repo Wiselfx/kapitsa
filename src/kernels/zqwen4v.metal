@@ -239,7 +239,7 @@ NI_QMVS_MULTI_WF(qmvs_multi_f3g64, 3)
 
 // ---- The folded gated residual (hc_down_sk2 / hc_up_mix2, qwen4.metal) with more work per threadgroup ----
 // The one-row kernels' code per (row, weight row) (hc_down_sk2_x / _dot / _stat, hc_up_mix2_prep / _out), so the
-// results are theirs bit for bit, for decode (R = 1) and verify rows (R <= 4) alike:
+// results are theirs bit for bit, for decode (R = 1) and verify rows (R <= 4; R <= 8 with hc_up_mix8) alike:
 //  hc_down_sk3<NR>: a simdgroup loads its 32 inputs per lane once and runs NR weight rows over them (hc_down_sk2 loads
 //    them for every weight row: 16x the weights' bytes from the caches); each threadgroup does every row.
 //    grid (rank / (8 NR), S * D / 1024), 256 threads.
@@ -301,13 +301,13 @@ NI_HC_UP_MIX3(hc_up_mix3_c2_b8, 8, 2)
 // every row's prep runs in one pass (3 barriers in all), then the row loop sits inside the run loop. Per row the
 // arithmetic is hc_up_mix2_out's, with its fma order spelled out in both, so the results stay the one-row kernel's
 // bit for bit (fn_check FN_ROWS, and hc-time at Flash-Next's shape).
-template <int BITS, int CPT>
+template <int BITS, int CPT, int RM, int KM>
 NI_INLINE void hc_up_mix4_impl(const device float* part, const device float* X2, const device float* stat,
                                const device float* w, const device uint32_t* W, const device bfloat* Ws,
                                const device bfloat* Wb, device float* u, device float* X, device float* y,
                                device float* inj, constant HcFoldParams& p, uint tg, uint tid, uint sg, uint lane,
-                               threadgroup float (&hs)[4][512], threadgroup float (&hsum)[4][32],
-                               threadgroup float (&inv)[4][4]) {
+                               threadgroup float (&hs)[RM][KM], threadgroup float (&hsum)[RM][KM / 16],
+                               threadgroup float (&inv)[RM][4]) {
   const uint K = p.rank, R = p.R, SD = p.S * p.D;
   // hc_up_mix2_prep for every row at once
   if (tid < 4 * R) {
@@ -355,13 +355,14 @@ NI_INLINE void hc_up_mix4_impl(const device float* part, const device float* X2,
     const uint ch = ((tg * CPT + jc) * 8 + sg) * 2 + rl / 4, s = rl % 4;
     const uint row = s * p.D + ch;
     const device uint32_t* wr = W + size_t(row) * (K * BITS / 32);
-    float m[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    float m[RM];
+    for (uint r = 0; r < uint(RM); ++r) m[r] = 0.0f;
     for (uint k = qq * per; k < (qq + 1) * per; k += 16) {
       float q[16];
       unpack16<BITS>(wr + k * BITS / 32, q);
       const uint g = row * (K / 64) + k / 64;
       const float gs = float(Ws[g]), gb = float(Wb[g]);
-      for (uint r = 0; r < 4; ++r) {
+      for (uint r = 0; r < uint(RM); ++r) {
         if (r >= R) break;
         float d = 0.0f;
         for (uint j = 0; j < 16; ++j) d = fma(q[j], hs[r][k + j], d);
@@ -387,7 +388,7 @@ NI_INLINE void hc_up_mix4_impl(const device float* part, const device float* X2,
     }
   }
 }
-#define NI_HC_UP_MIX4(NAME, BITS, CPT)                                                                         \
+#define NI_HC_UP_MIX4(NAME, BITS, CPT, RM, KM)                                                                 \
   [[kernel]] void NAME(const device float* part [[buffer(0)]], const device float* X2 [[buffer(1)]],           \
                        const device float* stat [[buffer(2)]], const device float* w [[buffer(3)]],            \
                        const device uint32_t* W [[buffer(4)]], const device bfloat* Ws [[buffer(5)]],          \
@@ -396,15 +397,22 @@ NI_INLINE void hc_up_mix4_impl(const device float* part, const device float* X2,
                        constant HcFoldParams& p [[buffer(11)]], uint tg [[threadgroup_position_in_grid]],      \
                        uint tid [[thread_index_in_threadgroup]], uint sg [[simdgroup_index_in_threadgroup]],   \
                        uint lane [[thread_index_in_simdgroup]]) {                                              \
-    threadgroup float hs[4][512];                                                                              \
-    threadgroup float hsum[4][32];                                                                             \
-    threadgroup float inv[4][4];                                                                               \
-    hc_up_mix4_impl<BITS, CPT>(part, X2, stat, w, W, Ws, Wb, u, X, y, inj, p, tg, tid, sg, lane, hs, hsum, inv); \
+    threadgroup float hs[RM][KM];                                                                              \
+    threadgroup float hsum[RM][KM / 16];                                                                       \
+    threadgroup float inv[RM][4];                                                                              \
+    hc_up_mix4_impl<BITS, CPT, RM, KM>(part, X2, stat, w, W, Ws, Wb, u, X, y, inj, p, tg, tid, sg, lane, hs, hsum, \
+                                       inv);                                                                   \
   }
-NI_HC_UP_MIX4(hc_up_mix4_c2_b6, 6, 2)
-NI_HC_UP_MIX4(hc_up_mix4_c4_b4, 4, 4)
-NI_HC_UP_MIX4(hc_up_mix4_c4_b6, 6, 4)
-NI_HC_UP_MIX4(hc_up_mix4_c4_b8, 8, 4)
+// 4 rows, rank <= 512: 8,768 B of threadgroup memory
+NI_HC_UP_MIX4(hc_up_mix4_c2_b6, 6, 2, 4, 512)
+NI_HC_UP_MIX4(hc_up_mix4_c4_b4, 4, 4, 4, 512)
+NI_HC_UP_MIX4(hc_up_mix4_c4_b6, 6, 4, 4, 512)
+NI_HC_UP_MIX4(hc_up_mix4_c4_b8, 8, 4, 4, 512)
+// hc_up_mix8: up to 8 rows (the R = 5..8 verify steps), rank <= 384: 8 x 384 x 4 + 8 x 24 x 4 + 8 x 4 x 4 = 13,184 B,
+// under the 16,384 B that shader validation's doubled count accepts (8 rows at rank 512 would be 17,536 B)
+NI_HC_UP_MIX4(hc_up_mix8_c4_b4, 4, 4, 8, 384)
+NI_HC_UP_MIX4(hc_up_mix8_c4_b6, 6, 4, 8, 384)
+NI_HC_UP_MIX4(hc_up_mix8_c4_b8, 8, 4, 8, 384)
 
 // ---- The MoE of up to 8 rows with the decode kernels' arithmetic (moe_gate_up3 / moe_down2_w) ----
 // moe4_unique: the distinct experts of the rows' top-k (idx [R, k]): ue[u], the rows that chose it (bit mask) and

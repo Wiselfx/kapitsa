@@ -929,8 +929,13 @@ void Qwen4Exp::enc_gr_rows(Encoder& e, const GatedRes& g, int R, const Buffer& X
     // (<= 4) in each threadgroup: 2 weight rows per simdgroup of the down projection, 2 blocks of 16 channels per
     // threadgroup of the up projection; decode logits bitwise equal to hc_down_sk2 / hc_up_mix2's (NI_HC3=0: those)
     static const bool hc3 = !(getenv("NI_HC3") && !strcmp(getenv("NI_HC3"), "0"));
+    // verify rows R = 5..8 (DFlash2's shipping depth): the same pair with hc_up_mix8, whose 8 rows of h fit the
+    // 16,384 B threadgroup budget at rank <= 384 (hc_up_mix4's [4][512] at 8 rows would not); bitwise equal to
+    // hc_down_sk2 / hc_up_mix2's rows (fn_check FN_ROWS, hc-time). NI_HC8=0: those, one row per threadgroup
+    static const bool hc8 = !(getenv("NI_HC8") && !strcmp(getenv("NI_HC8"), "0"));
     constexpr int nr = 2, cpt = 2;
-    if (hc3 && R <= 4 && rank <= 512 && rank % (8 * nr) == 0 && D % (16 * cpt) == 0) {
+    const bool r8 = hc8 && R > 4 && R <= 8 && rank <= 384 && D % 64 == 0;
+    if (hc3 && (R <= 4 || r8) && rank <= 512 && rank % (8 * nr) == 0 && D % (16 * cpt) == 0) {
       e.use(pipe("hc_down_sk3_n" + std::to_string(nr) + b));
       e.buf(0, X, x_row0 * SD * 4); e.buf(1, yb_); e.buf(2, inj_prev); e.buf(3, g.norm->buf);
       e.buf(4, g.inj ? g.inj.w->buf : g.norm->buf); e.buf(5, g.down.w->buf); e.buf(6, g.down.s->buf);
@@ -941,9 +946,17 @@ void Qwen4Exp::enc_gr_rows(Encoder& e, const GatedRes& g, int R, const Buffer& X
       // channels per threadgroup; bitwise equal to hc_up_mix3 / hc_up_mix2 (fn_check FN_ROWS, hc-time). At Flash-Next's
       // shape (D 2560, rank 320, 6-bit), R=3 down+up 65.0 -> 54.1 us (fn_check hc-time; NI_HC_MIX4=0: hc_up_mix3)
       static const bool mix4 = !(getenv("NI_HC_MIX4") && !strcmp(getenv("NI_HC_MIX4"), "0"));
-      const bool m4 = mix4 && R >= 2 && D % 64 == 0;
+      const bool m4 = r8 || (mix4 && R >= 2 && D % 64 == 0);
       const int ucpt = m4 ? 4 : cpt;
-      e.use(pipe((m4 ? "hc_up_mix4_c" : "hc_up_mix3_c") + std::to_string(ucpt) + b));
+      if (r8 && getenv("NI_HC8")) {  // the engagement line, once per process, when the switch is named
+        static bool logged = false;
+        if (!logged) {
+          logged = true;
+          fprintf(stderr, "[kapitsa] NI_HC8: hc_down_sk3_n2%s + hc_up_mix8_c4%s on %d verify rows (rank %u)\n", b.c_str(),
+                  b.c_str(), R, rank);
+        }
+      }
+      e.use(pipe((r8 ? "hc_up_mix8_c" : m4 ? "hc_up_mix4_c" : "hc_up_mix3_c") + std::to_string(ucpt) + b));
       e.buf(0, hpart_); e.buf(1, hx2_); e.buf(2, hstat_); e.buf(3, g.norm->buf);
       e.buf(4, g.up.w->buf); e.buf(5, g.up.s->buf); e.buf(6, g.up.b->buf); e.buf(7, u);
       e.buf(8, X, x_row0 * SD * 4); e.buf(9, yb_); e.buf(10, inj_out);

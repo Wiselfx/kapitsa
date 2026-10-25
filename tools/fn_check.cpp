@@ -893,10 +893,11 @@ void test_wfmt6() {
 
 
 // Verify kernels (qwen4v.metal) against the one-row kernels decode runs, bit for bit: the multi-row folded gated
-// residual (hc_down_skr + hc_up_mixr) against R one-row threadgroups of hc_down_sk2 + hc_up_mix2
+// residual (hc_down_skr + hc_up_mixr) against R one-row threadgroups of hc_down_sk2 + hc_up_mix2; R = 5..8 only
+// hc_up_mix8 (hc_up_mix3 / hc_up_mix4 hold 4 rows)
 void test_hc_rows(int bits) {
   const uint32_t D = 768, S = 4, SD = S * D, RK = 128, G = 64, KC = SD / 1024;
-  for (uint32_t R = 1; R <= 4; ++R)
+  for (uint32_t R = 1; R <= 8; ++R)
     for (int mode = 0; mode < 2; ++mode) {
       Buf X(R * SD), y(R * D), injp(R * S), w(SD), winj(S * SD, 2);
       Buf Wd(size_t(RK) * SD * bits / 32), Sd(RK * SD / G, 2), Bd(RK * SD / G, 2);
@@ -911,8 +912,8 @@ void test_hc_rows(int bits) {
         Out(uint32_t R, uint32_t SD, uint32_t D, uint32_t S, uint32_t KC, uint32_t RK)
             : X(R * SD), y(R * D), u(R * D), inj(R * S), part(KC * R * RK * 2), X2(R * SD), stat(R * KC * 10) {}
       };
-      Out a(R, SD, D, S, KC, RK), b(R, SD, D, S, KC, RK), c4(R, SD, D, S, KC, RK);
-      for (Out* o : {&a, &b, &c4}) {
+      Out a(R, SD, D, S, KC, RK), b(R, SD, D, S, KC, RK), c4(R, SD, D, S, KC, RK), c8(R, SD, D, S, KC, RK);
+      for (Out* o : {&a, &b, &c4, &c8}) {
         memcpy(o->X.f(), X.f(), R * SD * 4);
         memcpy(o->y.f(), y.f(), R * D * 4);
       }
@@ -933,10 +934,14 @@ void test_hc_rows(int bits) {
       run(("hc_down_sk2" + sfx).c_str(), bind_down(a), RK / 8, KC, R, 256);
       run(("hc_up_mix2" + sfx).c_str(), bind_up(a), D / 16, R, 1, 256);
       constexpr int nr = 2, cpt = 2;
-      run(("hc_down_sk3_n" + std::to_string(nr) + sfx).c_str(), bind_down(b), RK / (8 * nr), KC, 1, 256);
-      run(("hc_up_mix3_c" + std::to_string(cpt) + sfx).c_str(), bind_up(b), D / (16 * cpt), 1, 1, 256);
-      run(("hc_down_sk3_n" + std::to_string(nr) + sfx).c_str(), bind_down(c4), RK / (8 * nr), KC, 1, 256);
-      run(("hc_up_mix4_c4" + sfx).c_str(), bind_up(c4), D / (16 * 4), 1, 1, 256);
+      if (R <= 4) {
+        run(("hc_down_sk3_n" + std::to_string(nr) + sfx).c_str(), bind_down(b), RK / (8 * nr), KC, 1, 256);
+        run(("hc_up_mix3_c" + std::to_string(cpt) + sfx).c_str(), bind_up(b), D / (16 * cpt), 1, 1, 256);
+        run(("hc_down_sk3_n" + std::to_string(nr) + sfx).c_str(), bind_down(c4), RK / (8 * nr), KC, 1, 256);
+        run(("hc_up_mix4_c4" + sfx).c_str(), bind_up(c4), D / (16 * 4), 1, 1, 256);
+      }
+      run(("hc_down_sk3_n" + std::to_string(nr) + sfx).c_str(), bind_down(c8), RK / (8 * nr), KC, 1, 256);
+      run(("hc_up_mix8_c4" + sfx).c_str(), bind_up(c8), D / (16 * 4), 1, 1, 256);
       auto diff = [](Buf& x, Buf& z) {
         size_t bad = 0;
         double mx = 0;
@@ -945,15 +950,19 @@ void test_hc_rows(int bits) {
         if (bad && getenv("FN_VERBOSE")) printf("   %zu of %zu differ (max %.3g)\n", bad, x.n, mx);
         return bad ? 1.0 : 0.0;
       };
-      const double e = diff(a.X, b.X) + diff(a.y, b.y) + diff(a.u, b.u) + (mode ? diff(a.inj, b.inj) : 0.0) +
-                       diff(a.part, b.part) + diff(a.X2, b.X2) + diff(a.stat, b.stat);
+      auto all = [&](Out& o) {
+        return diff(a.X, o.X) + diff(a.y, o.y) + diff(a.u, o.u) + (mode ? diff(a.inj, o.inj) : 0.0) +
+               diff(a.part, o.part) + diff(a.X2, o.X2) + diff(a.stat, o.stat);
+      };
       char nm[96];
-      snprintf(nm, sizeof nm, "hc_*3%s R=%u %s == one-row", sfx.c_str(), R, mode ? "inject" : "plain");
-      report(nm, e, 0);
-      const double e4 = diff(a.X, c4.X) + diff(a.y, c4.y) + diff(a.u, c4.u) + (mode ? diff(a.inj, c4.inj) : 0.0) +
-                        diff(a.part, c4.part) + diff(a.X2, c4.X2) + diff(a.stat, c4.stat);
-      snprintf(nm, sizeof nm, "hc_up_mix4%s R=%u %s == one-row", sfx.c_str(), R, mode ? "inject" : "plain");
-      report(nm, e4, 0);
+      if (R <= 4) {
+        snprintf(nm, sizeof nm, "hc_*3%s R=%u %s == one-row", sfx.c_str(), R, mode ? "inject" : "plain");
+        report(nm, all(b), 0);
+        snprintf(nm, sizeof nm, "hc_up_mix4%s R=%u %s == one-row", sfx.c_str(), R, mode ? "inject" : "plain");
+        report(nm, all(c4), 0);
+      }
+      snprintf(nm, sizeof nm, "hc_up_mix8%s R=%u %s == one-row", sfx.c_str(), R, mode ? "inject" : "plain");
+      report(nm, all(c8), 0);
     }
 }
 
@@ -1123,7 +1132,7 @@ void test_qmvs_single() {
 }
 
 
-// hc-time: the folded gated residual at Flash-Next's shape (D 2560, S 4, rank 320, 6-bit) for R = 1..4 rows, over
+// hc-time: the folded gated residual at Flash-Next's shape (D 2560, S 4, rank 320, 6-bit) for R = 1..8 rows, over
 // NL distinct weight sets (so that the weights stream from DRAM as in a step, not from the caches): per variant
 // reps x NL down+up pairs behind one commit, best of 3; then every variant's outputs against the one-row kernels
 void test_hc_timing() {
@@ -1138,13 +1147,18 @@ void test_hc_timing() {
     const float sc = 0.0003f;
     Sd[l]->fill_bf16(sc / 2, sc), Bd[l]->fill_bf16(-sc * 32, 0), Su[l]->fill_bf16(sc, 2 * sc), Bu[l]->fill_bf16(-sc * 64, 0);
   }
-  struct V { const char *down, *up; uint32_t nr, cpt; bool one_row; };
-  const V vs[] = {{"hc_down_sk2_b6", "hc_up_mix2_b6", 1, 1, true},
-                  {"hc_down_sk3_n2_b6", "hc_up_mix3_c2_b6", 2, 2, false},
-                  {"hc_down_sk3_n2_b6", "hc_up_mix4_c2_b6", 2, 2, false},
-                  {"hc_down_sk3_n2_b6", "hc_up_mix4_c4_b6", 2, 4, false}};
-  constexpr int NV = sizeof vs / sizeof vs[0];
-  for (uint32_t R = 1; R <= 4; ++R) {
+  struct V { const char *down, *up; uint32_t nr, cpt; bool one_row; uint32_t rmax; };
+  const V all[] = {{"hc_down_sk2_b6", "hc_up_mix2_b6", 1, 1, true, 8},
+                   {"hc_down_sk3_n2_b6", "hc_up_mix3_c2_b6", 2, 2, false, 4},
+                   {"hc_down_sk3_n2_b6", "hc_up_mix4_c2_b6", 2, 2, false, 4},
+                   {"hc_down_sk3_n2_b6", "hc_up_mix4_c4_b6", 2, 4, false, 4},
+                   {"hc_down_sk3_n2_b6", "hc_up_mix8_c4_b6", 2, 4, false, 8}};
+  const uint32_t rmax = getenv("FN_HC_RMAX") ? uint32_t(atoi(getenv("FN_HC_RMAX"))) : 8;
+  for (uint32_t R = 1; R <= rmax; ++R) {
+    std::vector<V> vs;
+    for (const V& v : all)
+      if (R <= v.rmax) vs.push_back(v);
+    const int NV = int(vs.size());
     Buf X(R * SD), y(R * D), injp(R * S), w(SD), winj(S * SD, 2);
     X.fill(-2, 2), y.fill(-1, 1), injp.fill(0, 2), w.fill(0.5f, 1.5f), winj.fill_bf16(-0.05f, 0.05f);
     struct { uint32_t R, D, S, rank, kc, u_ld, has_y, has_inj; float eps; } p{R, D, S, RK, KC, D, 1, 1, 1e-6f};
