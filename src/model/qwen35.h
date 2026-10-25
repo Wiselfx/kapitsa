@@ -396,8 +396,9 @@ class Qwen35 : public Model {
   // acceptance (kf_accept) writes the accepted path to s.pend_path, moves its K/V (encode_kv_tree_compact) and sets
   // s.pend_tree: the next pass (or encode_flush) folds tape rows pend_path[0 .. n_pend).
   void set_verify_tree(const Buffer* tree) { v8_tree_ = tree; }
-  // the 8-row verify can run a tree (its attention on attn8m, the split GDN step)
-  bool verify_tree_ok() const;
+  // the 8-row verify can run a tree (its attention on attn8m, the split GDN step); a subclass whose verify does not
+  // walk a tree (Qwen4Exp's verifies its rows linearly) overrides this off, which keeps DFlash2 on the chain
+  virtual bool verify_tree_ok() const;
   // Tree verifies wider than 8 rows (16 or 32: 2 or 4 tiles of 8 rows; KFlash's size rule picks the rows per cycle):
   // encode_verify with a tree set and R = 16 or 32 encodes that capacity, and the GPU runs the tiles of the tree's live
   // rows (8 ceil(n / 8), n = the descriptor's kKfN, chosen by the drafting pass after the host encoded the verify):

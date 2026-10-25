@@ -132,7 +132,11 @@ class Qwen4Exp : public Qwen35 {
   void encode_flush(Encoder& e, Seq& s) override;
   void encode_mtp_prefill(Encoder& e, Seq& s, int pos0, int R, int h_row0) override;
   std::string formats_summary() const override;
-  bool block_drafter_ok() const override { return false; }
+  bool block_drafter_ok() const override { return true; }
+  // chain-only: this class's encode_verify verifies rows linearly (no tree-descriptor path over the 4-stream GDN and
+  // the indexer's KV), so a tree drafting pass would verify the wrong rows; DFlash2's set_tree reads this and keeps
+  // the chain, and the wide verifies stay off on every MoE target (verify_wide_ok)
+  bool verify_tree_ok() const override { return false; }
 
   // Debug (tools/fn_eval): the residual stream after the last pass, rows of hc * hidden floats
   Buffer residual() const { return x_; }

@@ -403,6 +403,7 @@ Engine::Engine(const EngineOptions& o) : opts_(o) {
       const bool rows16 = block_rows > DFlash2::kB;
       dfl_ = std::make_unique<DFlash2>(*q35_, dir, 0, rows16);
       dfl_dir_ = dir;
+      logi("DFlash2: drafting from %s (%d-row blocks)", dir.c_str(), block_rows);
       DFlash2::prewarm_pipelines();
       spec_ = false;
       // the plan against what loading took (rings and the first prefill's buffers come later)
@@ -779,7 +780,7 @@ LoadPlan plan_load(const std::string& model_dir, const std::string& dflash, bool
         }
       }
     }
-  } else if (!lp.dflash_off && !Qwen4Exp::is_model(model_dir)) {  // (no block drafter binds to Qwen3.8-Flash-Next)
+  } else if (!lp.dflash_off) {
     lp.dflash = lp.dflash_auto ? DFlash2::find(model_dir, Qwen35::read_config(model_dir)) : want;
     if (!lp.dflash.empty()) {
       // auto: a drafter that would keep one conversation from its full context is left out (MTP or plain decoding
@@ -787,7 +788,9 @@ LoadPlan plan_load(const std::string& model_dir, const std::string& dflash, bool
       // conversation come first
       const Qwen35Config dc = Qwen35::read_config(model_dir);
       const int block_rows = DFlash2::plan_block_rows(dc, slots, nullptr, DFlash2::tensor_path_ok());
-      const Qwen35::MemPlan p = Qwen35::plan(model_dir, 1024, block_rows > DFlash2::kB);
+      const Qwen35::MemPlan p = Qwen4Exp::is_model(model_dir)
+                                    ? Qwen4Exp::plan(model_dir, 1024)  // its head rows are hc streams wide
+                                    : Qwen35::plan(model_dir, 1024, block_rows > DFlash2::kB);
       size_t per_slot = 0;  // the ring of the live state and of each of the slot's two checkpoints
       lp.dflash_bytes = lp.dflash_found_bytes =
           DFlash2::plan_bytes(lp.dflash, dc, p.head_row_bytes, &per_slot, nullptr, block_rows) +
