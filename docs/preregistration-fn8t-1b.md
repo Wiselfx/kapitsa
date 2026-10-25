@@ -54,11 +54,24 @@ with `tools/logit_compare.py`'s arithmetic. PASS requires every cell:
 | p99 KL | ≤ 0.0283 | `reorder_gate.max_p99_kl` |
 | \|mean NLL change\| | ≤ 0.0349 | `reorder_gate.max_nll_change` |
 | max \|Δlogit\| | ≤ 7.48 | 2× the floor file's worst pure-reassociation source `max_abs_diff` (3.7395, `NI_QMT=0 NI_MATH_SAFE=1` step), following the file's own twice-the-worst-source construction |
+| max \|Δlogit\| tripwire | ≤ 1e-3, else HOLD (protocol below) | the expected ~1e-6 band, 10³ below the tripwire; amendment, orchestrator ROUND 273 |
 
 Expected band, recorded not gated: hi/lo drift should land ~1e-6 mean KL,
 three orders inside these bounds. Measured values are booked in full either
 way; a PASS at the 1e-3 scale would indicate the lo term is not engaged and
 is caught by G5, not by widening G1.
+
+Tripwire (amendment, orchestrator ROUND 273, made before any gate leg was
+witnessed — the only point this procedure lets a threshold change): if max
+|Δlogit| exceeds 1e-3 on any of the 192 rows, the G1 result is not a PASS —
+it is a HOLD. A HOLD clears only by a written cause booked with the dump:
+the named op that produced the drift, the source of the error, and why it is
+not a bug; the orchestrator accepts or rejects the cause. Without an
+accepted cause the HOLD counts as FAIL. The 7.48 hard ceiling is unchanged:
+exceeding it is a FAIL with or without a cause. The tripwire exists because
+7.48 is ~10⁶× the expected band and alone cannot catch a wrong kernel;
+strict G3 md5 catches that for the flip PR, but a kernel PR (flags off)
+relies on G2 alone.
 
 ## G2 — per-GEMM bench (bench_moe-style, both families)
 
@@ -113,7 +126,9 @@ diagnosis only and is never a gate arm.
 
 ## FAIL
 
-Any cell of G1–G5 exceeded, missing, or untraceable to a dump is a FAIL. On
+Any cell of G1–G5 exceeded, missing, or untraceable to a dump is a FAIL. A
+G1 tripwire HOLD without an accepted written cause counts as a FAIL under
+this definition. On
 FAIL: `NI_FN8T_D`/`NI_FN8T_E` stay off, no flip PR is opened, the dumps and
 the comparison output go to the orchestrator, and the thresholds in this
 file do not move. Thresholds are immutable once the first gate leg is
@@ -154,3 +169,6 @@ Threshold sources: `tools/logit_floors/flash-next-q20.m5.json`
 (qmt6, nll-cell departure and ABBA-bitwise evidence), #570/#585 (tensor path
 reverted on a continuation change), #581 (per-cell inside-the-model's-gate
 procedure). Design scope: `/tmp/df2-gate/1b-design.md` (subagent 128e063b).
+Amendment (G1 tripwire cell): orchestrator ROUND 273, committed before any
+gate leg was witnessed — the only point this procedure lets a threshold
+change.
