@@ -172,3 +172,120 @@ procedure). Design scope: `/tmp/df2-gate/1b-design.md` (subagent 128e063b).
 Amendment (G1 tripwire cell): orchestrator ROUND 273, committed before any
 gate leg was witnessed — the only point this procedure lets a threshold
 change.
+
+## fn8t-2 extension (A07): cross-row expert union + down retune
+
+The orchestrator (ROUND 279) booked the port plan's Port 2 / A07 as fn8t-2
+and ordered this one-section extension, committed before any fn8t-1b or
+fn8t-2 leg was witnessed; every fn8t-1b threshold above is untouched.
+Scope: the cross-row expert union walk in the Flash-Next q20 verify path —
+per layer, read the union of the 8 verify rows' expert selections once and
+apply each expert tile to every row that selected it — plus the down-slot
+retune to the gate_up throughput class (slot baseline booked at 174 GB/s,
+retune target 242 GB/s). Behind `NI_FN8T_U`, default off, same engagement
+guard as fn8t-1b (Apple GPU family ≥ 10, macOS ≥ 26, Flash-Next q20 verify,
+R = 8), logged once per process.
+
+### Class claim: bitwise by construction
+
+The union walk changes tile-to-row scheduling — which row's output consumes
+which expert tile, and in what order tiles are fetched — not arithmetic:
+each output element keeps the slot kernels' (`moe_q20v_gate_up`,
+`moe_q20_down`) exact products and exact accumulation order. The down
+retune is in class only if it likewise preserves each output's exact
+reduction order (dispatch shape and threadgroup tiling change, accumulation
+does not); a retune that reorders any output's K reduction is outside this
+section and would need fn8t-1b's drift-gated class instead. The in-tree
+precedent is the `moe4_*` 4-bit verify family, bitwise by the same
+construction. Because the class admits no numerical drift, this section has
+no G1 drift table and no tripwire/cause path: any departure from bitwise
+identity is a bug, not a numerics class to adjudicate.
+`tools/logit_floors/flash-next-q20.m5.json` stays untouched and is cited
+only in the flags-off direction.
+
+### Arms
+
+- One binary per PR head; arm U0 = `NI_FN8T_U=0`, arm U1 = `NI_FN8T_U=1`,
+  both with `NI_FN8T_D=0 NI_FN8T_E=0` so the reference is the shipped
+  scalar path and A07's own effect is isolated — ROUND 169 R3: fn8t-2 books
+  from one measured leg carrying both arms. One stacked diagnostic leg
+  (`NI_FN8T_D=1 NI_FN8T_E=1 NI_FN8T_U=1`) may be booked, labeled
+  diagnostic, non-gating, for cycle arithmetic only.
+- Machine, model, quiet-leg rule (`peak_pressure = 1`), lock and one-retry
+  rule: identical to fn8t-1b's Arms section. An envelope abort makes a leg
+  VOID and rerunnable, not FAIL.
+
+### U1 — bitwise identity gate (replaces G1 for fn8t-2)
+
+`tools/logit_dump` on the step and verify paths, 192 rows, chunk 2048, the
+same workload and prefixes in both arms (`records.txt`/`sequences.txt`
+hashes equal). Three dumps, mirroring fn8t-1b's dump-a/dump-b/dump-a2
+mechanics: dump-u0 (arm U0), dump-u1 (arm U1), dump-u0b (arm U0 again).
+PASS requires bitwise identity of all 192/192 rows in both directions —
+u0 against u1 and u1 against u0 — plus arm stability u0 against u0b:
+max \|Δlogit\| = 0, top-1 agreement = 1.0, every KL/NLL cell = 0, equal
+`logits.f32` sha256 per pair. Any non-zero deviation = FAIL-bug. There is
+no HOLD state and no cause path in this section.
+
+### U2 — per-kernel bench under the g2.json contract (replaces G2 coverage)
+
+The bench writes `/tmp/fn8t-gate/g2u.json` with the same cell schema as
+fn8t-1b's `g2.json` (`pair`, `shape`, plus the gate fields below), runs
+under the GPU lock, and reports its binary name and CLI in the ledger. A
+FAIL-miss on any cell stops the battery before any dump or ABBA leg.
+
+| Cell | Bound | Provenance |
+| --- | --- | --- |
+| bitwise output identity, every cell | true (union vs slot at every benched shape) | the class claim above |
+| union gate_up total kernel time ratio vs slot, verify shape (R = 8) | ≤ 0.605 | U/raw × 1.10 — U = 44.0 booked (store stats, dyn4k-1, ROUND 254(3): the handshake dedups per turn via `mark_`, so `lookups/turns` is the exact cross-row union per turn; turn = one (cycle, layer) row set — 48 layers, 2784 turns / 58 cycles), raw = 8 rows × top_k 10 = 80 (`config.json` `num_experts_per_tok = 10`); 10% scheduling slack |
+| retuned down throughput | ≥ 220 GB/s | within 10% of the port plan's booked retune target 242 GB/s (gate_up class); slot down baseline booked at 174 GB/s |
+| `static_tg_bytes` | ≤ 16384 | the validation layer's 2× accounting against the 32,768 B cap |
+| `layer_clean` | true | small-size run under `MTL_SHADER_VALIDATION=1 MTL_DEBUG_LAYER=1` |
+
+Half-step and fp64-parity cells are not required here: the reference is the
+slot kernel's own output, and bitwise identity is strictly stronger than
+parity.
+
+### U3 — engagement evidence (G5 class)
+
+One log line per process when `NI_FN8T_U=1` engages the union path; its
+pattern appended to `engagement-pattern.txt` before any arm-U1 leg runs.
+Arm U0 prints no engagement line and is bitwise unchanged against base: the
+flags-off floor leg stays bitwise 192/192 at every PR head, exactly as
+fn8t-1b's G4.
+
+### U4 — continuations (G3, unchanged)
+
+256-token ABBA temperature-0 continuations on the `w4k` and `w32k` prompts,
+strict ids-md5 identity across a1 b1 b2 a2 — and, because the class is
+bitwise, identity with the arm-U0 md5 as well. Any divergence = FAIL-bug:
+the 32K block does not run, the divergence analysis goes to the
+orchestrator.
+
+### FAIL definitions, evidence, economics
+
+- FAIL-bug: any bitwise deviation in U1, in U3's flags-off identity, or in
+  U4. No cause path; the fix is code, re-run from a new PR head.
+- FAIL-perf: any U2 cell miss. The battery stops before the dumps; no
+  dump/ABBA GPU is spent.
+- FAIL-untraceable: a missing cell, a missing bitwise verdict, or a bench
+  that does not write the json contract.
+- VOID: envelope abort (`peak_pressure > 1`), at most one retry — not a
+  FAIL.
+- No fn8t-2 GPU leg runs on a build whose `fn_check` is not green
+  (ROUND 279(3)).
+- Threshold immutability: once any fn8t-2 leg (including the bench) has
+  been witnessed, this section is frozen by the same rule as fn8t-1b.
+
+### Evidence base booked at commit time
+
+U = 44.0 distinct experts per layer per turn (DFlash2 4K, dyn4k-1 store
+stats, ROUND 254(3)); raw = 80 per layer (top_k 10 × 8 rows); U/raw = 0.55,
+so the union walk removes 45% of expert weight reads. R=8-scaled estimate,
+recorded not gated: ≈ −12.4 ms/cycle (union) and ≈ −3.2 ms/cycle (down
+retune) against the 27.5 ms/cycle expert-verify estimate ported from the
+MTP R=7 profile (MoE 24.065 ms/C). Prices and bars: port plan §3 Port 2.
+Ordered by the orchestrator, ROUND 279: A07 booked as fn8t-2, extension
+committed before any leg; GPU queue fnx-dec → 1b legs → fn8t-2 legs → 35B
+DYN A/B; fn8t-2 implementation starts from the fn8t-1b commit in its own
+worktree.
