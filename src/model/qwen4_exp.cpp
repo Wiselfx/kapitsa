@@ -936,8 +936,8 @@ void Qwen4Exp::enc_gr_rows(Encoder& e, const GatedRes& g, int R, const Buffer& X
     constexpr int nr = 2, cpt = 2;
     const bool r8 = hc8 && R > 4 && R <= 8 && rank <= 384 && D % 64 == 0;
     if (hc3 && (R <= 4 || r8) && rank <= 512 && rank % (8 * nr) == 0 && D % (16 * cpt) == 0) {
-      // R = 5..8: hc_down_sk4, hc_down_sk3 with each row's inputs staged once per threadgroup, the weight codes read
-      // once for every row and the rows' stats spread over the threadgroups (bitwise the same; fn_check FN_ROWS)
+      // R = 5..8: hc_down_sk4, hc_down_sk3 with each row's inputs read once per threadgroup and shared, and the
+      // rows' stats spread over the threadgroups (the same helpers, so bitwise the same; fn_check FN_ROWS)
       e.use(pipe((r8 ? "hc_down_sk4_n" : "hc_down_sk3_n") + std::to_string(nr) + b));
       e.buf(0, X, x_row0 * SD * 4); e.buf(1, yb_); e.buf(2, inj_prev); e.buf(3, g.norm->buf);
       e.buf(4, g.inj ? g.inj.w->buf : g.norm->buf); e.buf(5, g.down.w->buf); e.buf(6, g.down.s->buf);

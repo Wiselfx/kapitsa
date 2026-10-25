@@ -274,67 +274,33 @@ NI_INLINE void hc_down_sk3_impl(const device float* X, const device float* y, co
 NI_HC_DOWN_SK3(hc_down_sk3_n2_b6, 6, 2)
 NI_HC_DOWN_SK3(hc_down_sk3_n2_b4, 4, 2)
 NI_HC_DOWN_SK3(hc_down_sk3_n2_b8, 8, 2)
-// hc_down_sk4<NR> (verify rows R = 5..8, with hc_up_mix8): hc_down_sk3 with each row's inputs (X + a y) w computed
-// once per threadgroup into threadgroup memory (hc_down_sk3's 8 simdgroups each read them from device memory), each
-// lane's NR runs of weight codes and their scales read once for every row, and row r's stats on threadgroup
-// r mod grid x (hc_down_sk3: every row's on threadgroup 0, one after another). Each value and each sum is
-// hc_down_sk2_x / _dot / _stat's, in their order. grid (rank / (8 NR), S * D / 1024), 256 threads; D % 32 == 0.
-template <int BITS>
-NI_INLINE void unpack16(thread const uint32_t* words, thread float* q) {  // unpack16's codes from registers
-  constexpr uint MASK = (1u << BITS) - 1u;
-  for (uint j = 0; j < 16; ++j) {
-    const uint bit = j * BITS, wi = bit / 32, sh = bit % 32;
-    uint v = words[wi] >> sh;
-    if (sh + BITS > 32) v |= words[wi + 1] << (32 - sh);
-    q[j] = float(v & MASK);
-  }
-}
+// hc_down_sk4<NR> (verify rows R = 5..8, with hc_up_mix8): hc_down_sk3 with each row's inputs read from device
+// memory by one simdgroup (hc_down_sk2_x) and shared through threadgroup memory (hc_down_sk3's 8 simdgroups each read
+// them), and row r's stats on threadgroup r mod grid x (hc_down_sk3: every row's on threadgroup 0, one after another).
+// The helpers are hc_down_sk2's, so each value is theirs. grid (rank / (8 NR), S * D / 1024), 256 threads.
 template <int BITS, int NR>
 NI_INLINE void hc_down_sk4_impl(const device float* X, const device float* y, const device float* inj_prev,
                                 const device float* w, const device bfloat* winj, const device uint32_t* W,
                                 const device bfloat* Ws, const device bfloat* Wb, device float* part, device float* X2,
                                 device float* stat, constant HcFoldParams& p, uint2 tg, uint2 ntg, uint tid, uint sg,
-                                uint lane, threadgroup float4* scratch, threadgroup float4 (&xt)[2][256]) {
-  const uint SD = p.S * p.D, c = tg.y, s_lo = c * 1024 / p.D;
-  const uint k0 = c * 1024 + lane * 32, s = k0 / p.D;
-  uint words[NR][BITS];  // the lane's 32 codes of each weight row: 32 * BITS bits
-  float ws[NR], wb[NR];
-  for (uint j = 0; j < uint(NR); ++j) {
-    const uint n = (tg.x * 8 + sg) * NR + j, g = n * (SD / 64) + k0 / 64;
-    const device uint32_t* wr = W + size_t(n) * (SD * BITS / 32) + k0 * BITS / 32;
-    for (uint i = 0; i < uint(BITS); ++i) words[j][i] = wr[i];
-    ws[j] = float(Ws[g]), wb[j] = float(Wb[g]);
-  }
-  const uint kt = c * 1024 + tid * 4, st = kt / p.D, ct = kt - st * p.D;  // this thread's 4 staged inputs
+                                uint lane, threadgroup float4* scratch, threadgroup float (&xt)[2][1024],
+                                threadgroup float (&xst)[2][32]) {
   for (uint r = 0; r < p.R; ++r) {
-    threadgroup float4* xb = xt[r & 1];  // two buffers: row r + 1's writes cannot race row r's reads
-    {
-      const float a = p.has_y ? inj_prev[r * 4 + st] : 0.0f;
-      const device float4* x4 = (const device float4*)(X + r * SD + kt);
-      const device float4* y4 = (const device float4*)(y + r * p.D + ct);
-      const device float4* w4 = (const device float4*)(w + kt);
-      xb[tid] = (x4[0] + a * y4[0]) * w4[0];
+    const uint b = r & 1;  // two buffers: row r + 1's writes cannot race row r's reads
+    float xv[32], xs;
+    if (sg == 0) {
+      hc_down_sk2_x(X, y, inj_prev, w, p, tg.y, r, lane, xv, xs);
+      for (uint i = 0; i < 32; ++i) xt[b][i * 32 + lane] = xv[i];
+      xst[b][lane] = xs;
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
-    float xv[32], xs = 0.0f;
-    for (uint i = 0; i < 8; ++i) {
-      const float4 v = xb[lane * 8 + i];
-      xv[4 * i] = v.x, xv[4 * i + 1] = v.y, xv[4 * i + 2] = v.z, xv[4 * i + 3] = v.w;
-      xs += v.x + v.y + v.z + v.w;
+    if (sg != 0) {
+      for (uint i = 0; i < 32; ++i) xv[i] = xt[b][i * 32 + lane];
+      xs = xst[b][lane];
     }
-    for (uint j = 0; j < uint(NR); ++j) {
-      const uint n = (tg.x * 8 + sg) * NR + j;
-      float q[16], d = 0.0f;
-      for (uint h = 0; h < 2; ++h) {
-        unpack16<BITS>(words[j] + h * (16 * BITS / 32), q);
-        for (uint jj = 0; jj < 16; ++jj) d += q[jj] * xv[h * 16 + jj];
-      }
-      const float val = ws[j] * d + wb[j] * xs;
-      const float p0 = simd_sum(s == s_lo ? val : 0.0f), p1 = simd_sum(s == s_lo ? 0.0f : val);
-      if (lane == 0) *(device float2*)(part + ((c * p.R + r) * p.rank + n) * 2) = float2(p0, p1);
-    }
+    for (uint j = 0; j < uint(NR); ++j) hc_down_sk2_dot<BITS>(W, Ws, Wb, part, p, (tg.x * 8 + sg) * NR + j, tg.y, r, lane, xv, xs);
   }
-  for (uint r = tg.x; r < p.R; r += ntg.x) hc_down_sk2_stat(X, y, inj_prev, w, winj, X2, stat, p, c, r, tid, scratch);
+  for (uint r = tg.x; r < p.R; r += ntg.x) hc_down_sk2_stat(X, y, inj_prev, w, winj, X2, stat, p, tg.y, r, tid, scratch);
 }
 #define NI_HC_DOWN_SK4(NAME, BITS, NR)                                                                         \
   [[kernel]] void NAME(const device float* X [[buffer(0)]], const device float* y [[buffer(1)]],               \
@@ -347,9 +313,9 @@ NI_INLINE void hc_down_sk4_impl(const device float* X, const device float* y, co
                        uint tid [[thread_index_in_threadgroup]], uint sg [[simdgroup_index_in_threadgroup]],   \
                        uint lane [[thread_index_in_simdgroup]]) {                                              \
     threadgroup float4 scratch[32];                                                                            \
-    threadgroup float4 xt[2][256];                                                                             \
+    threadgroup float xt[2][1024], xst[2][32];                                                                 \
     hc_down_sk4_impl<BITS, NR>(X, y, inj_prev, w, winj, W, Ws, Wb, part, X2, stat, p, tg, ntg, tid, sg, lane,  \
-                               scratch, xt);                                                                   \
+                               scratch, xt, xst);                                                              \
   }
 NI_HC_DOWN_SK4(hc_down_sk4_n2_b6, 6, 2)
 NI_HC_DOWN_SK4(hc_down_sk4_n2_b4, 4, 2)
