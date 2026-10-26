@@ -60,7 +60,11 @@ bool load_share(Share& sh, const StageOptions& o, int lo, int hi, std::string* w
     o.status("loading layers " + std::to_string(lo + 1) + "-" + std::to_string(hi) + " (" +
              std::to_string(int(mp.weights / 1e8) / 10.0).substr(0, 4) + " GB)");
   sh.m.reset();
-  sh.m = std::make_unique<Qwen4Exp>(o.model_dir, o.chunk, size_t(std::max(1.0, o.mem - keep)));
+  // `keep` is passed as set_apart as well as subtracted from the budget: the budget only bounds the guard from
+  // `left`, and on a Mac where the system's available memory binds instead, a store sized without it took the
+  // headroom the share's own 32K conversations have to allocate into (the same overshoot the engine path avoids).
+  sh.m = std::make_unique<Qwen4Exp>(o.model_dir, o.chunk, size_t(std::max(1.0, o.mem - keep)), nullptr,
+                                    size_t(std::min(keep, o.mem)));
   sh.m->set_mem_budget(size_t(o.mem));
   sh.lo = lo;
   sh.hi = hi;

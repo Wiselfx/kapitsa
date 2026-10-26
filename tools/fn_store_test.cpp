@@ -322,7 +322,7 @@ void case_auto_size() {
         "auto: cap text '%s'", t.c_str());
   in.cap = 0, in.avail = size_t(13 * GB), in.later = size_t(0.5 * GB), r = auto_store_size(in), t = auto_store_reason(r, in);
   CHECK(t == "8.2 GB rather than the 29.9 GB the budget leaves (the system's available memory 13.0 GB less 4.3 GB "
-             "headroom and 0.5 GB for the KV cache: other processes hold the rest)" &&
+             "headroom and 0.5 GB for the KV cache and buffers: other processes hold the rest)" &&
             !strcmp(auto_store_why_name(r.why), "available_memory"),
         "auto: avail text '%s'", t.c_str());
   in.avail = 0, in.left = size_t(60 * GB), r = auto_store_size(in), t = auto_store_reason(r, in);

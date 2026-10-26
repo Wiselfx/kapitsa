@@ -118,7 +118,7 @@ inline std::string auto_store_reason(const AutoStore& st, const AutoStoreIn& in)
     case AutoStoreWhy::Avail:
       snprintf(b, sizeof b,
                "%.1f GB rather than the %.1f GB the budget leaves (the system's available memory %.1f GB less %.1f GB "
-               "headroom and %.1f GB for the KV cache: other processes hold the rest)",
+               "headroom and %.1f GB for the KV cache and buffers: other processes hold the rest)",
                double(st.bytes) / 1e9, left, double(in.avail) / 1e9, double(st.headroom) / 1e9, double(in.later) / 1e9);
       break;
     case AutoStoreWhy::Cap:
