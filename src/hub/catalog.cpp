@@ -302,7 +302,7 @@ const std::vector<CatalogModel>& catalog() {
             .repo = "nace-ai/Qwen3.8-Flash-Next-MLX-4bit",
             .revision = "5d423f9f563c1f1b7ca7945b268e65c0b92b0eae",
             .companions = {dflash_fn()},
-            .download_gb = 105.86},
+            .download_gb = 107.07},
        }},
       {.name = "nemotron-labs-dory1.0-4b",
        .aliases = {"dory", "dory-4b", "dory1.0-4b"},
