@@ -162,8 +162,8 @@ step, can pick another expert, and every layer after it computes something else.
 
 Nanbeige 4.3 33B (`--model nanbeige4.3-33b`: [fcmeyer/Nanbeige4.3-33B-MLX-4bit](https://huggingface.co/fcmeyer/Nanbeige4.3-33B-MLX-4bit),
 an MLX affine 4-bit conversion of its weights, 18.6 GB) is the dense Llama in the table above; its tokenizer is
-SentencePiece-style BPE (`▁` for a space, unknown bytes as `<0xNN>` tokens). It has no draft model, and it is never the
-model `kapitsa serve` picks without `--model`. Other `llama` checkpoints load only in the shapes listed under Refused.
+SentencePiece-style BPE (`▁` for a space, unknown bytes as `<0xNN>` tokens). Other `llama` checkpoints load only as MLX
+affine 4/8-bit with groups of 64, head dim 128, at most 8 query heads per KV head and no RoPE scaling.
 
 Refused, with a message: other architectures, other quantizations (MLX's `mxfp4`, `nvfp4` and `mxfp8` modes among
 them; NVIDIA's own NVFP4 checkpoints of the catalog's Nemotron models are read as they are), mixture-of-experts
