@@ -448,10 +448,8 @@ const std::vector<CatalogModel>& catalog() {
        .title = "Nanbeige4.3-33B",
        .about = "Nanbeige's dense 33B (Llama architecture): reasoning and tool calls, no drafter",
        .brief = "Nanbeige dense 33B",
-       // fcmeyer's MLX conversion of Nanbeige/Nanbeige4.3-33B (rev c1093c50): affine 4-bit group 64 everywhere,
-       // embedding and head included. Not a default: best_model tries it after every model it names. Its shards at
-       // this revision (sha256, bytes): 00001 e82e560d…ee7e15b 5363709218, 00002 e6cba31d…aab43ec 5347256042,
-       // 00003 bfb97bec…f2b2ba8f 5318354306, 00004 b30d7e54…7bae8b 2601325058.
+       // fcmeyer's MLX conversion of Nanbeige/Nanbeige4.3-33B (rev e134e560): affine 4-bit group 64 everywhere,
+       // embedding and head included; four shards, 5363709218 + 5347256042 + 5318354306 + 2601325058 bytes.
        .default_variant = "4bit",
        .fallbacks = {},
        .variants = {
