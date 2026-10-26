@@ -64,7 +64,7 @@ Those start the best model for this Mac, with the same output as before.
 
 A download includes the companion files that speed decoding up: an MTP head and a DFlash2 draft model for the 35B and
 27B, an MTP head and z-lab's DFlash draft model for the 4B, NVIDIA's LiLiCorr draft model for Bolt and for Super-VL,
-its DSpark draft model for Lightning; Flash-Next's repo holds its MTP head. Dory and Flint have none: they decode without one, as
+its DSpark draft model for Lightning; Flash-Next's repo holds its MTP head. Dory, Flint and Nanbeige have none: they decode without one, as
 does the 35B's `16gb` (its GGUF has no MTP head, and a draft model would not fit beside it).
 
 Flash-Next's `4bit` is Nace AI's quantization of Qwen's bf16 release
