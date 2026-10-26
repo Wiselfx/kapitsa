@@ -347,8 +347,9 @@ void ExpertCache::hit(int k, bool scan, bool first) {
 int ExpertCache::scan_victim(int k, int floor_layer) {
   const int layer = k / int(E_);
   // The floor: a layer-major visit's sweep passes the layer the visit is running, so the visit's own layer's keys —
-  // the ones its remaining chunks still route, unpinned between its turns — are never victims of the read-ahead for
-  // the next layer. -1 (every chunk-major turn, decode, fill): the admitted key's layer is the floor, as before.
+  // the ones its remaining chunks still route, unpinned between its turns — are not victims of the read-ahead for
+  // the next layer while any lower layer's T1 key remains; when none does, the ARC rule below decides and the
+  // visit's own keys can be eaten. -1 (every chunk-major turn, decode, fill): the admitted key's layer is the floor.
   const int limit = floor_layer >= 0 ? floor_layer : layer;
   // A T1 slot below the floor is the victim the sweep wants, and the per-layer counts say whether one exists: with a
   // lower layer holding only T2 keys (decoding's hot experts) or slots above, no scan can find one, and the ARC rule

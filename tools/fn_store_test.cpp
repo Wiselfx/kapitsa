@@ -748,9 +748,21 @@ void case_floor(const Pack& p) {
         (unsigned long long)won.misses, (unsigned long long)woff.misses);
   check_sums(won, "pred floor wrap");
   check_sums(woff, "pred floor wrap off");
-  printf("pred floor, %u slots: visit kept %u/%u (unfloored %u), wrap kept %u/%u (unfloored %u), unfloored re-reads "
-         "%llu + %llu experts\n",
-         nslots, kept_on, E, kept_off, wkept_on, E, wkept_off, (unsigned long long)off.misses,
+  // nothing below the floor (floor 0: no layer is below it, so no T1 key ever qualifies): the ARC rule decides,
+  // oldest T1 first, and the visit's own unpinned second half is eaten — the floor protects a visit only while a
+  // lower layer's T1 key remains resident, as the header says
+  uint32_t nkept = 0, ntgt = 0;
+  const StoreStats none = run_arm(1, 4, 5, 0, bad, nkept, ntgt);
+  CHECK(bad == 0, "pred floor none below: %d experts not in their slots", bad);
+  CHECK(nkept == half && ntgt == E, "pred floor none below: kept %u of %u of the visited layer, target %u of %u",
+        nkept, E, ntgt, E);
+  CHECK(none.misses == half && none.prefetches == E,
+        "pred floor none below: re-read %llu experts, read ahead %llu: ARC's rule must eat the visited layer",
+        (unsigned long long)none.misses, (unsigned long long)none.prefetches);
+  check_sums(none, "pred floor none below");
+  printf("pred floor, %u slots: visit kept %u/%u (unfloored %u), wrap kept %u/%u (unfloored %u), none below kept "
+         "%u/%u, unfloored re-reads %llu + %llu experts\n",
+         nslots, kept_on, E, kept_off, wkept_on, E, wkept_off, nkept, E, (unsigned long long)off.misses,
          (unsigned long long)woff.misses);
 }
 

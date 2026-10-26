@@ -230,10 +230,11 @@ class ExpertCache {
   // event reaches `ready`; the turn sets it to `go` when every routed expert is in its slot. pred / npred: ids predicted
   // for pred_layer, read ahead after the go (pred_all: every expert of pred_layer; pred_layer -1: none). scan: a prefill
   // chunk's lookups (no promotion, no adaptation). pred_floor: a sweep's eviction floor — with pred_floor >= 0 the
-  // read-ahead admits victims among the T1 keys of layers below pred_floor only, not below the admitted layer, so a
+  // read-ahead prefers victims among the T1 keys of layers below pred_floor, not below the admitted layer, so a
   // layer-major visit's turns keep their own layer's experts (its sweep for the next layer must not evict what its
-  // remaining chunks still route); -1 (every chunk-major turn, decode, fill): the admitted layer is the floor, as
-  // before.
+  // remaining chunks still route) while any lower layer's T1 key remains resident; when none does, ARC's
+  // oldest-first rule still decides and the visit's own keys can be eaten. -1 (every chunk-major turn, decode,
+  // fill): the admitted layer is the floor, as before.
   struct Req {
     int layer = 0;
     const uint32_t* ids = nullptr;
