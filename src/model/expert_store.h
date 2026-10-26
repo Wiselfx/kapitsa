@@ -229,7 +229,11 @@ class ExpertCache {
   // One layer's handshake: the routing ids (n uint32 expert ids of `layer`, repeats allowed) are readable once the
   // event reaches `ready`; the turn sets it to `go` when every routed expert is in its slot. pred / npred: ids predicted
   // for pred_layer, read ahead after the go (pred_all: every expert of pred_layer; pred_layer -1: none). scan: a prefill
-  // chunk's lookups (no promotion, no adaptation).
+  // chunk's lookups (no promotion, no adaptation). pred_floor: a sweep's eviction floor — with pred_floor >= 0 the
+  // read-ahead admits victims among the T1 keys of layers below pred_floor only, not below the admitted layer, so a
+  // layer-major visit's turns keep their own layer's experts (its sweep for the next layer must not evict what its
+  // remaining chunks still route); -1 (every chunk-major turn, decode, fill): the admitted layer is the floor, as
+  // before.
   struct Req {
     int layer = 0;
     const uint32_t* ids = nullptr;
@@ -237,6 +241,7 @@ class ExpertCache {
     const uint32_t* pred = nullptr;
     uint32_t npred = 0;
     int pred_layer = -1;
+    int pred_floor = -1;
     bool pred_all = false, scan = false;
     bool warm = false;  // a decode / verify pass's turn: Sync::warm after the go (never a prefill chunk's)
     uint64_t ready = 0, go = 0;
@@ -287,9 +292,10 @@ class ExpertCache {
   void lst_push(List& L, int k);
   List& list_of(Where w);
   int lru_free(const List& L) const;  // least recent key neither pinned nor being read, -1 if none
-  int scan_victim(int k);             // a sweep's victim: a slot below k's layer, rotating over the slots, -1 if none
+  // a sweep's victim: a T1 slot below the floor (floor -1: below k's layer), rotating over the slots, -1 if none
+  int scan_victim(int k, int floor_layer);
   void hit(int k, bool scan, bool first);  // first: k was read ahead and is routed for the first time
-  int admit(int k, bool scan);        // a slot for absent key k (evicting if needed); k into T1 / T2
+  int admit(int k, bool scan, int floor_layer = -1);  // a slot for absent key k (evicting if needed); k into T1 / T2
   void evict(int k);
   void trim_ghosts();
   void load(int k, bool urgent);      // reads of k's planes into its slot
@@ -356,9 +362,9 @@ class ExpertStore {
   std::vector<Buffer> buffers() const;  // the arena and the slot tables (residency)
   // A layer's handshake: begin() after the dispatches that write its routing (ids: n uint32 expert ids, in GPU memory),
   // end() before its expert kernels; work encoded between them does not need the experts and overlaps the turn. See
-  // ExpertCache::Req for pred / pred_layer / pred_all / scan.
+  // ExpertCache::Req for pred / pred_layer / pred_all / pred_floor / scan.
   void begin(Encoder& e, int layer, const Buffer& ids, uint32_t n, const Buffer* pred, uint32_t npred, int pred_layer,
-             bool pred_all, bool scan, bool warm = false);
+             bool pred_all, bool scan, bool warm = false, int pred_floor = -1);
   void end(Encoder& e);
   StoreStats stats() const { return cache_->stats(); }
   void reset_stats() { cache_->reset_stats(); }

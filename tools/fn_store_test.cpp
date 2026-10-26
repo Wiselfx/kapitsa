@@ -156,6 +156,7 @@ struct Step {
   std::vector<uint32_t> ids, pred;
   int pred_layer = -1;
   bool pred_all = false, scan = false;
+  int pred_floor = -1;
 };
 
 // Posts the steps (as an encoder would, a pass at a time), then plays the GPU through them; returns the checks failed
@@ -173,6 +174,7 @@ int run_pass(ExpertCache& c, Event& ev, const Arena& a, const SlotLayout& lay, u
     r.pred_layer = steps[i].pred_layer;
     r.pred_all = steps[i].pred_all;
     r.scan = steps[i].scan;
+    r.pred_floor = steps[i].pred_floor;
     r.ready = ++value;
     r.go = ++value;
     c.post(r);
@@ -661,6 +663,97 @@ void case_seam(const Pack& p) {
          (unsigned long long)wrapped.second);
 }
 
+// The victim floor of a grouped visit (pred_floor, f75 #2): a layer-major prefill visit runs one layer over
+// consecutive chunks, so turn (l, c0)'s sweep reads layer l+1 ahead while layer l's unrouted experts — the ones the
+// visit's remaining turns still route — sit unpinned in T1. Without a floor they are ordinary victims: the rotating
+// cursor eats them when it reaches their slots, and the ARC fallback (oldest first) can pick them too. With
+// pred_floor = l the sweep's victims are the T1 keys of layers below l only, and the visit's own layer survives its
+// own read-ahead. Two engineered schedules pin the difference down deterministically. "visit" (sweeping up): the
+// visited layer's slots sit ahead of the cursor and below the layers the sweep may take, so the unfloored sweep eats
+// them. "wrap" (sweeping layer 0 ahead with the visited layer as the floor — the admitted layer is below the floor):
+// scan_victim's lap cannot run (its T1 floor is above the admitted layer), so the unfloored arm falls to ARC, whose
+// oldest-first rule eats the visited layer's unpinned keys because priming made them the oldest T1. Every arm is the
+// same schedule but for pred_floor; the unfloored arm must re-read or the floor is proven to do nothing. The default
+// (-1, every other case's calls) leaves the shipped behaviour byte-identical.
+void case_floor(const Pack& p) {
+  const uint32_t L = uint32_t(p.layers.size()), E = p.E;
+  const uint32_t nslots = 3 * E;  // the minimum: a turn pins E, its read-ahead takes E more
+  const uint32_t half = E / 2;
+  // One arm: turn A primes layer 2 whole (its misses take slots 0..E-1 in admit order); turn B primes layer b_layer
+  // and sweeps layer b_sweep in, filling the store — every admit takes a free slot, so scan_victim never runs and the
+  // cursor stays at 0. Turn C revisits layer 2's first half (pinning slots 0..half-1) and sweeps the target layer
+  // with the arm's floor; turn D routes layer 2's second half, which the floored sweep kept resident and the
+  // unfloored one evicted. Returns the C+D window's stats; kept_c / tgt_kept are the resident slots of layer 2 / the
+  // target after C's quiesce.
+  auto run_arm = [&](int b_layer, int b_sweep, int target, int floor, int& bad, uint32_t& kept_c, uint32_t& tgt_kept) {
+    Arena a(p.lay, nslots, L, E);
+    Event ev;
+    ExpertCache::Options o;
+    o.readers = 4;
+    o.fill = false;
+    ExpertCache c(p.files, p.layers, E, p.lay, nslots, a.m, ev.sync(), o);
+    std::mt19937 rng(29);
+    uint64_t value = 0;
+    std::vector<uint32_t> all(E);
+    std::iota(all.begin(), all.end(), 0u);
+    auto turn = [&](int layer, std::vector<uint32_t> ids, int pred_layer, bool pred_all, int pf) {
+      std::vector<Step> steps(1);
+      steps[0].layer = layer;
+      steps[0].ids = std::move(ids);
+      steps[0].scan = true;
+      steps[0].pred_layer = pred_layer;
+      steps[0].pred_all = pred_all;
+      steps[0].pred_floor = pf;
+      bad += run_pass(c, ev, a, p.lay, value, steps, rng);
+      quiesce(c, ev, value);  // #512: settle the sweep's admits before reading the bookkeeping
+    };
+    turn(2, all, -1, false, -1);            // A: layer 2 into slots 0..E-1
+    turn(b_layer, all, b_sweep, true, -1);  // B: layer b_layer, then its sweep: the store is full
+    c.reset_stats();                        // the arms are compared on the C+D window alone
+    turn(2, std::vector<uint32_t>(all.begin(), all.begin() + half), target, true, floor);  // C: revisit, sweep
+    kept_c = tgt_kept = 0;
+    for (uint32_t e = 0; e < E; ++e) {
+      kept_c += c.slot_of(2, e) >= 0;
+      tgt_kept += c.slot_of(target, e) >= 0;
+    }
+    turn(2, std::vector<uint32_t>(all.begin() + half, all.end()), -1, false, -1);  // D: the second half
+    return c.stats();
+  };
+  int bad = 0;
+  uint32_t kept_on = 0, kept_off = 0, tgt_on = 0, tgt_off = 0;
+  const StoreStats on = run_arm(0, 1, 3, 2, bad, kept_on, tgt_on);  // visit: floor = the visited layer
+  const StoreStats off = run_arm(0, 1, 3, -1, bad, kept_off, tgt_off);
+  CHECK(bad == 0, "pred floor: %d experts not in their slots", bad);
+  CHECK(kept_on == E && kept_off == half, "pred floor: visit kept %u of %u of the visited layer, unfloored %u of %u",
+        kept_on, E, kept_off, E);
+  CHECK(tgt_on == E && tgt_off == E, "pred floor: visit left %u / %u of the target layer resident, unfloored %u",
+        tgt_on, tgt_off, E);
+  CHECK(on.misses == 0 && off.misses == half,
+        "pred floor: visit re-read %llu experts, unfloored %llu: the floor must save the second half",
+        (unsigned long long)on.misses, (unsigned long long)off.misses);
+  CHECK(on.prefetches == E && off.prefetches == E, "pred floor: visit read ahead %llu, unfloored %llu, want %u each",
+        (unsigned long long)on.prefetches, (unsigned long long)off.prefetches, E);
+  check_sums(on, "pred floor");
+  check_sums(off, "pred floor off");
+  uint32_t wkept_on = 0, wkept_off = 0, wtgt_on = 0, wtgt_off = 0;
+  const StoreStats won = run_arm(1, 4, 0, 2, bad, wkept_on, wtgt_on);  // wrap: admit layer 0 under floor 2
+  const StoreStats woff = run_arm(1, 4, 0, -1, bad, wkept_off, wtgt_off);
+  CHECK(bad == 0, "pred floor wrap: %d experts not in their slots", bad);
+  CHECK(wkept_on == E && wkept_off == half, "pred floor wrap: kept %u of %u of the visited layer, unfloored %u of %u",
+        wkept_on, E, wkept_off, E);
+  CHECK(wtgt_on == E && wtgt_off == E, "pred floor wrap: left %u / %u of layer 0 resident, unfloored %u", wtgt_on,
+        wtgt_off, E);
+  CHECK(won.misses == 0 && woff.misses == half,
+        "pred floor wrap: re-read %llu experts, unfloored %llu: ARC's oldest-first rule must eat the visited layer",
+        (unsigned long long)won.misses, (unsigned long long)woff.misses);
+  check_sums(won, "pred floor wrap");
+  check_sums(woff, "pred floor wrap off");
+  printf("pred floor, %u slots: visit kept %u/%u (unfloored %u), wrap kept %u/%u (unfloored %u), unfloored re-reads "
+         "%llu + %llu experts\n",
+         nslots, kept_on, E, kept_off, wkept_on, E, wkept_off, (unsigned long long)off.misses,
+         (unsigned long long)woff.misses);
+}
+
 void case_complete(const Pack& p) {
   const uint32_t L = uint32_t(p.layers.size()), E = p.E;
   Arena a(p.lay, L * E, L, E);
@@ -703,6 +796,7 @@ int main(int argc, char** argv) {
   case_scan(p);
   case_scan_victim(p);
   case_seam(p);
+  case_floor(p);
   case_complete(p);
   case_settle();
   case_auto_size();
