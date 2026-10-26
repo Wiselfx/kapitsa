@@ -32,14 +32,15 @@ cmake --build build -j --target kapitsa                  # the CLI only; drop --
 SDK build the named targets, as CI does.
 
 CPU tests (no model, no GPU), after building `kapitsa api_test bench_test update_test prefix_cache_test grammar_test
-structured_check fn_store_test fn_dflash_test ni_cycle_trace_test verify_multi_test tokenizer_test iq_layout_test
-remote_test cluster_test split_place_test logit_dump`:
+structured_check fn_store_test fn_dflash_test fn_switch_test ni_cycle_trace_test verify_multi_test tokenizer_test
+iq_layout_test remote_test cluster_test split_place_test logit_dump`:
 
 ```bash
 build/api_test
 build/prefix_cache_test
 build/fn_store_test                          # the streamed-expert cache (src/model/expert_store.h)
 build/fn_dflash_test                         # DFlash2's stream_mean reduction checks (Flash-Next drafts)
+build/fn_switch_test                         # NI_DFLASH_FN's contract both ways (Qwen4Exp::dflash_fn, CPU)
 build/ni_cycle_trace_test                    # NI_CYCLE_TRACE's arithmetic (tools/ni_cycle_trace.h)
 build/verify_multi_test                      # the batched-verify guard's contract (Qwen35::verify_multi_ok)
 build/tokenizer_test                         # Flint's split, the Metaspace BPE: Nanbeige 4.3's file cut to the fixture

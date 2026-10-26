@@ -184,6 +184,19 @@ bool Qwen4Exp::fn8t_e() {
   return env && fn8t_d();
 }
 
+// NI_DFLASH_FN: this class's DFlash2 block-drafter support (the #608 review ruling: default off, read once at
+// startup). On: the decode path the fn8t evidence binaries ran — block_drafter_ok() binds a dflash2/ drafter and
+// the verify flags stay chain-only, no-batched-verify. Off: the pre-DFlash2 behaviour — main's literal false for
+// block_drafter_ok(), Qwen35's base values for the verify flags, and plan_load's Qwen4Exp exclusion keeps a found
+// drafter from binding. The companion the catalog downloads for Flash-Next is inert with the switch off.
+bool Qwen4Exp::dflash_fn() {
+  static const bool on = [] {
+    const char* v = getenv("NI_DFLASH_FN");
+    return v && atoi(v) != 0;
+  }();
+  return on;
+}
+
 void Qwen4Exp::set_split(const Split& s) { process_split() = s; }
 const Qwen4Exp::Split& Qwen4Exp::split() { return process_split(); }
 

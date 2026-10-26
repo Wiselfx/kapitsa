@@ -783,7 +783,10 @@ LoadPlan plan_load(const std::string& model_dir, const std::string& dflash, bool
         }
       }
     }
-  } else if (!lp.dflash_off) {
+  } else if (!lp.dflash_off && (Qwen4Exp::dflash_fn() || !Qwen4Exp::is_model(model_dir))) {
+    // (no block drafter binds to Qwen3.8-Flash-Next unless NI_DFLASH_FN=1: Qwen4Exp::dflash_fn(), the switch the
+    // class's own verify flags read — its verifies stay chain-only and a tree drafting pass would verify the
+    // wrong rows, so the whole decode path turns on together or not at all)
     lp.dflash = lp.dflash_auto ? DFlash2::find(model_dir, Qwen35::read_config(model_dir)) : want;
     if (!lp.dflash.empty()) {
       // auto: a drafter that would keep one conversation from its full context is left out (MTP or plain decoding

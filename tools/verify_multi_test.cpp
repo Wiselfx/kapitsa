@@ -6,8 +6,9 @@
 //                         the NI_QMT_I8 ANE ring ran, which it does not here)
 //
 // What a CPU cannot test (each needs a model folder and a GPU; documented, not asserted):
-//   - Qwen4Exp::verify_multi_ok() == false on a real Qwen4Exp (src/model/qwen4_exp.h:142): its constructor
-//     (src/model/qwen4_exp.h:69) calls load(), which reads the checkpoint from model_dir.
+//   - Qwen4Exp::verify_multi_ok() with the DFlash2 path bound (NI_DFLASH_FN=1): the switch itself is CPU-testable
+//     and tools/fn_switch_test.cpp asserts it both ways on the real class; a *loaded* Qwen4Exp would need the
+//     checkpoint its constructor reads from model_dir.
 //   - Engine::batch_rows(n) == 0 through the guard (src/engine/engine.cpp:1183): Engine's constructor builds the
 //     model from opts_.model_dir and allocates GPU buffers.
 //   - The fatal() backstop in encode_verify_multi (src/model/qwen35_v8.cpp:1279): reaching it needs a live

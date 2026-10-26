@@ -73,6 +73,12 @@ class Qwen4Exp : public Qwen35 {
   static bool is_model(const std::string& model_dir);
   // a Flash-Next folder whose routed experts are Q2_0 (tools/qwen4_exp_q20.py)
   static bool q20_pack(const std::string& model_dir);
+  // Whether this class takes the DFlash2 block drafter: NI_DFLASH_FN=1, opt-in, read once at startup. On: the
+  // decode path the fn8t evidence binaries ran — the block drafter binds and the verifies stay chain-only. Off
+  // (the default): the class behaves as it did before DFlash2 support — no block drafter binds (main's literal
+  // false here, plan_load's Qwen4Exp exclusion) and the verify flags are Qwen35's base values. Proven both ways
+  // by tools/fn_switch_test (CPU, no model, no GPU).
+  static bool dflash_fn();
   // Whether the prefill sparse attention runs on the matrix units (qattn_t_sparse_g12d2), the decision enc_attn_sparse
   // makes: NI_QSA_TATTN=1 (opt-in since #585), 12 query heads per KV head, head dim 256, an Apple10 GPU and macOS 26.
   // The model_dir form reads config.json (false for a folder that is not Flash-Next).
@@ -132,14 +138,15 @@ class Qwen4Exp : public Qwen35 {
   void encode_flush(Encoder& e, Seq& s) override;
   void encode_mtp_prefill(Encoder& e, Seq& s, int pos0, int R, int h_row0) override;
   std::string formats_summary() const override;
-  bool block_drafter_ok() const override { return true; }
-  // chain-only: this class's encode_verify verifies rows linearly (no tree-descriptor path over the 4-stream GDN and
-  // the indexer's KV), so a tree drafting pass would verify the wrong rows; DFlash2's set_tree reads this and keeps
-  // the chain, and the wide verifies stay off on every MoE target (verify_wide_ok)
-  bool verify_tree_ok() const override { return false; }
-  // no batched verify yet: Qwen35::encode_verify_multi folds rows through the base layout, which does not know the
-  // 4-stream GDN state or the indexer's KV; until this class grows its own batched fold, batched requests take turns
-  bool verify_multi_ok() const override { return false; }
+  bool block_drafter_ok() const override { return dflash_fn(); }
+  // chain-only when dflash_fn(): this class's encode_verify verifies rows linearly (no tree-descriptor path over
+  // the 4-stream GDN and the indexer's KV), so a tree drafting pass would verify the wrong rows; DFlash2's
+  // set_tree reads this and keeps the chain, and the wide verifies stay off on every MoE target (verify_wide_ok)
+  bool verify_tree_ok() const override { return dflash_fn() ? false : Qwen35::verify_tree_ok(); }
+  // no batched verify when dflash_fn(): Qwen35::encode_verify_multi folds rows through the base layout, which
+  // does not know the 4-stream GDN state or the indexer's KV; until this class grows its own batched fold,
+  // batched requests take turns
+  bool verify_multi_ok() const override { return dflash_fn() ? false : Qwen35::verify_multi_ok(); }
 
   // Debug (tools/fn_eval): the residual stream after the last pass, rows of hc * hidden floats
   Buffer residual() const { return x_; }
@@ -157,6 +164,10 @@ class Qwen4Exp : public Qwen35 {
 
  protected:
   void grow_kv(Seq& s, int cap) override;
+  // For a test subclass (tools/fn_switch_test): members only, nothing loaded, no GPU allocation — the Qwen35
+  // NoLoad contract (qwen35.h). The flags above are virtual and read the process env, so a subclass instance
+  // proves the dflash_fn() switch both ways without a model folder.
+  Qwen4Exp(int prefill_chunk, Qwen35::NoLoad nl) : Qwen35("", prefill_chunk, nl) {}
 
  private:
   void load(const std::string& dir);

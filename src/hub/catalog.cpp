@@ -61,6 +61,9 @@ Companion dflash27() {
           .files = {"config.json", "model.safetensors"},
           .subdir = "dflash2"};
 }
+// Flash-Next's DFlash2 drafter: downloaded with the model like every companion, but inert unless the user sets
+// NI_DFLASH_FN=1 (Qwen4Exp::dflash_fn(), default off — docs/usage.md); the catalog's schema has no optional
+// companion, so it rides along with the download and the switch decides whether the engine binds it.
 Companion dflash_fn() {
   return {.kind = "dflash2",
           .repo = "incoai/Qwen3.8-Flash-Next-DFlash2",
