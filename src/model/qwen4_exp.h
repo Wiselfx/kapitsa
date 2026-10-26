@@ -190,6 +190,14 @@ class Qwen4Exp : public Qwen35 {
   q20::Experts q20_rows_fetch(Encoder& e, const Layer& L, int R, const Buffer& idx, bool pred);
   void init_store(const std::string& dir);
   size_t mem_budget_arg_ = 0;
+  // the seam-wrap gate: q20_fetch reads the store's layer 0 ahead at a chunk's last layer only while this is set,
+  // and encode_prefill sets it around enc_prefill_layers for every chunk but the prompt's last (its `sample`; the
+  // engine sets that on exactly that chunk). Passes that do not run encode_prefill (decode, verify) and a split
+  // model's tail (encode_stage: a Remote::Pass carries no chunk end) leave it false and never wrap. The engine's
+  // background fills (the draft path's history prefill) pass sample=false on every chunk, so their last chunk
+  // wraps too; decode follows only a draft's fill, where the sweep then costs one layer's read ahead of the first
+  // draft token - bounded, read-ahead only, and off the prompt paths.
+  bool seam_more_ = false;
   // DFlash2 capture of layer `layer`'s output rows [pos0, pos0 + R): their 4 streams' mean (stream_mean)
   void enc_capture4(Encoder& e, int layer, int pos0, int R);
   // whether layer `layer`'s enc_capture4 skips (its early-returns exactly): the NI_HC_PRECOMB fold gate

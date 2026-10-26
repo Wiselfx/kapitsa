@@ -5,7 +5,8 @@
 // ready value, waits for the go and checks that every routed expert's table word points at a slot holding exactly
 // that expert's bytes; it checks the same slots again just before its next ready (read-ahead must not have overwritten
 // an expert in use). Cases: decode rows with next-layer predictions (good and wrong ones), verify rows with repeats,
-// prefill chunks (scan lookups, every next-layer expert read ahead), a hot set that must survive a prompt's sweep (ARC),
+// prefill chunks (scan lookups, every next-layer expert read ahead), a chunk seam's whole-layer wrap (the next
+// chunk's layer 0 read ahead during the last layer's turn), a hot set that must survive a prompt's sweep (ARC),
 // direct and widened reads, an arena of every expert (no handshakes), and the statistics' sums.
 //   fn_store_test [--keep DIR]
 #include "model/expert_store.h"
@@ -219,12 +220,15 @@ std::vector<uint32_t> topk(std::mt19937& rng, uint32_t E, uint32_t k, const std:
   return v;
 }
 
-void check_sums(const StoreStats& s, const char* what) {
+// cross_step: the window is one step of a pass whose read-ahead crosses the step boundary (the admit lands in the
+// next step's window), so the routed-of-read-ahead invariant holds over the caller's whole accumulation, not here.
+void check_sums(const StoreStats& s, const char* what, bool cross_step = false) {
   CHECK(s.hits + s.late + s.misses == s.lookups, "%s: hits %llu + late %llu + misses %llu != lookups %llu", what,
         (unsigned long long)s.hits, (unsigned long long)s.late, (unsigned long long)s.misses,
         (unsigned long long)s.lookups);
-  CHECK(s.prefetch_used <= s.prefetches, "%s: %llu read-ahead experts routed of %llu read ahead", what,
-        (unsigned long long)s.prefetch_used, (unsigned long long)s.prefetches);
+  if (!cross_step)
+    CHECK(s.prefetch_used <= s.prefetches, "%s: %llu read-ahead experts routed of %llu read ahead", what,
+          (unsigned long long)s.prefetch_used, (unsigned long long)s.prefetches);
 }
 
 // The settled available memory (q20::settle_available): a process that just exited frees its pages a while later
@@ -577,6 +581,68 @@ void case_scan_victim(const Pack& p) {
          (unsigned long long)t.prefetches, t.bytes / 1e6);
 }
 
+// The chunk seam's wrap (q20_fetch: a chunk's last layer reads the store's layer 0 ahead unless the chunk is the
+// prompt's last): a prediction never crosses a chunk boundary, the last layer
+// passing pred_layer -1, and layer 0 is also the first victim of every sweep, so without the wrap each chunk's first
+// turn re-reads its whole routed set with the GPU blocked. The wrap has the last layer read the store's whole layer 0
+// ahead (pred_all, pred_layer 0), so the next chunk's turn 0 finds it resident. Both arms sweep the same pack over
+// several chunks with the same seed: without the wrap every chunk misses its whole layer 0, with it only the first
+// chunk (a cold store) does, and the wrap's extra read-ahead is exactly the seams it covers, a chunk's experts each.
+void case_seam(const Pack& p) {
+  const uint32_t L = uint32_t(p.layers.size()), E = p.E;
+  const uint32_t nslots = 3 * E;  // case_scan_victim's minimum: a chunk pins E, its read-ahead takes E more
+  const int chunks = 3;
+  auto arm = [&](bool wrap, const char* what) -> std::pair<uint64_t, uint64_t> {
+    Arena a(p.lay, nslots, L, E);
+    Event ev;
+    ExpertCache::Options o;
+    o.readers = 4;
+    o.fill = false;
+    ExpertCache c(p.files, p.layers, E, p.lay, nslots, a.m, ev.sync(), o);
+    std::mt19937 rng(23);
+    uint64_t value = 0, miss = 0, pf = 0, pu = 0;
+    int bad = 0;
+    for (int chunk = 0; chunk < chunks; ++chunk)
+      for (uint32_t l = 0; l < L; ++l) {
+        c.reset_stats();
+        std::vector<Step> steps(1);
+        steps[0].layer = int(l);
+        steps[0].ids.resize(E);
+        std::iota(steps[0].ids.begin(), steps[0].ids.end(), 0u);
+        steps[0].scan = true;
+        const bool seam = l + 1 == L;
+        steps[0].pred_all = !seam || wrap;
+        steps[0].pred_layer = !seam ? int(l + 1) : wrap ? 0 : -1;
+        bad += run_pass(c, ev, a, p.lay, value, steps, rng);
+        quiesce(c, ev, value);  // #512: settle the read-ahead admits before reading the bookkeeping
+        const StoreStats s = c.stats();
+        check_sums(s, what, true);  // a step consumes the previous step's read-ahead: the invariant is the arm's
+        if (l == 0)
+          CHECK(s.misses == (wrap && chunk > 0 ? 0u : E), "%s: chunk %d's layer 0 missed %llu of %u experts", what,
+                chunk, (unsigned long long)s.misses, E);
+        miss += s.misses;
+        pf += s.prefetches;
+        pu += s.prefetch_used;
+      }
+    CHECK(pu <= pf, "%s: %llu read-ahead experts routed of %llu read ahead", what, (unsigned long long)pu,
+          (unsigned long long)pf);
+    CHECK(bad == 0, "%s: %d experts not in their slots", what, bad);
+    return {miss, pf};
+  };
+  const auto plain = arm(false, "seam, no wrap");
+  const auto wrapped = arm(true, "seam, wrap");
+  CHECK(plain.first == uint64_t(chunks) * E, "seam, no wrap: %llu misses, %d chunks of %u expected",
+        (unsigned long long)plain.first, chunks, E);
+  CHECK(wrapped.first == E, "seam, wrap: %llu misses, the cold store's %u expected", (unsigned long long)wrapped.first,
+        E);
+  CHECK(wrapped.second == plain.second + uint64_t(chunks) * E,
+        "seam, wrap: %llu read ahead against %llu, %d seams of %u expected", (unsigned long long)wrapped.second,
+        (unsigned long long)plain.second, chunks, E);
+  printf("chunk seam, %u slots: no wrap %llu misses / %llu read ahead; wrap %llu / %llu\n", nslots,
+         (unsigned long long)plain.first, (unsigned long long)plain.second, (unsigned long long)wrapped.first,
+         (unsigned long long)wrapped.second);
+}
+
 void case_complete(const Pack& p) {
   const uint32_t L = uint32_t(p.layers.size()), E = p.E;
   Arena a(p.lay, L * E, L, E);
@@ -618,6 +684,7 @@ int main(int argc, char** argv) {
   case_verify_prefill(p);
   case_scan(p);
   case_scan_victim(p);
+  case_seam(p);
   case_complete(p);
   case_settle();
   case_auto_size();

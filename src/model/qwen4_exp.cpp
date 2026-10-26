@@ -846,7 +846,19 @@ q20::Experts Qwen4Exp::q20_fetch(Encoder& e, const Layer& L, const Buffer& ids, 
   const int li = layer_index(L);
   if (!store_ || li < 0) return Qwen35::q20_fetch(e, L, ids, n, T, between);
   // (the store's layers are this Mac's: trunk layer li is its li - lo_)
-  const int nl = li + 1 < hi_ ? li + 1 - lo_ : -1;
+  // Seam wrap: a chunk's last layer has the store's layer 0 - the next chunk's first - read ahead instead of
+  // nothing. The prediction never crosses a chunk boundary, and layer 0 is also the first victim of every sweep (a
+  // scan admits its keys over the T1 keys of the layers below them), so without the wrap each seam turn re-reads
+  // its whole routed set with the GPU blocked: on a 128K prompt the (chunks - 1) seam turns took ~40% of the
+  // prompt's expert-store stall (measured with the wrap off). Only the whole-layer read can wrap - the next
+  // chunk's rows are not these rows, so a routed prediction at the seam would name the wrong experts - and a
+  // chunk below NI_PRED_ALL_MIN passes no prediction at all, where the wrap does nothing: on the engine's
+  // automatic chunking (auto_chunk returns 256 rows or more) every chunk of a prompt but its last is above the
+  // gate (prefill_chunk_rows gives min(chunk, left), or an even split's ceil(left / k) above chunk / 2; only the
+  // last chunk can come out short). The prompt's last chunk does not
+  // wrap (seam_more_, set by encode_prefill): decode follows it, and decode's first turn is one row routing
+  // top-k experts, so a whole-layer sweep there would cost the first token for a read that turn barely uses.
+  const int nl = li + 1 < hi_ ? li + 1 - lo_ : seam_more_ ? 0 : -1;
   // The read-ahead of the whole next layer costs the store's size on an 85-token prompt (1232 ms of a 1613 ms TTFT),
   // and only a chunk of 64+ rows routes most of that layer anyway: NI_PRED_ALL_MIN is the shortest chunk that pays it
   // (default 64, the constant it replaces). A bad value is warned about and ignored, as NI_EXPERT_CAP's is: parsing
@@ -1580,7 +1592,11 @@ void Qwen4Exp::encode_prefill(Encoder& e, Seq& s, int pos0, int T, const Samplin
   enc_embed(e, s.tok, pos0, T, yb_);
   if (s.embeds) vision::enc_embed_runs(e, *s.embeds, pos0, T, yb_, D);  // image rows
   enc_expand(e, T);
+  // the seam-wrap gate: every chunk but the prompt's last reads the store's layer 0 ahead at its last layer - the
+  // engine sets `sample` on exactly the prompt's last chunk, and decode follows that one (q20_fetch's seam wrap)
+  seam_more_ = !sample;
   enc_prefill_layers(e, s, pos0, T, rows, snap, snap_row);
+  seam_more_ = false;
   if (comb_pending_.active) fatal("hc_precomb: a pending combine outlived the prefill layers");
   // the pre-mix state of every row (the MTP head's history, logits); a split's last Mac injects its last block itself
   if (remote_ && dbg_layers_ < 0) enc_hop(e, Remote::Kind::prefill, s, pos0, T, snap, snap_row);
@@ -1636,6 +1652,8 @@ void Qwen4Exp::encode_stage(Encoder& e, Seq& s, const Remote::Pass& p, Checkpoin
       break;
     case Remote::Kind::prefill:
       if (p.rows > tmax_) fatal("prefill chunk %d > %d", p.rows, tmax_);
+      // seam_more_ stays false here: a Remote::Pass carries no chunk end, so a split model's tail never wraps a
+      // seam (q20_fetch); its last chunk's layer 0 misses as it did before the wrap
       enc_prefill_layers(e, s, p.pos, p.rows, Buffer{}, snap, p.snap_row);
       if (comb_pending_.active) fatal("hc_precomb: a pending combine outlived the stage's prefill layers");
       if (hi_ == cfg_.layers) enc_inject(e, p.rows, x_, injM_);
