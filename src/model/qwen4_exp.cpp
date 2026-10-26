@@ -858,7 +858,7 @@ q20::Experts Qwen4Exp::q20_fetch(Encoder& e, const Layer& L, const Buffer& ids, 
   // last chunk can come out short). The prompt's last chunk does not
   // wrap (seam_more_, set by encode_prefill): decode follows it, and decode's first turn is one row routing
   // top-k experts, so a whole-layer sweep there would cost the first token for a read that turn barely uses.
-  const int nl = li + 1 < hi_ ? li + 1 - lo_ : seam_more_ ? 0 : -1;
+  const int nl = q20::seam_next_layer(li, lo_, hi_, seam_more_);
   // The read-ahead of the whole next layer costs the store's size on an 85-token prompt (1232 ms of a 1613 ms TTFT),
   // and only a chunk of 64+ rows routes most of that layer anyway: NI_PRED_ALL_MIN is the shortest chunk that pays it
   // (default 64, the constant it replaces). A bad value is warned about and ignored, as NI_EXPERT_CAP's is: parsing
@@ -1594,7 +1594,7 @@ void Qwen4Exp::encode_prefill(Encoder& e, Seq& s, int pos0, int T, const Samplin
   enc_expand(e, T);
   // the seam-wrap gate: every chunk but the prompt's last reads the store's layer 0 ahead at its last layer - the
   // engine sets `sample` on exactly the prompt's last chunk, and decode follows that one (q20_fetch's seam wrap)
-  seam_more_ = !sample;
+  seam_more_ = q20::seam_wraps(sample);
   enc_prefill_layers(e, s, pos0, T, rows, snap, snap_row);
   seam_more_ = false;
   if (comb_pending_.active) fatal("hc_precomb: a pending combine outlived the prefill layers");

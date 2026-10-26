@@ -36,6 +36,19 @@
 
 namespace ni::q20 {
 
+// The seam-wrap decision as pure functions, so the engine and the CPU test drive one definition instead of the test
+// re-deriving the rule: a prefill chunk wraps when it is not the prompt's last - the engine sets `sample` on exactly
+// that chunk, and decode follows it with one row routing top-k experts, which a whole-layer read-ahead would only
+// delay. At trunk layer `li` of a pass over this Mac's trunk layers [lo, hi) - store layer li - lo - the store layer
+// to read ahead is the pass's next one; at the pass's last layer it is the store's layer 0 (the next chunk's first)
+// only when the chunk wraps, and nothing (-1) otherwise. Passes that never run encode_prefill's gate (decode, verify,
+// a split model's later stages: a Remote::Pass carries no chunk end) pass wraps=false and never wrap; a split model's
+// first Mac does wrap - it runs the prompt's chunks, so its last stage layer ends a chunk like any other.
+inline bool seam_wraps(bool sample) { return !sample; }
+inline int seam_next_layer(int li, int lo, int hi, bool wraps) {
+  return li + 1 < hi ? li + 1 - lo : wraps ? 0 : -1;
+}
+
 struct StoreStats {
   uint64_t handshakes = 0;     // turns (one per streamed layer per pass)
   uint64_t lookups = 0;        // distinct routed experts looked up

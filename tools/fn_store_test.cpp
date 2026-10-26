@@ -586,12 +586,27 @@ void case_scan_victim(const Pack& p) {
 // passing pred_layer -1, and layer 0 is also the first victim of every sweep, so without the wrap each chunk's first
 // turn re-reads its whole routed set with the GPU blocked. The wrap has the last layer read the store's whole layer 0
 // ahead (pred_all, pred_layer 0), so the next chunk's turn 0 finds it resident. Both arms sweep the same pack over
-// several chunks with the same seed: without the wrap every chunk misses its whole layer 0, with it only the first
-// chunk (a cold store) does, and the wrap's extra read-ahead is exactly the seams it covers, a chunk's experts each.
+// several chunks with the same seed and take pred_layer / pred_all from the engine's own decision - q20::seam_wraps
+// and q20::seam_next_layer (expert_store.h), the pair encode_prefill and q20_fetch call - so an inverted rule fails
+// here instead of only on a GPU: without the wrap every chunk misses its whole layer 0, with it only the first chunk
+// (a cold store) does, and the wrap's extra read-ahead is exactly the seams it covers - every chunk but the prompt's
+// last (the engine wraps on chunks - 1), a chunk's experts each.
 void case_seam(const Pack& p) {
   const uint32_t L = uint32_t(p.layers.size()), E = p.E;
   const uint32_t nslots = 3 * E;  // case_scan_victim's minimum: a chunk pins E, its read-ahead takes E more
   const int chunks = 3;
+  // the decision itself, pinned: the mid-pass successor ignores the wrap; a chunk but the prompt's last (its
+  // `sample`) wraps to the store's layer 0; the prompt's last does not (decode follows it); a split model's later
+  // stages never wrap (a Remote::Pass carries no chunk end) while its first Mac wraps like a whole model
+  CHECK(q20::seam_next_layer(2, 0, int(L), true) == 3 && q20::seam_next_layer(2, 0, int(L), false) == 3,
+        "seam rule: a mid-pass layer reads its successor ahead, wrapping or not");
+  CHECK(q20::seam_wraps(false) && q20::seam_next_layer(int(L) - 1, 0, int(L), q20::seam_wraps(false)) == 0,
+        "seam rule: a chunk but the prompt's last wraps to the store's layer 0");
+  CHECK(!q20::seam_wraps(true) && q20::seam_next_layer(int(L) - 1, 0, int(L), q20::seam_wraps(true)) == -1,
+        "seam rule: the prompt's last chunk does not wrap");
+  CHECK(q20::seam_next_layer(int(L) - 1, int(L) - 2, int(L), false) == -1,
+        "seam rule: a split model's later stage never wraps");
+  CHECK(q20::seam_next_layer(3, 0, 4, true) == 0, "seam rule: a split model's head stage wraps like a whole model");
   auto arm = [&](bool wrap, const char* what) -> std::pair<uint64_t, uint64_t> {
     Arena a(p.lay, nslots, L, E);
     Event ev;
@@ -610,9 +625,12 @@ void case_seam(const Pack& p) {
         steps[0].ids.resize(E);
         std::iota(steps[0].ids.begin(), steps[0].ids.end(), 0u);
         steps[0].scan = true;
-        const bool seam = l + 1 == L;
-        steps[0].pred_all = !seam || wrap;
-        steps[0].pred_layer = !seam ? int(l + 1) : wrap ? 0 : -1;
+        // the engine's own decision: this chunk wraps unless it is the prompt's last (the arm without the wrap
+        // never does), and the store layer to read ahead is seam_next_layer's - not a schedule this test writes
+        const bool wraps = wrap && q20::seam_wraps(chunk + 1 == chunks);
+        const int nl = q20::seam_next_layer(int(l), 0, int(L), wraps);
+        steps[0].pred_all = nl >= 0;
+        steps[0].pred_layer = nl;
         bad += run_pass(c, ev, a, p.lay, value, steps, rng);
         quiesce(c, ev, value);  // #512: settle the read-ahead admits before reading the bookkeeping
         const StoreStats s = c.stats();
@@ -635,9 +653,9 @@ void case_seam(const Pack& p) {
         (unsigned long long)plain.first, chunks, E);
   CHECK(wrapped.first == E, "seam, wrap: %llu misses, the cold store's %u expected", (unsigned long long)wrapped.first,
         E);
-  CHECK(wrapped.second == plain.second + uint64_t(chunks) * E,
-        "seam, wrap: %llu read ahead against %llu, %d seams of %u expected", (unsigned long long)wrapped.second,
-        (unsigned long long)plain.second, chunks, E);
+  CHECK(wrapped.second == plain.second + uint64_t(chunks - 1) * E,
+        "seam, wrap: %llu read ahead against %llu, %d seams of %u expected (the prompt's last chunk does not wrap)",
+        (unsigned long long)wrapped.second, (unsigned long long)plain.second, chunks - 1, E);
   printf("chunk seam, %u slots: no wrap %llu misses / %llu read ahead; wrap %llu / %llu\n", nslots,
          (unsigned long long)plain.first, (unsigned long long)plain.second, (unsigned long long)wrapped.first,
          (unsigned long long)wrapped.second);

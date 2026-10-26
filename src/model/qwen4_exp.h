@@ -191,8 +191,9 @@ class Qwen4Exp : public Qwen35 {
   void init_store(const std::string& dir);
   size_t mem_budget_arg_ = 0;
   // the seam-wrap gate: q20_fetch reads the store's layer 0 ahead at a chunk's last layer only while this is set,
-  // and encode_prefill sets it around enc_prefill_layers for every chunk but the prompt's last (its `sample`; the
-  // engine sets that on exactly that chunk). Passes that do not run encode_prefill (decode, verify) and a split
+  // and encode_prefill sets it around enc_prefill_layers to q20::seam_wraps(sample) - every chunk but the prompt's
+  // last (the engine sets `sample` on exactly that chunk); q20_fetch's choice itself is q20::seam_next_layer, the
+  // pair fn_store_test's case_seam pins. Passes that do not run encode_prefill (decode, verify) and a split
   // model's tail (encode_stage: a Remote::Pass carries no chunk end) leave it false and never wrap. The engine's
   // background fills (the draft path's history prefill) pass sample=false on every chunk, so their last chunk
   // wraps too; decode follows only a draft's fill, where the sweep then costs one layer's read ahead of the first
