@@ -29,8 +29,10 @@ decode over the next fastest engine on that model.
 
 Kapitsa has the fastest decode in 32 of the 37 model and Mac pairs. Counted over the poster's and the tables' rows
 (`tools/readme_images/readme_images.json`): the union of the 38 rows where Kapitsa has a decode cell, less the M3 Pro
-36 GB's Bolt 74B row, which has no rival, gives 37 pairs; the five Kapitsa does not win, two of them ties inside the runs' spread (the M5 Max and M5 Pro 27B against mlx-serve), are in the column above. Each
-pair compares cells in one power mode. The M5 Max Flash-Next pair (Kapitsa 106 against mlx-serve 108) was checked from
+36 GB's Bolt 74B row, which has no rival, gives 37 pairs. Kapitsa reads the highest decode on 33 of them: 32 wins and
+the M5 Max 27B, a marked tie (≈) that the headline does not count as a win. The five it does not win are in the column
+above: that tie, the Flash-Next and M5 Pro 27B losses to mlx-serve, and the M3 Pro's Nano 4B and Nano 9B v2. Each pair
+compares cells in one power mode. The M5 Max Flash-Next pair (Kapitsa 106 against mlx-serve 108) was checked from
 the runs' saved text (`finish=length` on all 10 answers, each cut off at the 512-token limit), not from saved token ids.
 
 <a id="how-the-readme-poster-was-measured"></a><a id="the-readmes-tables"></a>
