@@ -331,6 +331,9 @@ Engine::Engine(const EngineOptions& o) : opts_(o) {
     flint_ = m.get();
     model_ = std::move(m);
     publisher_sampling();
+  } else if (Llama::is_model(opts_.model_dir)) {
+    model_ = std::make_unique<Llama>(opts_.model_dir, opts_.prefill_chunk);
+    publisher_sampling();
   } else {
     auto m = std::make_unique<Qwen35>(opts_.model_dir, opts_.prefill_chunk);
     q35_ = m.get();
@@ -374,6 +377,10 @@ Engine::Engine(const EngineOptions& o) : opts_(o) {
     }
     const int id = tok_.find(end);
     if (id >= 0 && std::find(stop_ids_.begin(), stop_ids_.end(), id) == stop_ids_.end()) stop_ids_.push_back(id);
+    // a dense Llama (Nanbeige 4.3) names only <|im_end|>; its document end, <|endoftext|>, ends a reply too
+    const int doc_end = dynamic_cast<Llama*>(model_.get()) ? tok_.find("<|endoftext|>") : -1;
+    if (doc_end >= 0 && std::find(stop_ids_.begin(), stop_ids_.end(), doc_end) == stop_ids_.end())
+      stop_ids_.push_back(doc_end);
   }
   // Dory: speculative decoding, exact only with per-loop KV (with last-loop KV the rows of a verify pass would see
   // each other's same-loop keys, where decoding them one by one sees final-loop ones): prompt lookup, else drafts by
@@ -607,7 +614,7 @@ std::string unsupported_model(const std::string& model_dir) {
   const nlohmann::json j = nlohmann::json::parse(f, nullptr, false);
   if (!j.is_object()) return model_dir + ": its config.json is not valid JSON.";
   if (Qwen4Exp::is_model(model_dir) || Dory::is_model(model_dir) || NemotronH::is_model(model_dir) ||
-      Flint::is_model(model_dir))
+      Flint::is_model(model_dir) || Llama::is_model(model_dir))
     return "";
   // the Qwen3.5 family by its model_type (Hugging Face's, and what the GGUF import writes); a config that names none,
   // by the hybrid's shape, as the Hub check reads it (src/hub/fetch.cpp, check_supported)
@@ -621,7 +628,8 @@ std::string unsupported_model(const std::string& model_dir) {
   if (mt.empty() && tt.empty() && t.contains("linear_num_value_heads") && t.contains("num_hidden_layers")) return "";
   const std::string runs = " Kapitsa runs the Qwen3.5 family (Qwen3.5, 3.6 and 3.8: qwen3_5, qwen3_5_moe), "
                            "Qwen3.8-Flash-Next (qwen4_exp), NVIDIA's Nemotron-H (nemotron_h: Nemotron Nano, Nemotron 3.5), "
-                           "Nemotron Labs Dory (dory) and Recursive's Flint (flint).";
+                           "Nemotron Labs Dory (dory), Recursive's Flint (flint) and dense Llama "
+                           "(llama: Nanbeige 4.3).";
   const std::string what = !mt.empty() ? mt : tt;
   if (what.empty()) return model_dir + " is not a model Kapitsa runs: its config.json names no model_type." + runs;
   return model_dir + " is a " + what + " model (its config.json's model_type), an architecture Kapitsa does not run." +
@@ -645,6 +653,7 @@ MemPlan model_plan(const std::string& model_dir, int prefill_chunk) {
   if (const std::string why = unsupported_model(model_dir); !why.empty()) throw std::runtime_error(why);
   const MemPlan p = Dory::is_model(model_dir)       ? Dory::plan(model_dir, prefill_chunk)
                     : Flint::is_model(model_dir)    ? Flint::plan(model_dir, prefill_chunk)
+                    : Llama::is_model(model_dir)    ? Llama::plan(model_dir, prefill_chunk)
                     : Qwen4Exp::is_model(model_dir) ? Qwen4Exp::plan(model_dir, prefill_chunk)
                     : NemotronH::is_model(model_dir) ? NemotronH::plan(model_dir, prefill_chunk)
                                                      : Qwen35::plan(model_dir, prefill_chunk);
@@ -653,7 +662,7 @@ MemPlan model_plan(const std::string& model_dir, int prefill_chunk) {
   return p;
 }
 static size_t model_ane_bytes(const std::string& model_dir, const MemPlan& p) {
-  if (Dory::is_model(model_dir) || Flint::is_model(model_dir)) return 0;
+  if (Dory::is_model(model_dir) || Flint::is_model(model_dir) || Llama::is_model(model_dir)) return 0;
   return NemotronH::is_model(model_dir) ? p.ane : Qwen35::ane_plan(model_dir, p).bytes;
 }
 
@@ -762,8 +771,8 @@ LoadPlan plan_load(const std::string& model_dir, const std::string& dflash, bool
   lp.dflash_auto = want == "auto";
   lp.dflash_off = want == "none" || want == "0" || want == "off" || (lp.dflash_auto && spec_off);
   slots = std::max(1, slots);
-  if (Dory::is_model(model_dir) || Flint::is_model(model_dir)) {
-    lp.dflash_off = true;  // no block drafter for Dory or Flint
+  if (Dory::is_model(model_dir) || Flint::is_model(model_dir) || Llama::is_model(model_dir)) {
+    lp.dflash_off = true;  // no block drafter for Dory, Flint or Llama
   } else if (NemotronH::is_model(model_dir)) {
     // the block drafter (LiLiCorr, DSpark) in the model's dflash/ folder (auto), or the one named
     if (!lp.dflash_off) {

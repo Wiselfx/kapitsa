@@ -9,6 +9,7 @@
 #include "model/dflash2.h"
 #include "model/dory.h"
 #include "model/flint.h"
+#include "model/llama.h"
 #include "model/kflash_budget.h"
 #include "model/kflash_wrap.h"
 #include "model/lilicorr.h"

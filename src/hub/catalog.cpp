@@ -442,6 +442,26 @@ const std::vector<CatalogModel>& catalog() {
                      .size = 11855541696},
             .companions = {},
             .download_gb = 11.86},
+       }},
+      {.name = "nanbeige4.3-33b",
+       .aliases = {"nanbeige", "nanbeige-33b"},
+       .title = "Nanbeige4.3-33B",
+       .about = "Nanbeige's dense 33B (Llama architecture): reasoning and tool calls, no drafter",
+       .brief = "Nanbeige dense 33B",
+       // fcmeyer's MLX conversion of Nanbeige/Nanbeige4.3-33B (rev c1093c50): affine 4-bit group 64 everywhere,
+       // embedding and head included. Not a default: best_model tries it after every model it names. Its shards at
+       // this revision (sha256, bytes): 00001 e82e560d…ee7e15b 5363709218, 00002 e6cba31d…aab43ec 5347256042,
+       // 00003 bfb97bec…f2b2ba8f 5318354306, 00004 b30d7e54…7bae8b 2601325058.
+       .default_variant = "4bit",
+       .fallbacks = {},
+       .variants = {
+           {.name = "4bit",
+            .quant = "MLX affine 4-bit, group 64 (embedding and head too)",
+            .label = "4-bit (fcmeyer MLX)",
+            .repo = "fcmeyer/Nanbeige4.3-33B-MLX-4bit",
+            .revision = "e134e560ad92608dc3ce45474b31ec32236b9954",
+            .companions = {},
+            .download_gb = 18.65},
        }}
   };
   return c;

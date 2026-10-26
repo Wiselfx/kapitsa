@@ -1091,7 +1091,8 @@ std::string now_iso() {
 
 // A Hugging Face repo that Kapitsa can run: a Qwen3.5-family hybrid model in MLX format, unquantized (bf16) or MLX
 // affine 3/4/5/6/8-bit with groups of 64 (4-bit also 32), one format or mixed per module (the engine's
-// format_supported, model/qwen35.cpp); or Recursive's Flint in its MLX 4-bit export (model/flint.h).
+// format_supported, model/qwen35.cpp); Recursive's Flint in its MLX 4-bit export (model/flint.h); or a dense Llama
+// (Nanbeige 4.3) in MLX affine 4/8-bit, group 64 (model/llama.h).
 void check_supported(HttpClient& c, const Listing& L) {
   const RemoteFile* cfg = L.find("config.json");
   bool st = false;
@@ -1115,6 +1116,15 @@ void check_supported(HttpClient& c, const Listing& L) {
     if (!q.is_object() || q.value("bits", 0) != 4 || q.value("group_size", 0) != 64)
       throw Error(L.repo + " is a Flint checkpoint Kapitsa does not run: it runs Flint's MLX 4-bit export, "
                            "RecursiveSI/flint-int4 (`kapitsa pull flint`).");
+    return;
+  }
+  if (j.value("model_type", std::string()) == "llama") {  // dense Llama (model/llama.h): MLX affine 4/8-bit, group 64
+    const json q = j.value("quantization", json::object());
+    const int bits = q.is_object() ? q.value("bits", 0) : 0;
+    if (!q.is_object() || q.value("group_size", 0) != 64 || (bits != 4 && bits != 8) ||
+        q.value("mode", std::string("affine")) != "affine")
+      throw Error(L.repo + " is a Llama checkpoint Kapitsa does not run: it runs MLX affine 4-bit or 8-bit, group 64 "
+                           "(`kapitsa pull nanbeige4.3-33b`).");
     return;
   }
   if (!t.contains("linear_num_value_heads") || !t.contains("num_hidden_layers"))

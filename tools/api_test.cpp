@@ -774,7 +774,14 @@ std::vector<ChatDelta> generate(const TmplModel& m, const std::string& text, boo
   OutputParser p(m.tok, m.tok.find("<think>"), m.tok.find("</think>"), m.tok.find("<tool_call>"), m.tok.find("</tool_call>"),
                  in_think, !tools.empty(), tools, true);
   std::vector<ChatDelta> out;
-  *ids = m.tok.encode(text);
+  // the ids as a model writes them after its prompt: a Metaspace tokenizer (Nanbeige 4.3) puts "▁" before the start of
+  // a text it encodes on its own, which a generated turn does not have, so the text is encoded after a special token
+  if (m.tok.strips_leading_space()) {
+    *ids = m.tok.encode("<|im_start|>" + text);
+    ids->erase(ids->begin());
+  } else {
+    *ids = m.tok.encode(text);
+  }
   for (int id : *ids) {
     ChatDelta d = p.push(id);
     if (!d.reasoning.empty() || !d.content.empty() || !d.tool_calls.empty()) out.push_back(d);
@@ -1618,7 +1625,9 @@ void template_checks(const TmplModel& m, const std::string& tag) {
                "this model can't read images]\nwhat?<|im_end|>") != std::string::npos &&
             p.find("<|vision_start|>") == std::string::npos,
         tag + "template: a later system message is a system turn in place; an image is a note", p.substr(p.size() > 400 ? p.size() - 400 : 0));
-  // with an image encoder: the image renders as the model's placeholder, without its data
+  // with an image encoder: the image renders as the model's placeholder, without its data (a model whose vocabulary
+  // has no image placeholder, as Nanbeige 4.3, never has an image encoder)
+  if (m.tok.find("<|image_pad|>") < 0) return;
   try {
     p = render_chat(*m.tmpl, r, true, true);
   } catch (const std::exception& e) {

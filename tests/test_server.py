@@ -243,6 +243,15 @@ def cli_checks(kapitsa):
               j.get("model") == name + ":4bit" and j.get("kind") == "catalog" and j.get("repo") == "RecursiveSI/flint-int4"
               and j.get("revision") == "3b93f9053b530488405ae9fca51d4900d6ce21f0" and j.get("companions") == [] and
               j.get("id") == name and j.get("dir") == os.path.join(models, name + "-4bit"), json.dumps(j))
+    # Nanbeige 4.3 33B (dense Llama): fcmeyer's MLX 4-bit, no drafter; its repo by name resolves to the catalog's
+    for a in ["nanbeige4.3-33b", "nanbeige", "nanbeige:4bit", "fcmeyer/Nanbeige4.3-33B-MLX-4bit"]:
+        name = "nanbeige4.3-33b"
+        j = plan(a)
+        check(f"cli: {a} -> {name}:4bit, no drafter",
+              j.get("model") == name + ":4bit" and j.get("kind") == "catalog" and
+              j.get("repo") == "fcmeyer/Nanbeige4.3-33B-MLX-4bit" and
+              j.get("revision") == "e134e560ad92608dc3ce45474b31ec32236b9954" and j.get("companions") == [] and
+              j.get("id") == name and j.get("dir") == os.path.join(models, name + "-4bit"), json.dumps(j))
     # NVIDIA's Nemotron Nano: the 4B in FP8 (default) and BF16, the 9B v2 in NVFP4; no drafter (prompt lookup)
     nano4, nano9 = "nemotron-3-nano-4b", "nemotron-nano-9b-v2"
     for a, name, dv, default, repo, rev in [

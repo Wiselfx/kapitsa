@@ -40,6 +40,7 @@
 #include "metal/gpu.h"
 #include "model/dory.h"
 #include "model/flint.h"
+#include "model/llama.h"
 #include "model/kflash_budget.h"
 #include "model/nemotron_h.h"
 #include "model/qwen35.h"
@@ -265,6 +266,7 @@ int main(int argc, char** argv) {
   NemotronH* nh = nullptr;
   Dory* dory = nullptr;
   Flint* fl = nullptr;
+  Llama* ll = nullptr;
   if (Qwen4Exp::is_model(dir)) {
     // the default memory budget, not the engine's (which sets its slots' state and KV apart): a Q2_0 pack's expert
     // store, and so which routed experts stream, may differ from a served model's (NI_EXPERT_STORE pins it). The
@@ -276,6 +278,10 @@ int main(int argc, char** argv) {
   } else if (Flint::is_model(dir)) {
     auto m = std::make_unique<Flint>(dir, chunk);
     fl = m.get();
+    model = std::move(m);
+  } else if (Llama::is_model(dir)) {
+    auto m = std::make_unique<Llama>(dir, chunk);
+    ll = m.get();
     model = std::move(m);
   } else if (Dory::is_model(dir)) {
     LoopKv kv = LoopKv::last_loop;
@@ -295,7 +301,7 @@ int main(int argc, char** argv) {
   Model& m = *model;
   const int V = m.vocab();
   auto logits = [&]() -> const float* {
-    return q ? q->logits() : nh ? nh->logits() : fl ? fl->logits() : dory->logits();
+    return q ? q->logits() : nh ? nh->logits() : fl ? fl->logits() : ll ? ll->logits() : dory->logits();
   };
   auto begin_pass = [&] { return m.grouped_passes() ? g.begin_grouped() : g.begin(); };
   const SamplingParams sp;  // greedy: no pass samples a token the next row reads
@@ -315,6 +321,7 @@ int main(int argc, char** argv) {
   for (const auto& p : paths) {
     if (p == "batch" && dory) fatal("Dory decodes one request at a time: no batch path");
     if (p == "batch" && fl) fatal("Flint decodes one request at a time: no batch path");
+    if (ll && p != "step") fatal("Llama decodes one row at a time: no %s path (--paths step)", p.c_str());
     if (p == "batch" && fn) fatal("Qwen3.8-Flash-Next decodes one request at a time: no batch path");
     if (p == "verify" && dory && dory->kv_mode() != LoopKv::per_loop)
       fatal("Dory verifies drafts only with per-loop KV (--loop-kv per-loop); with last-loop KV it decodes step by step");

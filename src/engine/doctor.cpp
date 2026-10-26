@@ -8,6 +8,7 @@
 #include "metal/gpu.h"
 #include "model/dory.h"
 #include "model/expert_store.h"
+#include "model/llama.h"
 #include "model/nemotron_h.h"
 #include "model/nh_drafter.h"
 #include "model/qwen35.h"
@@ -382,6 +383,7 @@ int run_doctor(int argc, char** argv) {
     LoadPlan lp;
     const bool nemotron = NemotronH::is_model(dir);
     const bool dory = Dory::is_model(dir);
+    const bool llama = Llama::is_model(dir);
     int slots = slots_opt;  // as the engine would start it: the ones asked for, else auto_slots
     int default_ctx = 0;    // what kapitsa serve takes here without --context
     try {
@@ -417,10 +419,10 @@ int run_doctor(int argc, char** argv) {
     }
     // Neural Engine split: the Qwen dense FFN's (calibration of this Mac or the chip's default share, as the engine
     // decides); Nemotron-H's Mamba projections and shared expert (nemotron_ane.h: the bytes its plan holds, as
-    // conversation_fits counts them); none for Dory
-    const Qwen35::AnePlan ap = dory       ? Qwen35::AnePlan{0, 0, "not used for this architecture", 0}
-                               : nemotron ? Qwen35::AnePlan{0, 0, m.ane ? "Mamba projections and shared expert" : "off", m.ane}
-                                          : Qwen35::ane_plan(dir, m);
+    // conversation_fits counts them); none for Dory or Llama
+    const Qwen35::AnePlan ap = dory || llama ? Qwen35::AnePlan{0, 0, "not used for this architecture", 0}
+                               : nemotron    ? Qwen35::AnePlan{0, 0, m.ane ? "Mamba projections and shared expert" : "off", m.ane}
+                                             : Qwen35::ane_plan(dir, m);
     // Dory: the loops it runs and the KV per token of each mode (the full-attention layers'; the sliding-window
     // layers keep rings of window + 8 positions per conversation)
     std::string dory_note;
@@ -587,7 +589,7 @@ int run_doctor(int argc, char** argv) {
     if (nemotron)
       printf("    prefill: Neural Engine split %s\n",
              ane_bytes ? ("on: " + src + ", " + std::to_string(int(ane_bytes / 1e6)) + " MB").c_str() : "off");
-    if (m.dense && !dory && !nemotron)
+    if (m.dense && !dory && !nemotron && !llama)
       printf("    prefill: Neural Engine split %s\n",
              units ? (std::to_string(units) + "/" + std::to_string(total) + " units (" + src + ")").c_str()
                    : ("off: " + src).c_str());
