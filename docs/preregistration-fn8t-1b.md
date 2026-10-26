@@ -338,6 +338,20 @@ downstream waiter (cd6e8136's slot-8b) gates on
 dry runs and tests pin the terminal path to a scratch dir and never touch
 the live file.
 
+### Battery cap (ROUND 373/374)
+
+The fn8t-2 battery runs under a binding wall-clock cap of 5400 s from the
+first lock take (R308(b) semantics — the same stamp fn8t-1b's battery
+uses, set before the first leg): at expiry the battery finishes the
+current leg, books every unreached leg `NOT RUN (cap)` in the leg table,
+and exits rc=9. Per the terminal contract above, the cap exit folds into
+`FN8T-2-VOID <ts> rc=9 cap: wall-clock 5400s exceeded; unreached legs
+booked NOT RUN (cap)` — VOID, not FAIL: a wall-clock stop is not a gate
+verdict, and no leg reruns after a cap exit. Implementation:
+`CAP_SECS=${FN8T2_CAP_SECS:-5400}` in the battery script, checked before
+every leg (`cap_check` in `run_leg`); overriding the default via the env
+at launch is a prereg deviation and needs orchestrator approval.
+
 ### Evidence base booked at commit time
 
 U = 44.0 distinct experts per layer per turn (DFlash2 4K, dyn4k-1 store
