@@ -12,6 +12,7 @@
 #include "gguf/import.h"
 #include "hub/hub.h"
 #include "hub/http.h"
+#include "model/llama.h"
 #include "util/term.h"
 
 #include <CommonCrypto/CommonDigest.h>
@@ -1118,13 +1119,9 @@ void check_supported(HttpClient& c, const Listing& L) {
                            "RecursiveSI/flint-int4 (`kapitsa pull flint`).");
     return;
   }
-  if (j.value("model_type", std::string()) == "llama") {  // dense Llama (model/llama.h): MLX affine 4/8-bit, group 64
-    const json q = j.value("quantization", json::object());
-    const int bits = q.is_object() ? q.value("bits", 0) : 0;
-    if (!q.is_object() || q.value("group_size", 0) != 64 || (bits != 4 && bits != 8) ||
-        q.value("mode", std::string("affine")) != "affine")
-      throw Error(L.repo + " is a Llama checkpoint Kapitsa does not run: it runs MLX affine 4-bit or 8-bit, group 64 "
-                           "(`kapitsa pull nanbeige4.3-33b`).");
+  if (j.value("model_type", std::string()) == "llama") {  // dense Llama: what the loader refuses, before the download
+    if (const std::string why = Llama::refusal(j); !why.empty())
+      throw Error(L.repo + " is a Llama checkpoint Kapitsa does not run: " + why + ".");
     return;
   }
   if (!t.contains("linear_num_value_heads") || !t.contains("num_hidden_layers"))

@@ -85,9 +85,10 @@ bool Llama::is_model(const std::string& dir) {
   return j.is_object() && j.value("model_type", std::string()) == "llama";
 }
 
-LlamaConfig Llama::read_config(const std::string& dir) {
-  const nlohmann::json j = read_json(dir + "/config.json");
-  if (!j.is_object()) fatal("%s: no readable config.json", dir.c_str());
+namespace {
+
+// config.json's fields as the model reads them, nothing refused yet
+LlamaConfig parse_config(const nlohmann::json& j) {
   auto num = [&](const char* k, double d) {
     const auto it = j.find(k);
     return it != j.end() && it->is_number() ? it->get<double>() : d;
@@ -102,18 +103,8 @@ LlamaConfig Llama::read_config(const std::string& dir) {
   c.ffn = int(num("intermediate_size", 0));
   c.eps = float(num("rms_norm_eps", 1e-5));
   c.theta = num("rope_theta", 1e4);
-  if (j.contains("rope_parameters") && j["rope_parameters"].is_object()) {
-    const auto& rp = j["rope_parameters"];
-    if (rp.value("rope_type", std::string("default")) != "default")
-      fatal("%s: Llama RoPE other than the default is not supported", dir.c_str());
-    c.theta = rp.value("rope_theta", c.theta);
-  }
-  if (j.contains("rope_scaling") && !j["rope_scaling"].is_null())
-    fatal("%s: Llama with rope_scaling is not supported (plain RoPE only)", dir.c_str());
-  if (j.value("attention_bias", false) || j.value("mlp_bias", false))
-    fatal("%s: Llama with attention or MLP biases is not supported", dir.c_str());
-  const std::string act = j.value("hidden_act", std::string("silu"));
-  if (act != "silu") fatal("%s: Llama with a %s MLP is not supported (SwiGLU)", dir.c_str(), act.c_str());
+  if (j.contains("rope_parameters") && j["rope_parameters"].is_object())
+    c.theta = j["rope_parameters"].value("rope_theta", c.theta);
   if (j.contains("eos_token_id")) {
     const auto& e = j["eos_token_id"];
     if (e.is_array()) c.eos = e.get<std::vector<int>>();
@@ -121,19 +112,49 @@ LlamaConfig Llama::read_config(const std::string& dir) {
   }
   c.bos = int(num("bos_token_id", -1));
   const nlohmann::json q = j.value("quantization", nlohmann::json::object());
+  if (q.is_object()) {
+    c.bits = q.value("bits", 4);
+    c.gs = q.value("group_size", 64);
+  }
+  return c;
+}
+
+}  // namespace
+
+std::string Llama::refusal(const nlohmann::json& j) {
+  if (!j.is_object()) return "no readable config.json";
+  if (j.contains("rope_parameters") && j["rope_parameters"].is_object() &&
+      j["rope_parameters"].value("rope_type", std::string("default")) != "default")
+    return "Llama RoPE other than the default is not supported";
+  if (j.contains("rope_scaling") && !j["rope_scaling"].is_null())
+    return "Llama with rope_scaling is not supported (plain RoPE only)";
+  if (j.value("attention_bias", false) || j.value("mlp_bias", false))
+    return "Llama with attention or MLP biases is not supported";
+  if (const std::string act = j.value("hidden_act", std::string("silu")); act != "silu")
+    return "Llama with a " + act + " MLP is not supported (SwiGLU)";
+  const nlohmann::json q = j.value("quantization", nlohmann::json::object());
   if (!q.is_object() || q.empty())
-    fatal("%s: an unquantized Llama checkpoint; Kapitsa runs MLX 4- or 8-bit exports (mlx_lm.convert -q)", dir.c_str());
-  c.bits = q.value("bits", 4);
-  c.gs = q.value("group_size", 64);
+    return "an unquantized Llama checkpoint; Kapitsa runs MLX 4- or 8-bit exports (mlx_lm.convert -q)";
+  if (q.value("mode", std::string("affine")) != "affine")
+    return "Llama in MLX " + q.value("mode", std::string()) + " quantization is not supported (affine only)";
+  const LlamaConfig c = parse_config(j);
   if ((c.bits != 4 && c.bits != 8) || c.gs != 64)
-    fatal("%s: Llama in %d-bit group %d is not supported (MLX 4- or 8-bit, group 64)", dir.c_str(), c.bits, c.gs);
+    return "Llama in " + std::to_string(c.bits) + "-bit group " + std::to_string(c.gs) +
+           " is not supported (MLX 4- or 8-bit, group 64)";
   // hd 128: Flint's attention kernels; at most 8 query heads a KV head: flint_attn_prefill's 256 threads; widths in
   // 512s: the matvecs' 32 lanes x 16 inputs a step (qmvf)
   if (c.hidden <= 0 || c.hidden % 512 || c.vocab <= 0 || c.layers <= 0 || c.hq <= 0 || c.hkv <= 0 || c.hq % c.hkv ||
       c.hq / c.hkv > 8 || c.hd != 128 || (c.hq * c.hd) % 512 || c.ffn <= 0 || c.ffn % 512)
-    fatal("%s: a Llama shape Kapitsa does not run (hidden %d, heads %d / %d of %d, intermediate %d)", dir.c_str(),
-          c.hidden, c.hq, c.hkv, c.hd, c.ffn);
-  return c;
+    return "a Llama shape Kapitsa does not run (hidden " + std::to_string(c.hidden) + ", heads " +
+           std::to_string(c.hq) + " / " + std::to_string(c.hkv) + " of " + std::to_string(c.hd) + ", intermediate " +
+           std::to_string(c.ffn) + ")";
+  return {};
+}
+
+LlamaConfig Llama::read_config(const std::string& dir) {
+  const nlohmann::json j = read_json(dir + "/config.json");
+  if (const std::string why = refusal(j); !why.empty()) fatal("%s: %s", dir.c_str(), why.c_str());
+  return parse_config(j);
 }
 
 size_t Llama::kv_per_pos(const LlamaConfig& c) { return size_t(c.layers) * 2 * size_t(c.hkv) * size_t(c.hd) * 2; }

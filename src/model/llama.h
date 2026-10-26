@@ -11,6 +11,8 @@
 #include "loader/safetensors.h"
 #include "model/model.h"
 
+#include <nlohmann/json.hpp>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -47,6 +49,9 @@ class Llama : public Model {
   explicit Llama(const std::string& path, int prefill_chunk = 2048);
   ~Llama() override;
   static bool is_model(const std::string& dir);  // config.json's model_type is "llama"
+  // why a parsed config.json is a Llama this model does not run ("" when it runs): read_config exits with it,
+  // `kapitsa pull` and unsupported_model return it
+  static std::string refusal(const nlohmann::json& config);
   static LlamaConfig read_config(const std::string& dir);
   static MemPlan plan(const std::string& path, int prefill_chunk = 2048);
   static size_t kv_per_pos(const LlamaConfig& c);  // KV cache bytes per position, every layer

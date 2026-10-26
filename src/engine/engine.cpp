@@ -614,8 +614,12 @@ std::string unsupported_model(const std::string& model_dir) {
   const nlohmann::json j = nlohmann::json::parse(f, nullptr, false);
   if (!j.is_object()) return model_dir + ": its config.json is not valid JSON.";
   if (Qwen4Exp::is_model(model_dir) || Dory::is_model(model_dir) || NemotronH::is_model(model_dir) ||
-      Flint::is_model(model_dir) || Llama::is_model(model_dir))
+      Flint::is_model(model_dir))
     return "";
+  if (Llama::is_model(model_dir)) {  // read_config would exit on the ones it does not run: say why instead
+    const std::string why = Llama::refusal(j);
+    return why.empty() ? "" : model_dir + " is a Llama Kapitsa does not run: " + why + ".";
+  }
   // the Qwen3.5 family by its model_type (Hugging Face's, and what the GGUF import writes); a config that names none,
   // by the hybrid's shape, as the Hub check reads it (src/hub/fetch.cpp, check_supported)
   auto type = [](const nlohmann::json& c) {

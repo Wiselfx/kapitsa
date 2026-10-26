@@ -774,14 +774,9 @@ std::vector<ChatDelta> generate(const TmplModel& m, const std::string& text, boo
   OutputParser p(m.tok, m.tok.find("<think>"), m.tok.find("</think>"), m.tok.find("<tool_call>"), m.tok.find("</tool_call>"),
                  in_think, !tools.empty(), tools, true);
   std::vector<ChatDelta> out;
-  // the ids as a model writes them after its prompt: a Metaspace tokenizer (Nanbeige 4.3) puts "▁" before the start of
-  // a text it encodes on its own, which a generated turn does not have, so the text is encoded after a special token
-  if (m.tok.strips_leading_space()) {
-    *ids = m.tok.encode("<|im_start|>" + text);
-    ids->erase(ids->begin());
-  } else {
-    *ids = m.tok.encode(text);
-  }
+  // a Metaspace tokenizer (Nanbeige 4.3) puts "▁" before a text it encodes alone, which a generated turn does not have
+  *ids = m.tok.encode(m.tok.strips_leading_space() ? "<|im_start|>" + text : text);
+  if (m.tok.strips_leading_space()) ids->erase(ids->begin());
   for (int id : *ids) {
     ChatDelta d = p.push(id);
     if (!d.reasoning.empty() || !d.content.empty() || !d.tool_calls.empty()) out.push_back(d);
@@ -1625,8 +1620,7 @@ void template_checks(const TmplModel& m, const std::string& tag) {
                "this model can't read images]\nwhat?<|im_end|>") != std::string::npos &&
             p.find("<|vision_start|>") == std::string::npos,
         tag + "template: a later system message is a system turn in place; an image is a note", p.substr(p.size() > 400 ? p.size() - 400 : 0));
-  // with an image encoder: the image renders as the model's placeholder, without its data (a model whose vocabulary
-  // has no image placeholder, as Nanbeige 4.3, never has an image encoder)
+  // with an image encoder: the image renders as the model's placeholder, without its data (none without a placeholder)
   if (m.tok.find("<|image_pad|>") < 0) return;
   try {
     p = render_chat(*m.tmpl, r, true, true);
@@ -1967,6 +1961,27 @@ void unsupported_model_unit() {
         "unsupported_model: a config that names no model_type says that");
   check(refused(folder("badjson", "{ not json")).find("not valid JSON") != std::string::npos,
         "unsupported_model: a config.json that is not JSON says that");
+  // a Llama: Nanbeige 4.3's config runs; one read_config would exit on gets Llama::refusal's reason, as `kapitsa pull`
+  // does before the download. The base is mlx-community/Llama-3.1-8B-Instruct-4bit's config, cut, its rope_scaling off.
+  const nlohmann::json llama = nlohmann::json::parse(R"({"model_type": "llama", "hidden_size": 4096,
+      "num_hidden_layers": 32, "num_attention_heads": 32, "num_key_value_heads": 8, "intermediate_size": 14336,
+      "vocab_size": 128256, "quantization": {"group_size": 64, "bits": 4}})");
+  auto with = [&](const char* patch) { nlohmann::json c = llama; c.update(nlohmann::json::parse(patch)); return c; };
+  check(refused(folder("llama_nb43", with(R"({"hidden_size": 7168, "num_hidden_layers": 52, "num_attention_heads": 56,
+      "head_dim": 128, "intermediate_size": 22016, "vocab_size": 166912})").dump())).empty(),
+        "unsupported_model: Nanbeige 4.3 33B's Llama config in MLX 4-bit is not refused");
+  const std::string l31 =
+      refused(folder("llama31", with(R"({"rope_scaling": {"factor": 8.0, "rope_type": "llama3"}})").dump()));
+  check(l31.find("a Llama Kapitsa does not run") != std::string::npos && l31.find("rope_scaling") != std::string::npos,
+        "unsupported_model: a Llama 3.1 config (rope_scaling) is refused with its reason, not an exit");
+  for (const auto& [patch, reason] : std::vector<std::pair<const char*, std::string>>{
+           {R"({"attention_bias": true})", "biases"}, {R"({"hidden_act": "gelu"})", "gelu MLP"},
+           {R"({"quantization": null})", "unquantized"}, {R"({"quantization": {"group_size": 32}})", "4-bit group 32"},
+           {R"({"quantization": {"group_size": 64, "bits": 4, "mode": "mxfp4"}})", "mxfp4"},
+           {R"({"num_attention_heads": 64, "intermediate_size": 11008})", "heads 64 / 8 of 64"}}) {
+    const std::string why = Llama::refusal(with(patch));
+    check(why.find(reason) != std::string::npos, "Llama::refusal: " + reason + " is refused (" + why + ")");
+  }
   // a folder with no config.json is not refused here: it is refused where the folder is resolved
   const std::string noconfig = std::string(root) + "/noconfig";
   mkdir(noconfig.c_str(), 0700);
