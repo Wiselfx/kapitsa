@@ -1190,11 +1190,15 @@ int main(int argc, char** argv) {
     else fatal("usage: fn_store_test [--shutdown-only | --admission-only] [--keep DIR]");
   }
   if (shutdown_only && admission_only) fatal("fn_store_test: suite selectors are mutually exclusive");
-  std::signal(SIGALRM, [](int) {
-    constexpr char msg[] = "fn_store_test: shutdown watchdog expired (blocked teardown)\n";
-    (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
-    _exit(124);
-  });
+  if (std::signal(SIGALRM, [](int) {
+        constexpr char msg[] = "fn_store_test: shutdown watchdog expired (blocked teardown)\n";
+        (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
+        _exit(124);
+      }) == SIG_ERR) fatal("shutdown test: cannot install watchdog");
+  sigset_t alarm_signal;
+  sigemptyset(&alarm_signal);
+  sigaddset(&alarm_signal, SIGALRM);
+  if (sigprocmask(SIG_UNBLOCK, &alarm_signal, nullptr)) fatal("shutdown test: cannot unblock watchdog");
   if (!shutdown_only) {
     if (std::signal(SIGCHLD, SIG_DFL) == SIG_ERR) fatal("admission test: cannot retain child exit status");
     case_admission();
