@@ -92,11 +92,14 @@ Found find_model(const std::string& home, const std::string& want, const std::st
     return {"", "no Splash model found: " + dir + " has no folder with a tokenizer. Run a model in Splash once, or give --splash-model <folder>."};
   if (want.empty()) {
     if (all.size() == 1) return {dir + "/" + all[0].name, ""};
+    // several: the one the last run used, else the newest resolved (Splash writes a folder when it resolves a model)
+    const Model* pick = &all[0];
+    std::string why = "the newest of " + std::to_string(all.size()) + " resolved models";
     for (const Model& m : all)
-      if (!last.empty() && last == dir + "/" + m.name) return {last, ""};
-    std::string e = "Splash has " + std::to_string(all.size()) + " resolved models in " + dir + "; say which with --splash-model <a family such as flash-next, or the first 6+ characters of a folder name>:";
-    for (const Model& m : all) e += "\n  " + m.family + "  " + m.name;
-    return {"", e};
+      if (m.written > pick->written) pick = &m;
+    for (const Model& m : all)
+      if (!last.empty() && last == dir + "/" + m.name) pick = &m, why = "the one the last run used";
+    return {dir + "/" + pick->name, "", "Splash model: " + pick->family + " " + pick->name + " (" + why + "; --splash-model <family or folder name> picks another)"};
   }
   std::vector<const Model*> hit;
   if (want.size() >= 6)
@@ -163,7 +166,7 @@ Check check(const std::string& home, const std::string& splash_home, const std::
   for (const Model& m : all) out.text += "  " + m.family + "  " + m.name + (m.source.empty() ? "" : "  (" + m.source + ")") + "\n";
   Found m = model.empty() || (model.find('/') == std::string::npos && !fs::exists(model)) ? find_model(home, model, last.model)
                                                                                            : Found{model, ""};
-  out.text += m.ok() ? "\nModel to run: " + m.path + "\n" : "\nModel to run: NOT DECIDED\n" + m.error + "\n";
+  out.text += m.ok() ? "\nModel to run: " + m.path + "\n" + (m.note.empty() ? "" : m.note + "\n") : "\nModel to run: NOT DECIDED\n" + m.error + "\n";
   if (!m.ok() && !all.empty() && model.empty()) {
     std::string f = all[0].family;
     std::transform(f.begin(), f.end(), f.begin(), [](unsigned char c) { return std::tolower(c); });

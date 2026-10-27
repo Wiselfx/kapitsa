@@ -891,8 +891,9 @@ static int serve(int argc, char** argv, int first) {
     }
     struct stat st;
     if (opt.splash_model.empty() || (opt.splash_model.find('/') == std::string::npos && stat(opt.splash_model.c_str(), &st) != 0)) {
-      splash::Found f = splash::find_model(home ? home : "", opt.splash_model, last.model);  // empty: the only one or the last run's; else a name
+      splash::Found f = splash::find_model(home ? home : "", opt.splash_model, last.model);  // empty: the only one, the last run's or the newest; else a name
       if (!f.ok()) usage_error(f.error, help);
+      if (!f.note.empty()) fprintf(stderr, "kapitsa: %s\n", f.note.c_str());
       opt.splash_model = f.path;
     }
     model = opt.splash_model;

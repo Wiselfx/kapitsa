@@ -34,6 +34,12 @@ static void model(const std::string& home, const std::string& name, const std::s
   if (tokenizer) touch(d / "tokenizer/tokenizer.json", "{}");
 }
 
+// a folder resolved `hours_ago` hours ago (find_model's "newest" reads the folder's modification time)
+static void resolved_at(const std::string& home, const std::string& name, int hours_ago) {
+  fs::last_write_time(fs::path(home) / "Library/Application Support/Splash/models/.resolved" / name,
+                      fs::file_time_type::clock::now() - std::chrono::hours(hours_ago));
+}
+
 int main() {
   fs::path tmp = fs::temp_directory_path() / ("splash_discover_" + std::to_string(getpid()));
   fs::remove_all(tmp);
@@ -65,7 +71,16 @@ int main() {
   model(home, "aaaaaa2222", "Qwen3.8-Flash-Next");
   model(home, "bbbbbb3333", "Qwen3.6-35B-A3B");
   m = find_model(home, "");
-  check(!m.ok() && has(m.error, "3 resolved models") && has(m.error, "Qwen3.6-35B-A3B  bbbbbb3333") && !has(m.error, "zzzzzz9999"), "model: several", m.error);
+  resolved_at(home, "aaaaaa1111", 30);
+  resolved_at(home, "aaaaaa2222", 20);
+  resolved_at(home, "bbbbbb3333", 10);
+  check(m.ok() && has(m.path, "/bbbbbb3333") && has(m.note, "Qwen3.6-35B-A3B bbbbbb3333") && has(m.note, "newest of 3") && has(m.note, "--splash-model") &&
+            !has(m.note, "zzzzzz9999"),
+        "model: several, no flag: the newest, and it says so", m.error + m.note);
+  resolved_at(home, "aaaaaa2222", 5);
+  m = find_model(home, "");
+  check(m.ok() && has(m.path, "/aaaaaa2222"), "model: several, a newer one wins", m.path);
+  resolved_at(home, "aaaaaa2222", 20);
   m = find_model(home, "bbbbbb");
   check(m.ok() && has(m.path, "/bbbbbb3333"), "model: prefix", m.error);
   m = find_model(home, "aaaaaa");
@@ -119,17 +134,17 @@ int main() {
   touch(fs::path(lastf), "not json");
   check(read_last(lastf).binary.empty() && read_last(lastf).model.empty(), "last: bad file");
   m = find_model(home, "", res.string() + "/ffffff6666");
-  check(m.ok() && has(m.path, "/ffffff6666"), "last: model among several", m.error);
+  check(m.ok() && has(m.path, "/ffffff6666") && has(m.note, "the last run used"), "last: model among several", m.error + m.note);
   m = find_model(home, "", res.string() + "/gone");
-  check(!m.ok() && has(m.error, "resolved models"), "last: model gone", m.error);
+  check(m.ok() && has(m.path, "/ffffff6666") && has(m.note, "newest of"), "last: model gone, the newest", m.error + m.note);
   m = find_model(home, "other-gguf", res.string() + "/eeeeee5555");
   check(m.ok() && has(m.path, "/ffffff6666"), "last: a name beats it", m.error);
 
   // --check: what is found, what is missing, the fix; nothing is started
   Check c = check(home, "", "", "", "", {});
-  check(!c.ok && has(c.text, "Splash engine: NOT FOUND") && has(c.text, "SPLASH_HOME") && has(c.text, "NOT DECIDED") &&
-            has(c.text, "e.g. kapitsa serve --engine splash --splash-model qwen3.6-35b-a3b"),
-        "check: nothing found, several models", c.text);
+  check(!c.ok && has(c.text, "Splash engine: NOT FOUND") && has(c.text, "SPLASH_HOME") && !has(c.text, "NOT DECIDED") &&
+            has(c.text, "Model to run: ") && has(c.text, "Splash model: ") && has(c.text, "newest of"),
+        "check: nothing found, several models: the binary is missing, the model is the newest", c.text);
   c = check(home, (tmp / "root").string(), "", "", "other-gguf", {});
   check(c.ok && has(c.text, "Splash engine: " + (tmp / "root/engine/splash").string()) && has(c.text, "Model to run: ") && has(c.text, "/ffffff6666") &&
             has(c.text, "Ready: run the same command without --check"),
