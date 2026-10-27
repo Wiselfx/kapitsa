@@ -116,6 +116,10 @@ foreach(t ${NI_TOOLS})
   target_compile_definitions(${name} PRIVATE KAPITSA_VERSION="${KAPITSA_VERSION}" KAPITSA_GIT="${KAPITSA_GIT}")
 endforeach()
 
+# Normal static-archive linking uses this object's cache symbols, not naceinfer's hook-free member.
+target_sources(fn_store_test PRIVATE src/model/expert_store.cpp)
+target_compile_definitions(fn_store_test PRIVATE NI_EXPERT_CACHE_TEST)
+
 find_package(Threads REQUIRED)
 add_executable(execution_session_test tools/execution_session_test.cpp src/engine/execution_session.cpp)
 target_include_directories(execution_session_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/third_party)
