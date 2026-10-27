@@ -106,7 +106,7 @@ target_compile_definitions(naceinfer PRIVATE KAPITSA_VERSION="${KAPITSA_VERSION}
 
 file(GLOB NI_TOOLS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/tools/*.cpp ${CMAKE_SOURCE_DIR}/tools/*.mm)
 # a library the Python converters build and load themselves (ctypes), not a command
-list(FILTER NI_TOOLS EXCLUDE REGEX ".*/tools/(mlx_quant|execution_session_test|http_stream_test)\\.cpp$")
+list(FILTER NI_TOOLS EXCLUDE REGEX ".*/tools/(mlx_quant|execution_session_test|http_stream_test|splash_protocol_test)\\.cpp$")
 foreach(t ${NI_TOOLS})
   get_filename_component(name ${t} NAME_WE)
   add_executable(${name} ${t})
@@ -130,6 +130,12 @@ target_include_directories(http_stream_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CM
 target_link_libraries(http_stream_test PRIVATE Threads::Threads)
 add_test(NAME http_stream_test COMMAND http_stream_test)
 set_tests_properties(http_stream_test PROPERTIES TIMEOUT 45)
+
+# Splash's native protocol (src/splash/protocol.*) against bytes Splash 1.4.0's protocol.py produced and accepted: no model, no GPU.
+add_executable(splash_protocol_test tools/splash_protocol_test.cpp src/splash/protocol.cpp)
+target_include_directories(splash_protocol_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tools)
+add_test(NAME splash_protocol_test COMMAND splash_protocol_test)
+set_tests_properties(splash_protocol_test PROPERTIES TIMEOUT 30)
 
 # Kapitsa's server and CLI: `kapitsa serve --model <name|dir> ...`, with the chat page (src/server/chat.html)
 # embedded, the coding-agent launchers (src/server/launch.cpp) and `kapitsa update` (src/server/update_cmd.cpp). The API
