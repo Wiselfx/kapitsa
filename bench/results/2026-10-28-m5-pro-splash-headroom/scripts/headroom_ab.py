@@ -15,8 +15,9 @@ requests, the same memory guard. This file adds the two arms, the pairing, /stat
   headroom_ab.py selftest                        CPU checks of the arithmetic, the label parser and the verdict
 
 Exit codes of `leg`: 0 done, 75 not started (memory not as planned, retry), 3 stopped by the memory guard, 4 Splash refused or
-exited, 5 an A10 leg finished but broke a safety bound (the verdict is then KEEP 14 GiB; more legs would add nothing), 2 usage.
-The driver (run_ab.sh) stops on 3, 4 and 5 and does not go on."""
+exited, 5 an A10 leg finished but broke a safety bound (the verdict is then KEEP 14 GiB; more legs would add nothing), 6 the Mac
+was not on AC power at the start or the end of the leg (timing on battery is not valid; a leg that ended on battery is kept as
+legN-ARM-battery.json and does not count), 2 usage. The driver (run_ab.sh) stops on 3, 4, 5 and 6 and does not go on."""
 import argparse, glob, importlib.util, json, math, os, re, signal, statistics, subprocess, sys, tempfile, threading, time, types, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +31,7 @@ MIN_START_A = 31.0                  # issue #753: start a leg only when A >= 31 
 PAIR_DRIFT = 1.5                    # a pair's second leg starts only when A >= the pair's A - 1.5 GiB
 PAIRS = 4                           # legs per arm; order A14 A10 | A10 A14 | A14 A10 | A10 A14
 REPS = 3
-EX_NOT_STARTED, EX_GUARD, EX_REFUSED, EX_A10_UNSAFE = 75, 3, 4, 5
+EX_NOT_STARTED, EX_GUARD, EX_REFUSED, EX_A10_UNSAFE, EX_BATTERY = 75, 3, 4, 5, 6
 
 # The pre-registered rule (README.md, "Decision rule"). Constants here are what summarize applies.
 PRIMARY = {"turn2_ttft_s": "lower", "ttft_4K_s": "lower"}
@@ -40,6 +41,12 @@ FAVOR_FRACTION = 0.75  # of pairs, A-10 must be better in at least this fraction
 MIN_GAIN_PCT = 5.0     # median paired gain, % of the A-14 median
 SAFE_MIN_FREE_GIB = 3.0
 SAFE_MAX_SWAP_GROWTH_GB = 1.0
+
+
+def on_ac():
+    """True when `pmset -g batt` says the Mac draws from AC power (a desktop without a battery says AC too)."""
+    out = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True).stdout
+    return "'AC Power'" in out
 
 
 def load_fnb():
@@ -115,6 +122,8 @@ def run_leg(a):
     fnb = load_fnb()
     if fnb.running_model_processes():
         print("a model process is already running, not starting:\n" + "\n".join(fnb.running_model_processes())); return EX_NOT_STARTED
+    if not on_ac():
+        print("ON BATTERY: not starting; timing on battery is not valid (pmset -g batt)"); return EX_BATTERY
     os.makedirs(a.out, exist_ok=True)
     a_now = fnb.vm()["reclaimable_gib"]
     pf = os.path.join(a.out, "pair%d.json" % a.pair)
@@ -161,12 +170,18 @@ def run_leg(a):
     res.update({"arm": a.arm, "pair": a.pair, "headroom_gib_nominal": HEADROOM[a.arm], "em_gib": em, "a_launch_gib": a_now,
                 "a_pair_gib": pair["a_launch_gib"], "expert_memory_flags": fnb.SPLASH_FLAGS, "requests": reqlog,
                 "status_first": snap.get("first"), "status_last": snap.get("last")})
+    res["power_at_end"] = "AC" if on_ac() else "battery"
     res["memory"]["free_reclaimable_gib_min_fine"] = fine["min"]
     res["memory"]["free_reclaimable_gib_min"] = min(res["memory"]["free_reclaimable_gib_min"], fine["min"])
     if not any(r.get("reads") for r in reqlog): print("WARNING: /status gave no streamed_experts counters; read columns will be empty")
     json.dump(res, open("%s%s.json" % (stem, a.arm), "w"), indent=1)
+    if res["power_at_end"] != "AC":
+        os.replace("%s%s.json" % (stem, a.arm), "%s%s-battery.json" % (stem, a.arm))
+        print("ON BATTERY at the end of the leg: kept as leg%d-%s-battery.json, does not count" % (a.idx, a.arm)); res_rc = EX_BATTERY
+    else: res_rc = None
     os.remove("%sS.json" % stem)
     if os.path.exists("%sS.log" % stem): os.replace("%sS.log" % stem, "%s%s.log" % (stem, a.arm))
+    if res_rc: return res_rc
     if res["memory"]["aborted"]: return EX_GUARD
     return EX_A10_UNSAFE if a.arm == "A10" and safety([res]) else 0
 
@@ -290,6 +305,8 @@ def preflight(a):
     for what, path in (("Splash engine", fnb.SPLASH_BIN), ("Splash python", fnb.SPLASH_PY), ("model folder", fnb.SPLASH_MODEL), ("GGUF", fnb.GGUF)) + tuple(
             ("prompt " + s, "%s/prompts/ctx_%s.txt" % (os.path.dirname(RES) + "/2026-10-28-m5-pro-flash-next-engines", s)) for s in fnb.SIZES):
         e = os.path.exists(path); ok &= e; print("%-14s %s %s" % (what, "ok " if e else "MISSING", path))
+    ac = on_ac(); ok &= ac
+    print("power          %s" % ("AC Power" if ac else "BATTERY  <- timing on battery is not valid; plug in"))
     v = fnb.vm(); busy = fnb.running_model_processes()
     print("A now          %.1f GiB (need >= %.0f to start)%s; wired %.1f GiB; swap used %.2f GB; pressure level %s; memorystatus %s%%" % (
         v["reclaimable_gib"], MIN_START_A, "" if v["reclaimable_gib"] >= MIN_START_A else "  <- too low now", v["wired_gib"], fnb.swap_gb(),
@@ -364,8 +381,9 @@ def selftest():
 def glue_test(eq):
     """A whole leg against a fake Leg (no server, no GPU): the harness's real run_leg drives the real request sequence, our wrapper
     labels each request, reads /status deltas, writes pair and leg files, and summarize reads them back."""
-    global load_fnb, status
-    real_load, real_status = load_fnb, status
+    global load_fnb, status, on_ac
+    real_load, real_status, real_ac = load_fnb, status, on_ac
+    on_ac = lambda: True
     fnb = real_load()
     calls = {"n": 0}
 
@@ -399,12 +417,16 @@ def glue_test(eq):
             finally: sys.stdout = sys.__stdout__
             eq("glue verdict", out["verdict"]["verdict"], "INCONCLUSIVE")
             eq("glue read medians", out["reads_median_per_label"]["A10"]["turn2"], {"streamed_experts.prefill.bytes": 100, "streamed_experts.prefill.reads": 10})
+            on_ac = lambda: False
+            eq("glue battery at start", run_leg(types.SimpleNamespace(arm="A14", pair=1, idx=2, out=t, reps=1, min_start=31.0, em_gib=None)), EX_BATTERY)
+            eq("glue battery no files", os.path.exists(t + "/pair1.json"), False)
+            on_ac = lambda: True
             fnb.vm = lambda: {"reclaimable_gib": 20.0, "wired_gib": 20.0}  # too little free memory: must not start
             eq("glue wait", run_leg(types.SimpleNamespace(arm="A14", pair=1, idx=2, out=t, reps=1, min_start=31.0, em_gib=None)), EX_NOT_STARTED)
             eq("glue no files on wait", os.path.exists(t + "/pair1.json"), False)
     finally:
         fnb.Leg.__init__, fnb.Leg.chat, fnb.Leg.close, fnb.running_model_processes, fnb.vm, fnb.binary_rev = saved
-        load_fnb, status = real_load, real_status
+        load_fnb, status, on_ac = real_load, real_status, real_ac
 
 
 def main():

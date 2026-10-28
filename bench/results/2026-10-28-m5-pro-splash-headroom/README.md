@@ -28,6 +28,7 @@ than 1.5 GiB below the pair's A.
 
 - Four pairs, eight legs, order `A14 A10 | A10 A14 | A14 A10 | A10 A14`; one server start per leg, three repetitions each
   (n = 4 legs and 12 requests per cell and arm). About 2 min a leg once running.
+- The Mac must be on AC power (`pmset -g batt` says `'AC Power'`), checked by `preflight` and at the start and end of every leg: timing on battery is not valid. A leg that ends on battery is kept as `legN-ARM-battery.json`, does not count, and the driver stops (rc 6).
 - A leg starts only when A ≥ 31 GiB and no other model server runs (the harness refuses if one does), under
   `lockf -k -t 120 /tmp/kapitsa-gpu.lock`. A at launch is recorded in every leg's JSON.
 - Requests are the engines bench's, imported unchanged from `../2026-10-28-m5-pro-flash-next-engines/scripts/flash_next_bench.py`:
@@ -52,8 +53,8 @@ python3 ~/.agents/skills/session-orchestration/scripts/detach.py run --name head
 python3 scripts/headroom_ab.py summarize legs   # table.md, summary.json, the verdict
 ```
 
-`run_ab.sh` skips legs that have a JSON, so it resumes. It stops on a guard stop (rc 3), a Splash refusal or exit (4), or an A10 leg
-that broke a safety bound (5), and writes the summary.
+`run_ab.sh` skips legs that have a JSON, so it resumes. It stops on a guard stop (rc 3), a Splash refusal or exit (4), an A10 leg
+that broke a safety bound (5), or power on battery (6), and writes the summary.
 
 ## Decision rule (fixed before any run)
 

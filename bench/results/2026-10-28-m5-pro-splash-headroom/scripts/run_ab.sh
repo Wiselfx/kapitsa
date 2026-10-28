@@ -1,7 +1,7 @@
 #!/bin/bash
 # Driver for issue #753. Eight legs, four per arm, interleaved A14 A10 | A10 A14 | A14 A10 | A10 A14, one Splash start per leg under the
 # GPU lock. Legs that already have a JSON are skipped, so a stopped run resumes. Stops (does not go on) when a leg ends 3 (memory guard),
-# 4 (Splash refused or exited) or 5 (an A10 leg broke a safety bound): the verdict is then already KEEP 14 GiB or the Mac needs a look.
+# 4 (Splash refused or exited), 5 (an A10 leg broke a safety bound) or 6 (not on AC power, at the start or the end of a leg): the verdict is then already KEEP 14 GiB or the Mac needs a look.
 # Needs: the orchestrator's GO naming this folder's frozen commit. Do not run it before that.
 D=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${OUT:-$D/legs}
@@ -22,7 +22,7 @@ leg() { # idx arm pair
     echo "  not started (try $try): $(tail -1 "$OUT/leg$1-$2.out")"; sleep 60
   done
   echo "leg $1 $2 rc=$rc $(date -u +%FT%TZ)"; tail -2 "$OUT/leg$1-$2.out"
-  case $rc in 0) ;; 3|4|5) echo "stopping: rc=$rc"; $H summarize "$OUT"; exit $rc ;; *) echo "stopping: rc=$rc (not started in 40 tries, or an error)"; exit $rc ;; esac
+  case $rc in 0) ;; 3|4|5|6) echo "stopping: rc=$rc"; $H summarize "$OUT"; exit $rc ;; *) echo "stopping: rc=$rc (not started in 40 tries, or an error)"; exit $rc ;; esac
 }
 for ((p = 0; p < PAIRS; p++)); do
   if ((p % 2 == 0)); then first=A14 second=A10; else first=A10 second=A14; fi
