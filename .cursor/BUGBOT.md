@@ -54,6 +54,19 @@ not ask for abstractions, interfaces or configuration the change does not need.
   against `origin/main` and says so. Flag a GPU-tier PR that claims outputs or speed without the runs it lists.
 - More than one unrelated change in a PR (speed change plus refactor plus docs rewrite): say it should be split.
 
+## New features: on by default somewhere, or widely established
+
+- A PR that adds a feature (a kernel path, a decode, drafting or verify strategy, a cache or memory policy, a new
+  user-facing flag or environment variable) must do at least one of two things. It turns the feature on by default for
+  at least one model on at least one Mac, with the interleaved A/B and the output check above. Or it cites a well-known
+  paper or a major engine (llama.cpp, MLX, vLLM, SGLang, TensorRT-LLM) that has the feature, and says why it fits Kapitsa
+  (Apple silicon, exact outputs, single-stream speed). Flag a feature that ships opt-in only (off by default everywhere)
+  with neither: it should stay an open PR until it wins a default.
+- Once a feature is a default somewhere, other models may reach it opt-in. Do not flag a default scoped to the models
+  the author measured: a later PR widens it.
+- Not features, so do not flag them: a kill switch for an existing default (`NI_X=0`), a debug or profiling switch, a
+  measuring tool under `tools/` or `bench/`.
+
 ## GPU lock and benchmarks
 
 - Anything that loads a model or uses the GPU (scripts, tests, workflows, tools) must take the exclusive flock on

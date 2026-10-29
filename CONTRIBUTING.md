@@ -143,6 +143,10 @@ without and after a draft.
 - A default changes only after an interleaved A/B and the [output check](#output-check): the logits against the old
   build's, with differences allowed only within this Mac's noise floor (near-ties).
 - Put the numbers in the pull request, with the change that produced them.
+- A new feature ships on by default for at least one model on at least one Mac. The other way in: a well-known paper or
+  a major engine already has it and it fits Kapitsa. Once it is a default somewhere, other models may reach it opt-in.
+  A feature that is promising but not yet faster anywhere stays an open PR until it is. Kill switches, debug switches
+  and measuring tools are exempt. AGENTS.md ("New features ship on by default somewhere") has the full rule.
 
 ## Output check
 

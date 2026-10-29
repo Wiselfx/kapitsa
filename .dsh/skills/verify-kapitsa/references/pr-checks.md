@@ -24,6 +24,15 @@ The highest tier among the changed files is the PR's tier. A tier includes every
 A bug fix in tier 1 or 2 still runs the gate and the A/B. A fix that slows the hot path or moves tokens is a
 different change, and the PR has to say which one it is.
 
+## Opt-in features
+
+A new feature must be on by default for at least one model and Mac, or be widely established (a well-known paper or
+a major engine has it, and it fits Kapitsa). AGENTS.md has the rule. So the checks above are what a feature PR
+needs to turn the feature on for the setting it measured, not proof that an opt-in switch does no harm. If a
+promising feature loses the A/B everywhere it was measured, it stays an open PR (a draft is fine). Do not ship it
+off by default. Kill switches for an existing default, debug and profiling switches, and measuring tools are
+exempt.
+
 ## Which models
 
 Run every model whose code the diff reaches. `required_checks.py` names them and the floor file the gate uses on

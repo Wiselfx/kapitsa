@@ -99,6 +99,24 @@ driver's own check agrees with the real limit, which `tools/ni_kstats --limits` 
 sizes when the changed kernel's static memory is 16,384 B or less, and when it is more say in the PR that the layer's
 doubling makes a run impossible, with the kernel's size; a PR is not "unverified" for saying that.
 
+**New features ship on by default somewhere.** Every opt-in switch is code to maintain and a setting nobody tunes. The
+goal is per-model, per-Mac settings, perhaps several per pair someday (minimal, optimal, max; today Kapitsa pursues max).
+There is no config system for opt-in features yet. So a feature merges only when at least one of these holds:
+
+1. **It is a default.** The feature is on by default for at least one model on at least one Mac, earned with the
+   interleaved A/B and the output check below. The PR names the setting it is the default for. Other models may reach it
+   opt-in.
+2. **It is widely established.** A well-known paper or a major engine (llama.cpp, MLX, vLLM, SGLang, TensorRT-LLM) has
+   it, and it makes sense for Kapitsa: Apple silicon, exact outputs, single-stream speed. The PR cites the source and
+   says why it fits.
+
+Here a feature means a kernel path, a decode, drafting or verify strategy, a cache or memory policy, or a new user-facing
+flag or environment variable. Three things are not features, so this rule does not apply to them: a kill switch for an
+existing default (`NI_X=0`), a debug or profiling switch, and a measuring tool. A feature that is promising but not yet
+faster in any setting stays an open PR (a draft is fine) and keeps improving until it wins a default. It does not merge
+opt-in "for later". If the author could not test many models, the PR turns the feature on for what it measured. A later
+PR widens the default as other models and Macs are measured.
+
 **Changing speed or numerics.** One change per PR. Measure only on an idle GPU (nothing else running), interleave old
 and new builds (A B A B), report every run with the Mac, macOS version and commit. A default changes only after an
 interleaved A/B *and* the output check of CONTRIBUTING.md ("Output check"): `build/logit_dump` of the old and the new
@@ -150,6 +168,8 @@ value (README, docs/usage.md, docs/benchmarks.md, `tests/`, the catalog in `src/
 
 - One change per PR. Branch off the current `origin/main`; `main` takes squash merges only, and the title becomes the
   commit: state the change and its measured effect (the repo's titles carry numbers and "(#NNN)").
+- A new feature says which model and Mac it is the default for, or which paper or engine establishes it ("New features
+  ship on by default somewhere" above). An opt-in feature with neither stays an open PR.
 - The description says what changed, the measured before/after with a `Runs:` line (Mac, macOS, model), and what was
   checked how. A separate "Not verified" section lists what was not run, above all anything needing a GPU.
 - Benchmark submissions carry the `benchmark` label, the results table, `Kapitsa version (commit)`, `Flags:`, and say
