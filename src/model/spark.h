@@ -112,6 +112,8 @@ class Spark : public Model {
     uint32_t rows = 2, nsg = 8;
   };
   Matvec matvec_pipe(const SparkLinear& W, bool norm, bool add);
+  // A float tensor as bf16, with `offset` added (the 1 + w conversion for Hugging Face zero-centred RMSNorm weights).
+  const Tensor* norm_copy(const Tensor* t, float offset);
   void enc_attn(Encoder& e, Seq& s, int li, int pos);
   void enc_mlp(Encoder& e, const SparkLayer& L);
   void enc_embed(Encoder& e, const Buffer& tokens, int tok_off, int R, const Buffer& out);
@@ -122,14 +124,16 @@ class Spark : public Model {
   std::unique_ptr<WeightStore> ws_;
   SparkConfig cfg_;
   std::vector<SparkLayer> layers_;
+  // RMSNorm tensors rewritten as 1 + w when the checkpoint stores Hugging Face's zero-centred layout (see hf_norms).
+  std::vector<Buffer> owned_bufs_;
+  std::vector<Tensor> owned_;
   SparkLinear embed_, head_;
-  const Tensor* final_norm_ = nullptr;
-  Buffer ones_;  // bf16 1.0 x head_dim, handed to attn_prep as the absent q/k norm
+  const Tensor* final_norm_ = nullptr;  // bf16 1.0 x head_dim, handed to attn_prep as the absent q/k norm
   int tmax_ = 2048;
   size_t mem_budget_ = 0;
 
   // activations, one row
-  Buffer x_, xh_, qg_, kr_, vr_, qo_, ao_, gate_, gu_, mh_, logits_, part_o_, part_ml_, cand_v_, cand_i_, sprob_;
+  Buffer x_, xh_, qg_, kr_, vr_, qo_, qr_, ao_, gate_, gu_, mh_, logits_, part_o_, part_ml_, cand_v_, cand_i_, sprob_;
 };
 
 }  // namespace ni

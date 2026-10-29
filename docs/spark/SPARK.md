@@ -390,6 +390,40 @@ rather than left implicit, so a future variant with an awkward `ffn` fails loudl
 - **Embedding gather** exists for every format (`embed_f16`, `embed_f4g64`, `embed_f8g64` via `NI_WF_ALL`), so the
   OptiQ pack's 8-bit embedding is fine.
 
+### Defect 5 (correctness, structural): the attention prologue reused a kernel that normalizes
+
+The worst of the batch. `enc_attn` reused `attn_prep`, passing an all-ones vector as the q/k norm weight on the theory
+that this disables the normalization. It does not — `attn_prep` computes
+`x * rsqrt(sum(x^2)/D + eps) * w` unconditionally (`src/kernels/attn.metal`), so "all ones" means *normalize to unit
+RMS*, which is a different function from not normalizing. Spark's reference applies RoPE straight to the raw
+`q_k_v_proj` output and contains zero occurrences of `q_norm`/`k_norm`.
+
+This matters more than it looks: rescaling q and k by a common per-row factor leaves `softmax(q·k/√D)` unchanged, but
+this is a *per-row* normalization to a *different* norm (RMS ≈ 1) than the reference's, and q and k get different
+factors — so the attention distribution changes. Replaced by `spark_attn_prep`, Spark's own prologue, which does RoPE
+(per-layer `rot`/`theta`, NeoX half-split), assembles the interleaved `[Hq][2][D]` q|gate buffer the reduce reads, and
+appends k/v to the cache in one pass. The all-ones buffers (and the `ones_` allocation that existed only to feed them)
+are gone.
+
+### Defect 6 (correctness): the q|gate packing read a buffer nothing had written
+
+`spark_pack_qg` read the dense q from `qo_`, but the fused matvec wrote q into `qg_`, so the pack kernel would have
+gathered uninitialized memory. Chasing it exposed two aliasing hazards in the same few lines, both of which the new
+kernel has to avoid and now does: packing into `qg_` in place is a race (group `h` writes `out[h*2D+d]` and
+`out[h*2D+D+d]`, which are later groups' *inputs* — with `Hq ≥ 2` every group's input is another group's output), and
+rotating q in place is a race (each thread reads its partner lane `tid ± rot/2`). So: q is written to its own buffer,
+roped into a second, and the interleaved buffer is a third.
+
+### Defect 7 (correctness, silent and total): `hf_norms` was detected, logged, and never applied
+
+The loader detected Hugging Face's zero-centred RMSNorm layout (`sum/n < 0.5` with negatives → apply as `1 + w`), set
+`cfg_.hf_norms`, printed "RMSNorm weights read as 1 + w (Hugging Face layout)" — and then nothing used the flag. Every
+norm would have been applied as the raw zero-centred `w`, scaling every layer by a number near 0. This is the class of
+bug that reads as working code: a flag, a log line, and no consumer. Fixed with `Spark::norm_copy` (the same
+`1 + w`, rounded once to bf16, as `Qwen35::bf16_copy`), applied at load, plus the `n > 64Ki` guard the Qwen35
+precedent has so a mis-keyed wide tensor cannot flip the whole checkpoint's norm layout. Both the decision rule and
+the conversion now have a CPU test.
+
 ### Still unverified, and honestly so
 
 Everything in §6 that needs a GPU. The QA pass raised confidence in the *host-side* logic (config, names, layouts,

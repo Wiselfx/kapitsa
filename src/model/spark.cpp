@@ -2,6 +2,7 @@
 
 #include "loader/safetensors.h"
 #include "metal/gpu.h"
+#include "util/bf16.h"
 #include "util/json_file.h"
 #include "util/log.h"
 
@@ -78,6 +79,9 @@ struct QuantCfg {
 bool zero_centred(const Tensor& t) {
   const size_t n = size_t(t.numel());
   if (!n || !t.buf) return false;
+  // Qwen35's zero_centred_norm refuses anything wider than a norm; the same guard applies here, so a mis-keyed wide
+  // tensor can never flip the whole checkpoint's norm layout.
+  if (n > (1u << 16)) return false;
   int neg = 0;
   double sum = 0;
   if (t.dtype == DType::BF16) {
@@ -114,6 +118,32 @@ Pipeline pipe(const std::string& n) {
 }
 
 }  // namespace
+
+// A float tensor as bf16 (t itself when it is bf16, else an owned bf16 copy); `offset` is added first — the
+// zero-centred RMSNorm weights of a Hugging Face checkpoint are applied as 1 + w. Mirrors Qwen35::bf16_copy, so both
+// families convert a norm to the same values (rounded once, to bf16).
+const Tensor* Spark::norm_copy(const Tensor* t, float offset) {
+  if (!t) return t;
+  if (t->dtype == DType::BF16 && offset == 0.0f) return t;
+  if (t->dtype != DType::BF16 && t->dtype != DType::F32 && t->dtype != DType::F16)
+    fatal("RMSNorm: unsupported dtype %d", int(t->dtype));
+  const size_t n = size_t(t->numel());
+  Buffer b = Gpu::get().alloc(n * 2 + 16, "spark_norm_copy", /*tracked=*/false);
+  uint16_t* d = b.as<uint16_t>();
+  for (size_t i = 0; i < n; ++i) {
+    const float v = t->dtype == DType::F32 ? t->buf.as<float>()[i]
+                    : t->dtype == DType::F16 ? float(t->buf.as<_Float16>()[i])
+                                             : bf16_to_f32(t->buf.as<uint16_t>()[i]);
+    d[i] = f32_to_bf16(v + offset);
+  }
+  owned_bufs_.push_back(b);
+  Tensor c = *t;
+  c.buf = b.view(0, n * 2);
+  c.dtype = DType::BF16;
+  owned_.push_back(c);
+  return &owned_.back();
+}
+
 
 // ---------------------------------------------------------------------------------------------------------------
 // config
@@ -221,6 +251,16 @@ void Spark::load(int chunk) {
     L.md = qlin(p + "mlp.down_proj");
     L.rot = L.sliding ? cfg_.rot_swa : cfg_.rot_full;
     L.theta = L.sliding ? cfg_.theta_swa : cfg_.theta_full;
+  }
+  if (cfg_.hf_norms) {
+    // 1 + w, rounded once to bf16 (as mlx-lm's sanitize and Qwen35's loader both do). Without this the whole network
+    // reads weights centred on 0 instead of 1 and every activation collapses — the weights are not "close enough", so
+    // this is a load-time conversion, not a comment.
+    for (SparkLayer& L : layers_) {
+      L.in_norm = norm_copy(L.in_norm, 1.0f);
+      L.post_norm = norm_copy(L.post_norm, 1.0f);
+    }
+    final_norm_ = norm_copy(final_norm_, 1.0f);
   }
   check_shapes();
 
@@ -334,12 +374,15 @@ void Spark::alloc_state() {
   const size_t H = size_t(cfg_.hidden), Q = size_t(cfg_.q_dim()), KV = size_t(cfg_.kv_dim());
   x_ = A(H * sizeof(float), "spark_x");
   xh_ = A(H * sizeof(uint16_t), "spark_xh");
-  // the fused q|k|v rows for one token (attn_prep reads q from the front)
-  // the interleaved [Hq][2][D] query|gate buffer (2*q_dim floats), also used as the q|k|v staging buffer
-  qg_ = A(std::max(size_t(cfg_.qkv_dim()), size_t(2 * cfg_.q_dim())) * sizeof(float), "spark_qg");
+  // The interleaved [Hq][2][D] query|gate buffer attn_prep reads and attn_decode_reduce takes the gate from: 2*q_dim
+  // floats. Written by spark_attn_prep, read by attn_decode_reduce.
+  qg_ = A(size_t(2 * cfg_.q_dim()) * sizeof(float), "spark_qg");
   kr_ = A(KV * sizeof(float), "spark_kr");
   vr_ = A(KV * sizeof(float), "spark_vr");
-  qo_ = A(Q * 2 * sizeof(float), "spark_qo");  // q, then the gate half the epilogue reads
+  qo_ = A(Q * sizeof(float), "spark_qo");  // the dense q as the fused matvec wrote it
+  // the roped q. Distinct from qo_ because spark_attn_prep reads a partner lane (tid +- rot/2) to rotate, so writing
+  // the result over its own input would let one thread's output corrupt another's rotation.
+  qr_ = A(Q * sizeof(float), "spark_qr");
   ao_ = A(Q * sizeof(float), "spark_ao");
   gate_ = A(size_t(cfg_.hq) * sizeof(float), "spark_gate");
   gu_ = A(size_t(cfg_.ffn) * sizeof(float) * 2, "spark_gu");
@@ -351,11 +394,6 @@ void Spark::alloc_state() {
   cand_v_ = A(size_t(cfg_.vocab) * sizeof(float), "spark_cand_v");
   cand_i_ = A(size_t(cfg_.vocab) * sizeof(int32_t), "spark_cand_i");
   sprob_ = A(64 * sizeof(float), "spark_sprob");
-  ones_ = A(size_t(cfg_.head_dim) * sizeof(uint16_t), "spark_ones");
-  {
-    uint16_t* p = ones_.as<uint16_t>();
-    for (int i = 0; i < cfg_.head_dim; ++i) p[i] = 0x3f80;  // bf16 1.0
-  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -485,7 +523,9 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
     e.buf(7, L.in_norm->buf);
     e.dispatch((uint32_t(n) + r * nsg - 1) / (r * nsg), 1, 1, 32 * nsg);
   };
-  rows(qg_, qd, 0);
+  // The three slices land in their own buffers: spark_attn_prep below reads a *partner* lane to rotate, and writes the
+  // interleaved [Hq][2][D] q|gate the reduce reads, so neither q nor k can be rotated in place.
+  rows(qo_, qd, 0);
   rows(kr_, kd, qd);
   rows(vr_, kd, qd + kd);
   // the per-head gate rows, which share the same normalized input
@@ -505,34 +545,26 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
     e.dispatch((L.gate.N + r * nsg - 1) / (r * nsg), 1, 1, 32 * nsg);
   }
 
-  // attn_prep reads the query out of the interleaved [Hq][2][D] layout it shares with the Qwen3.5 checkpoints (their
-  // q_proj emits the gate beside the query). Spark's fused matrix has no gate rows, so spark_pack_qg assembles that
-  // layout first: the dense q at +0, the broadcast per-head scalar at +D. No q/k RMSNorm in this family, so `ones_`
-  // is handed in as the norm weight and the kernel's normalization is exact.
-  {
-    kp::SparkGate gp{uint32_t(cfg_.hq), D, 1, uint32_t(cfg_.hq)};
-    e.use(pipe("spark_pack_qg"));
-    e.buf(0, qo_);    // the dense q rows the matvec wrote
-    e.buf(1, gate_);  // the per-head scalars
-    e.buf(2, qg_);    // the interleaved buffer, reused as scratch for this layer's q|gate
-    e.val(3, gp);
-    e.dispatch(uint32_t(cfg_.hq), 1, 1, D);
-  }
+  // Spark's own prologue replaces attn_prep: that kernel always applies an RMSNorm to q and k (it is the Qwen3.5
+  // prologue, whose checkpoints have q_norm/k_norm), and Spark has neither -- its reference ropes the raw q_k_v_proj
+  // output. See spark_attn_prep in src/kernels/spark/spark.metal for the citation.
   const bool ring = ring_layer(li);
   const int rows_n = ring ? cfg_.window + 8 : s.cap;
-  kp::AttnPrep ap{1, uint32_t(cfg_.hq), uint32_t(cfg_.hkv), D, uint32_t(L.rot), uint32_t(pos), uint32_t(rows_n),
-                  cfg_.eps, L.theta};
-  e.use(pipe("attn_prep"));
-  e.buf(0, qg_);  // the interleaved q|gate buffer, as the checkpoint layout has it
-  e.buf(1, kr_);
-  e.buf(2, vr_);
-  e.buf(3, ones_);
-  e.buf(4, ones_);
-  e.buf(5, qo_);  // the dense, normed, roped query
-  e.buf(6, s.kc[size_t(li)]);
-  e.buf(7, s.vc[size_t(li)]);
-  e.val(8, ap);
-  e.dispatch(uint32_t(cfg_.hq) + 2 * uint32_t(cfg_.hkv), 1, 1, D);
+  {
+    kp::SparkPrep pp{1,          uint32_t(cfg_.hq), uint32_t(cfg_.hkv), D, uint32_t(L.rot),
+                     uint32_t(pos), uint32_t(rows_n), uint32_t(cfg_.hq), L.theta};
+    e.use(pipe("spark_attn_prep"));
+    e.buf(0, qo_);
+    e.buf(1, kr_);
+    e.buf(2, vr_);
+    e.buf(3, gate_);
+    e.buf(4, qr_);  // the roped dense q, laid out [Hq][D] for attn_decode_partial
+    e.buf(5, qg_);  // the interleaved q|gate buffer the reduce reads
+    e.buf(6, s.kc[size_t(li)]);
+    e.buf(7, s.vc[size_t(li)]);
+    e.val(8, pp);
+    e.dispatch(uint32_t(cfg_.hq) + 2 * uint32_t(cfg_.hkv), 1, 1, D);
+  }
 
   // The key range: everything the cache holds up to `pos` for a full layer; the last `window` keys for a sliding one.
   const uint32_t lo = ring && pos + 1 > cfg_.window ? uint32_t(pos + 1 - cfg_.window) : 0u;
@@ -551,7 +583,7 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
   kp::AttnDec dp{uint32_t(cfg_.hq), uint32_t(cfg_.hkv), hi, chunk, uint32_t(rows_n),
                  1.0f / std::sqrt(float(cfg_.head_dim)), nch};
   e.use(pipe("attn_decode_partial"));
-  e.buf(0, qo_);
+  e.buf(0, qr_);
   e.buf(1, s.kc[size_t(li)]);
   e.buf(2, s.vc[size_t(li)]);
   e.buf(3, part_o_);

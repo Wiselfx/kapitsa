@@ -64,22 +64,81 @@ struct SparkGuParams {
 // that emits ONE scalar per head, broadcast over that head's whole 256-wide dim. This kernel assembles the layout
 // both stages expect: the dense q rows into the interleaved buffer's +0 halves, and the broadcast per-head gate into
 // its +D halves. The epilogue's own sigmoid is then the only one applied, so the gate is written raw here.
-struct SparkGateParams {
-  uint32_t Hq;    // query heads
-  uint32_t D;     // head dim (256)
-  uint32_t T;     // rows
-  uint32_t g_ld;  // floats between rows of the per-head scalars
+// ---- the attention prologue: RoPE, the q|gate packing, and the cache append ----
+//
+// This replaces attn_prep for Spark, and it had to: attn_prep *always* applies an RMSNorm to q and k
+// (attn.metal: `x * rsqrt(ss/D + eps) * qn_w[tid]`), which is why it exists at all — it is the Qwen3.5 prologue, whose
+// checkpoints carry q_norm.weight and k_norm.weight. Spark has neither; the reference applies RoPE to the raw
+// q_k_v_proj output (modeling_spark.py: `q = q.view(...); q = apply_rotary_pos_emb(q, cos, sin)`, with no norm step
+// anywhere and zero occurrences of q_norm/k_norm in the file). Passing an all-ones vector as the norm weight does NOT
+// disable it: the normalization itself is the problem, and rescaling q and k by a common per-row factor changes
+// softmax(q.k/sqrt(D)) — it is not a gauge freedom.
+//
+// One threadgroup per (head, token), D threads. The q and k heads rotate with the layer's rot dims and theta; the
+// value heads are a plain cast into the cache.
+//
+// grid: x = Hq + 2*Hkv (q heads, k heads, v heads), y = T. threadgroup: D threads.
+struct SparkPrepParams {
+  uint32_t T;      // rows (1 on the decode path)
+  uint32_t Hq;     // query heads
+  uint32_t Hkv;    // kv heads
+  uint32_t D;      // head dim (256)
+  uint32_t rot;    // rotary dims for this layer (64 full / 256 sliding)
+  uint32_t pos;    // position of the first row
+  uint32_t max_seq;  // slots per kv head in the cache
+  uint32_t g_ld;   // floats between rows of the per-head gate scalars
+  float theta;     // RoPE theta for this layer (5e6 full / 1e4 sliding)
 };
 
-// q_in: dense [T][Hq][D]; gate_in: [T][g_ld] scalars; out: interleaved [T][Hq][2][D].
-// grid: Hq x T threadgroups, D threads each.
-[[kernel]] void spark_pack_qg(const device float* q_in [[buffer(0)]], const device float* gate_in [[buffer(1)]],
-                              device float* out [[buffer(2)]], constant SparkGateParams& p [[buffer(3)]],
-                              uint2 tg [[threadgroup_position_in_grid]],
-                              uint2 tid [[thread_position_in_threadgroup]]) {
-  const uint32_t h = tg.x, t = tg.y, d = tid.x;
-  if (h >= p.Hq || d >= p.D || t >= p.T) return;
-  const size_t o = (size_t(t) * p.Hq + h) * 2 * p.D;
-  out[o + d] = q_in[(size_t(t) * p.Hq + h) * p.D + d];  // the query half attn_prep reads
-  out[o + p.D + d] = gate_in[size_t(t) * p.g_ld + h];   // the gate half the epilogue reads (sigmoid applied there)
+[[kernel]] void spark_attn_prep(const device float* q_in [[buffer(0)]], const device float* k_in [[buffer(1)]],
+                               const device float* v_in [[buffer(2)]], const device float* g_in [[buffer(3)]],
+                               device float* q_out [[buffer(4)]], device float* qg_out [[buffer(5)]],
+                               device half* kc [[buffer(6)]], device half* vc [[buffer(7)]],
+                               constant SparkPrepParams& p [[buffer(8)]],
+                               uint2 tg [[threadgroup_position_in_grid]],
+                               uint2 tid2 [[thread_position_in_threadgroup]]) {
+  const uint tid = tid2.x;
+  const uint h = tg.x, t = tg.y;
+  if (tid >= p.D) return;
+  const uint pos = p.pos + t;
+
+  // value heads: plain copy into the cache
+  if (h >= p.Hq + p.Hkv) {
+    const uint hv = h - p.Hq - p.Hkv;
+    vc[(hv * p.max_seq + pos) * p.D + tid] = half(v_in[(t * p.Hkv + hv) * p.D + tid]);
+    return;
+  }
+
+  const bool is_q = h < p.Hq;
+  const float x = is_q ? q_in[(t * p.Hq + h) * p.D + tid] : k_in[(t * p.Hkv + (h - p.Hq)) * p.D + tid];
+
+  // RoPE over the first `rot` dims, GPT-NeoX (half-split) convention: pair tid with tid +- rot/2, as the reference's
+  // rotate_half does (cos = cat(f, f), x*cos + rotate_half(x)*sin). Dims >= rot pass through untouched.
+  float y = x;
+  if (tid < p.rot) {
+    const uint half_rot = p.rot / 2;
+    const uint i = tid % half_rot;
+    // inv_freq = theta^(-2i/rot), i in [0, rot/2) -- the reference's compute_rope_cos_sin
+    const float inv_freq = metal::precise::pow(p.theta, -2.0f * float(i) / float(p.rot));
+    const float ang = float(pos) * inv_freq;
+    const float cs = metal::precise::cos(ang), sn = metal::precise::sin(ang);
+    // the partner lane's *unrotated* value. Each threadgroup is a whole head, so the head is in registers/registers-per
+    // thread only; re-read the partner from the source instead of a barrier, which is cheap for one row and keeps this
+    // kernel stateless for the batched prefill case later.
+    const uint partner = tid < half_rot ? tid + half_rot : tid - half_rot;
+    const float xp = is_q ? q_in[(t * p.Hq + h) * p.D + partner] : k_in[(t * p.Hkv + (h - p.Hq)) * p.D + partner];
+    y = tid < half_rot ? x * cs - xp * sn : x * cs + xp * sn;
+  }
+
+  if (is_q) {
+    q_out[(t * p.Hq + h) * p.D + tid] = y;
+    // the interleaved [Hq][2][D] buffer attn_decode_reduce takes the gate from: the query at +0, and the per-head
+    // scalar broadcast across the channels at +D. The reference applies sigmoid(g) per head after attention
+    // (gate_score is built as [b, s, Hq, 1]), and the reduce does sigmoid() itself, so the raw scalar goes here.
+    const size_t o = (size_t(t) * p.Hq + h) * 2 * p.D;
+    qg_out[o + tid] = y;
+    qg_out[o + p.D + tid] = g_in[size_t(t) * p.g_ld + h];
+  } else {
+    kc[((h - p.Hq) * p.max_seq + pos) * p.D + tid] = half(y);
+  }
 }

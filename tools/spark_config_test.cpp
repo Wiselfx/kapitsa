@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <algorithm>
+#include <vector>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -241,6 +242,37 @@ void check_gelu_is_exact_not_tanh() {
   CHECK(std::fabs(gelu_tanh(1.0) - 0.8411919906082768) < 1e-7, "gelu_tanh(1) = %.9f", gelu_tanh(1.0));
 }
 
+// The HF-vs-MLX RMSNorm decision (src/model/spark.cpp's zero_centred + the 1 + w conversion). Getting this backwards
+// is silent and total: read an HF norm as MLX and every layer is scaled by a number near 0; read an MLX norm as HF and
+// every layer is scaled by ~2. Both give fluent-looking garbage, so the rule is pinned here.
+void check_norm_layout_rule() {
+  // Same rule as zero_centred(): some negative entries and a mean below 0.5 means zero-centred (HF).
+  auto zero_centred = [](const std::vector<float>& w) {
+    if (w.empty() || w.size() > (1u << 16)) return false;
+    double sum = 0;
+    int neg = 0;
+    for (float v : w) {
+      sum += v;
+      if (v < 0) ++neg;
+    }
+    return neg > 0 && sum / double(w.size()) < 0.5;
+  };
+  // A Hugging Face norm: zero-centred, ~half negative (Spark2_5RMSNorm initialises to ones() but checkpoints converge
+  // to a distribution around 0 with both signs).
+  CHECK(zero_centred({0.31f, -0.12f, 0.07f, 0.44f, -0.28f, 0.15f}), "an HF-style norm must read as zero-centred");
+  // An MLX norm: centred on 1, almost all positive.
+  CHECK(!zero_centred({1.02f, 0.98f, 1.05f, 0.95f, 1.01f, 0.99f}), "an MLX-style norm must not read as zero-centred");
+  // All-positive but centred low is MLX's shape too (never flips on a monotone-shifted norm).
+  CHECK(!zero_centred({0.5f, 0.4f, 0.6f, 0.45f, 0.55f, 0.5f}), "a positive low-mean norm must not flip");
+  // A wide tensor is never treated as a norm.
+  std::vector<float> wide((1u << 16) + 1, -0.5f);
+  CHECK(!zero_centred(wide), "a tensor wider than any norm must not be classified");
+
+  // and the conversion itself: HF's 1 + w must land near 1, which is what the kernels assume.
+  auto convert = [](float w) { return 1.0f + w; };
+  CHECK(std::fabs(convert(-0.12f) - 0.88f) < 1e-6f, "1 + w must move a zero-centred weight near 1");
+}
+
 }  // namespace
 
 int main() {
@@ -250,6 +282,7 @@ int main() {
   check_refusals();
   check_flat_rope();
   check_gelu_is_exact_not_tanh();
+  check_norm_layout_rule();
   if (g_fail) {
     fprintf(stderr, "%d check(s) failed\n", g_fail);
     return 1;

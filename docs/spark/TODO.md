@@ -31,8 +31,11 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 
 ## P3 — attention  [~]
 - [x] Per-layer `rot` (64 full / 256 sliding) and per-layer `theta` (5e6 / 1e4)
-- [x] All-ones q/k norm buffers (no q/k RMSNorm in this family)
-- [x] `spark_pack_qg` — builds the interleaved `[Hq][2][D]` q|gate layout `attn_prep` and its epilogue expect
+- [x] **`spark_attn_prep`** — Spark's own prologue (RoPE + q|gate packing + cache append). It replaces `attn_prep`,
+      which cannot be reused: that kernel *always* RMS-normalizes q and k, and Spark has no q/k norm at all (the
+      reference ropes the raw `q_k_v_proj` output; zero occurrences of `q_norm`/`k_norm` in modeling_spark.py).
+      Passing an all-ones weight does not disable it, and rescaling q and k by a common per-row factor changes
+      `softmax(q·k/√D)` — it is not a gauge freedom. The earlier "all-ones buffers" plan was wrong.
 - [x] Per-head sigmoid gate: one scalar broadcast over the head's 256 dims
 - [x] KV: 512-slot rings for sliding layers, full cache for full layers (`reserve` never grows a ring)
 - [x] Decode path end to end

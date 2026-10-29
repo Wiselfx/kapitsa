@@ -83,8 +83,9 @@ struct SparkGu {
   uint32_t n, ld;
 };
 
-struct SparkGate {  // spark_pack_qg
-  uint32_t Hq, D, T, g_ld;
+struct SparkPrep {  // spark_attn_prep: RoPE + the q|gate packing + the cache append
+  uint32_t T, Hq, Hkv, D, rot, pos, max_seq, g_ld;
+  float theta;
 };
 
 struct AttnPref {
