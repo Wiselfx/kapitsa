@@ -133,7 +133,7 @@ class Spark : public Model {
   size_t mem_budget_ = 0;
 
   // activations, one row
-  Buffer x_, xh_, qg_, kr_, vr_, qo_, qr_, ao_, gate_, gu_, mh_, logits_, part_o_, part_ml_, cand_v_, cand_i_, sprob_;
+  Buffer x_, xh_, stg_, kr_, vr_, qo_, qr_, qg_, ao_, gate_, gu_, mh_, logits_, part_o_, part_ml_, cand_v_, cand_i_, sprob_;
 };
 
 }  // namespace ni

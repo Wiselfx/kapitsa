@@ -374,15 +374,18 @@ void Spark::alloc_state() {
   const size_t H = size_t(cfg_.hidden), Q = size_t(cfg_.q_dim()), KV = size_t(cfg_.kv_dim());
   x_ = A(H * sizeof(float), "spark_x");
   xh_ = A(H * sizeof(uint16_t), "spark_xh");
-  // The interleaved [Hq][2][D] query|gate buffer attn_prep reads and attn_decode_reduce takes the gate from: 2*q_dim
-  // floats. Written by spark_attn_prep, read by attn_decode_reduce.
-  qg_ = A(size_t(2 * cfg_.q_dim()) * sizeof(float), "spark_qg");
+  // Four distinct buffers, because each step's output is another step's input and none of them can overlap:
+  //   stg_  the fused q_k_v_proj matvec's three row slices: q at +0, k at +q_dim, v at +q_dim + kv_dim (qkv_dim)
+  //   qr_   the roped dense q, [Hq][D], what attn_decode_partial multiplies
+  //   qg_   the interleaved [Hq][2][D] query|gate, what attn_decode_reduce takes the gate from (2*q_dim)
+  // stg_ and qr_ must differ (RoPE reads a partner lane, so rotating in place races); qr_ and qg_ must differ (the
+  // interleaved layout is twice as wide, so an in-place expansion writes what later heads still have to read).
+  stg_ = A(size_t(cfg_.qkv_dim()) * sizeof(float), "spark_stg");
   kr_ = A(KV * sizeof(float), "spark_kr");
   vr_ = A(KV * sizeof(float), "spark_vr");
-  qo_ = A(Q * sizeof(float), "spark_qo");  // the dense q as the fused matvec wrote it
-  // the roped q. Distinct from qo_ because spark_attn_prep reads a partner lane (tid +- rot/2) to rotate, so writing
-  // the result over its own input would let one thread's output corrupt another's rotation.
+  qo_ = A(Q * sizeof(float), "spark_qo");  // spare q scratch (prefill rows)
   qr_ = A(Q * sizeof(float), "spark_qr");
+  qg_ = A(size_t(2 * cfg_.q_dim()) * sizeof(float), "spark_qg");
   ao_ = A(Q * sizeof(float), "spark_ao");
   gate_ = A(size_t(cfg_.hq) * sizeof(float), "spark_gate");
   gu_ = A(size_t(cfg_.ffn) * sizeof(float) * 2, "spark_gu");
@@ -405,25 +408,43 @@ void Spark::alloc_state() {
 // covers every other format. Getting a name wrong here is a fatal "no such pipeline" only at run time, so this is
 // deliberately not copy-pasted per call site.
 Spark::Matvec Spark::matvec_pipe(const SparkLinear& W, bool norm, bool add) {
+  // The exact instantiation sets, read off the kernel sources. No _add_norm form exists anywhere, so `add` and `norm`
+  // are mutually exclusive by construction (the one place both are wanted -- out_proj's residual -- passes add only,
+  // because attention's output is already the normalized value it should add).
+  //
+  //   qmv.metal    qmv2_b4_g64_r{1,2,4}            plain, _add, _norm        (nothing for b8 plain/_add)
+  //                qmv2_b8_g64_r{1,2,4}            _norm only
+  //                qmv3_b4_r{2,4}                  plain, _norm (r2 _add)
+  //                qmv3_b8_r2                      plain, _add, _norm
+  //   wfmt.metal   qmvg_f16g64 | f{3,4,5,6,8}g64 | f4g32, each r2 plain, r2_add, r2_norm, r4 plain, r4_norm
+  //                (NI_WF_DECODE over NI_WF_NO8 / NI_WF_ALL; note r4 has no _add)
+  if (add && norm) fatal("Spark: no matvec instantiation combines a residual add with a folded norm");
   const bool huge = W.N >= 65536;
-  uint32_t rows = huge ? 4 : 2;
+  const std::string rows4 = huge ? "4" : "2";
   std::string name;
-  if (W.q4() || (W.q8() && norm && W.K <= 4096)) {
-    name = "qmv2_b" + std::to_string(W.bits) + "_g64_r" + std::to_string(rows);
+  if (W.q4()) {
     if (W.K > 4096) {
-      if (W.bits == 8 || add) rows = 2;
-      name = "qmv3_b" + std::to_string(W.bits) + "_r" + std::to_string(rows);
+      name = "qmv3_b4_r" + (add ? std::string("2") : rows4);
+    } else {
+      name = "qmv2_b4_g64_r" + rows4;
     }
   } else if (W.q8()) {
-    rows = 2;  // qmv3_b8_r2: the only 8-bit form without a folded norm
-    name = "qmv3_b8_r2";
+    if (!norm) {
+      name = "qmv3_b8_r2";  // the only 8-bit form without a folded norm
+      if (add) name += "_add";
+    } else if (W.K > 4096) {
+      name = "qmv3_b8_r2";
+    } else {
+      name = "qmv2_b8_g64_r" + rows4;
+    }
   } else {
-    if (add || (!huge && !norm)) rows = 2;
-    name = "qmvg_" + W.fmt() + "_r" + std::to_string(rows);
+    // qmvg carries the bf16 and 3/5/6-bit formats. Its _add form exists only at r2, so a wide matrix takes r2 too.
+    name = "qmvg_" + W.fmt() + "_r" + (add ? std::string("2") : rows4);
   }
   if (add) name += "_add";
-  if (norm) name += "_norm";
-  const uint32_t nsg = name.find("qmv3") == 0 ? 8 : (huge ? 4 : 8);
+  else if (norm) name += "_norm";
+  const uint32_t rows = name.find("_r4") != std::string::npos ? 4u : 2u;
+  const uint32_t nsg = 8;
   return Matvec{pipe(name), rows, nsg};
 }
 
@@ -459,8 +480,8 @@ void Spark::enc_head(Encoder& e, const Buffer& x, const Buffer& out) {
 }
 
 void Spark::enc_mlp(Encoder& e, const SparkLayer& L) {
-  // gate and up with the post-attention norm folded in, GELU-tanh folded in by Spark's own epilogue, then down added
-  // into x_.
+  // gate and up with the post-attention norm folded in (the norm is folded into the matvec, not applied separately),
+  // exact-GELU(gate) * up folded by Spark's own epilogue, then down added into x_ as the residual.
   auto matvec = [&](const SparkLinear& W, const Buffer& y, const Tensor* norm, const Buffer* resid) {
     const Matvec m = matvec_pipe(W, norm != nullptr, resid != nullptr);
     const uint32_t rows = m.rows, nsg = m.nsg;
@@ -472,6 +493,10 @@ void Spark::enc_mlp(Encoder& e, const SparkLayer& L) {
     e.buf(3, x_);
     e.buf(4, y);
     e.val(5, p);
+    // The _norm variants of qmv2/qmv3/qmvg take the RMSNorm weight in buffer 7 and normalize x on the fly
+    // (rms_ctx<1>(x, K, K, eps, lane) in qmv.metal); they do not write the normalized row anywhere. With `add` the
+    // residual comes in buffer 6. So the norm is folded for gate/up (which must not modify x_) and the add for down
+    // (which must), with no extra buffer and no flags.
     e.buf(6, resid ? *resid : y);
     e.buf(7, norm ? norm->buf : y);
     e.dispatch((W.N + rows * nsg - 1) / (rows * nsg), 1, 1, 32 * nsg);
@@ -525,7 +550,7 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
   };
   // The three slices land in their own buffers: spark_attn_prep below reads a *partner* lane to rotate, and writes the
   // interleaved [Hq][2][D] q|gate the reduce reads, so neither q nor k can be rotated in place.
-  rows(qo_, qd, 0);
+  rows(stg_, qd, 0);
   rows(kr_, kd, qd);
   rows(vr_, kd, qd + kd);
   // the per-head gate rows, which share the same normalized input
@@ -554,7 +579,7 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
     kp::SparkPrep pp{1,          uint32_t(cfg_.hq), uint32_t(cfg_.hkv), D, uint32_t(L.rot),
                      uint32_t(pos), uint32_t(rows_n), uint32_t(cfg_.hq), L.theta};
     e.use(pipe("spark_attn_prep"));
-    e.buf(0, qo_);
+    e.buf(0, stg_);  // dense q at the front, as the fused matvec left it
     e.buf(1, kr_);
     e.buf(2, vr_);
     e.buf(3, gate_);

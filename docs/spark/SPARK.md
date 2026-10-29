@@ -443,6 +443,29 @@ bug that reads as working code: a flag, a log line, and no consumer. Fixed with 
 precedent has so a mis-keyed wide tensor cannot flip the whole checkpoint's norm layout. Both the decision rule and
 the conversion now have a CPU test.
 
+### Defect 8 (would not have loaded): `_add_norm` combinations that no kernel defines
+
+`matvec_pipe` appended `_add` and `_norm` independently, so it could ask for `qmv3_b4_r2_add_norm` or
+`qmvg_f16g64_r2_add_norm`. **No kernel anywhere has both**: `qmv.metal` instantiates no `_add_norm` form, and
+`wfmt.metal`'s `NI_WF_DECODE` lists `r2`, `r4`, `r2_add`, `r2_norm`, `r4_norm` — note `r4` has no `_add` either. The
+rule also picked `qmv2_b8_g64_r2` for an 8-bit matrix with no folded norm, which does not exist (only `_norm` does).
+
+Rewritten against the instantiation lists read out of the two kernel sources, with `add`/`norm` made mutually exclusive
+by construction (the one place a residual and a norm are both involved, `out_proj`, passes `add` only because
+attention's output is already the normalized value). Note the bf16/3/5/6-bit path: only `r2` has an `_add`, so a wide
+matrix takes `r2` — my earlier `qmvg_f16g64_r2_add` guess was right by luck, not by rule.
+
+`tools/spark_config_test.cpp` now transcribes both the instantiation set **and** the selection rule and sweeps
+bits × K × N × mode (~570 combinations), asserting every name exists. Verified it fails when the rule is changed to
+emit the nonexistent `qmv2_b8_g64_r2`.
+
+### Defect 9 (latent, would have crashed): a staging buffer sized for q and used for q|k|v
+
+`qo_` (q_dim floats) was made the target of all three fused-matvec row slices, which need `qkv_dim`. Once the buffer
+roles were named (the code had one buffer serving three purposes under a comment that said "also used as scratch"),
+this was a one-line fix; it is listed because it is the same root cause as defects 2/3 — a rule expressed in several
+places at once.
+
 ### Still unverified, and honestly so
 
 Everything in §6 that needs a GPU. The QA pass raised confidence in the *host-side* logic (config, names, layouts,

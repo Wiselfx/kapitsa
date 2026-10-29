@@ -7,12 +7,12 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <cmath>
-#include <algorithm>
-#include <vector>
 #include <fstream>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -273,6 +273,63 @@ void check_norm_layout_rule() {
   CHECK(std::fabs(convert(-0.12f) - 0.88f) < 1e-6f, "1 + w must move a zero-centred weight near 1");
 }
 
+// Every matvec kernel name Spark's selection rule can emit must exist in the kernel sources. This is checked here, on
+// the CPU, because the alternative is finding out at run time as a "no such pipeline" on a Mac -- which is exactly how
+// two defects in this port were found. The list below is transcribed from qmv.metal's NI_QMV2/NI_QMV3 instantiations
+// and wfmt.metal's NI_WF_DECODE macro over NI_WF_NO8/NI_WF_ALL; the rule mirrors Spark::matvec_pipe, and if either
+// side changes without the other, this test fails.
+void check_matvec_names_exist() {
+  std::set<std::string> have;
+  for (int r : {1, 2, 4}) {
+    have.insert("qmv2_b4_g64_r" + std::to_string(r));
+    have.insert("qmv2_b4_g64_r" + std::to_string(r) + "_add");
+    have.insert("qmv2_b4_g64_r" + std::to_string(r) + "_norm");
+    have.insert("qmv2_b8_g64_r" + std::to_string(r) + "_norm");
+  }
+  for (const char* n : {"qmv3_b4_r2", "qmv3_b4_r4", "qmv3_b4_r2_add", "qmv3_b4_r2_norm", "qmv3_b4_r4_norm",
+                        "qmv3_b8_r2", "qmv3_b8_r2_add", "qmv3_b8_r2_norm"})
+    have.insert(n);
+  for (const char* f : {"f16g64", "f8g64", "f6g64", "f5g64", "f3g64", "f4g32"})
+    for (const char* r : {"r2", "r2_add", "r2_norm", "r4", "r4_norm"}) have.insert(std::string("qmvg_") + f + "_" + r);
+
+  // Spark::matvec_pipe's rule, transcribed. Note it never emits _add_norm: no such instantiation exists anywhere.
+  auto pick = [](int bits, int K, int N, bool norm, bool add) {
+    if (add && norm) return std::string("INVALID");
+    const std::string rows4 = N >= 65536 ? "4" : "2";
+    std::string name, suffix = add ? "_add" : (norm ? "_norm" : "");
+    if (bits == 4) {
+      name = K > 4096 ? "qmv3_b4_r" + std::string(add ? "2" : rows4) : "qmv2_b4_g64_r" + rows4;
+    } else if (bits == 8) {
+      if (!norm) {
+        name = "qmv3_b8_r2";
+        suffix = add ? "_add" : "";
+      } else {
+        name = K > 4096 ? "qmv3_b8_r2" : "qmv2_b8_g64_r" + rows4;
+      }
+    } else {
+      name = "qmvg_f" + std::to_string(bits) + "g64_r" + (add ? std::string("2") : rows4);
+    }
+    return name + suffix;
+  };
+
+  int checked = 0;
+  for (int bits : {4, 8, 16, 6, 5, 3}) {
+    for (int K : {2048, 2560, 6656, 10240}) {
+      for (int N : {128, 1024, 3072, 6144, 10240, 16384, 65536, 131072}) {
+        for (int mode = 0; mode < 3; ++mode) {  // 0 norm, 1 add, 2 neither
+          const std::string n = pick(bits, K, N, mode == 0, mode == 1);
+          ++checked;
+          CHECK(have.count(n) != 0, "matvec_pipe would ask for %s (bits %d, K %d, N %d), which no kernel defines",
+                n.c_str(), bits, K, N);
+        }
+      }
+    }
+  }
+  CHECK(checked > 400, "the matvec sweep only covered %d combinations", checked);
+  // and the combination that does not exist must be refused rather than emitted
+  CHECK(pick(4, 2560, 2560, true, true) == "INVALID", "_add_norm must be refused: no kernel has both");
+}
+
 }  // namespace
 
 int main() {
@@ -283,6 +340,7 @@ int main() {
   check_flat_rope();
   check_gelu_is_exact_not_tanh();
   check_norm_layout_rule();
+  check_matvec_names_exist();
   if (g_fail) {
     fprintf(stderr, "%d check(s) failed\n", g_fail);
     return 1;
