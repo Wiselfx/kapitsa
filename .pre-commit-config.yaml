@@ -15,7 +15,8 @@ repos:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
         files: ^(src|tools|tests|cmake|packaging|\.github)/|^(CMakeLists\.txt|install\.sh|[A-Z]+\.md)$|^docs/.*\.md$|\.(py|sh)$
-        exclude: ^bench/
+        # A patch's blank context lines are a single space: trimming them stops the patch applying.
+        exclude: ^bench/|^packaging/splash/patches/
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.21
     hooks:

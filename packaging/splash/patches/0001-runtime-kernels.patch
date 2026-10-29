@@ -1,0 +1,95 @@
+This file changes Splash by Inco (https://github.com/incoai/splash), licensed under the Apache License 2.0 (the text
+is in Kapitsa's LICENSE). Modified by Nace AI, 2026. Splash loads extra Metal kernels from the .metal files in the directory SPLASH_KSX_KERNELS names. Unset: no change.
+packaging/splash/build.py applies it, after the patches numbered before it, to the commit in pin.json.
+Every file it changes gets a "Modified by Nace AI" line, and every change is marked KSX.
+
+From 68d4d501253603501d294d44df2219118ae76b1d Mon Sep 17 00:00:00 2001
+From: Alisher Amantay <alish@nace.ai>
+Date: Thu, 29 Oct 2026 23:31:50 +0500
+Subject: [PATCH 1/2] Load extra Metal kernels from SPLASH_KSX_KERNELS at run
+ time (off when unset)
+
+---
+ runtime/metal/MetalBackend.mm | 34 +++++++++++++++++++++++++++++++++-
+ 1 file changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/runtime/metal/MetalBackend.mm b/runtime/metal/MetalBackend.mm
+index 9d5ad0f6..b80a874c 100644
+--- a/runtime/metal/MetalBackend.mm
++++ b/runtime/metal/MetalBackend.mm
+@@ -1,3 +1,4 @@
++// Modified by Nace AI for Kapitsa (KFlash engine build): the changes are marked KSX. Apache License 2.0, see LICENSE.
+ #import "MetalBackend.hpp"
+ #include "AwakeClock.hpp"
+ #include "CommandWatchdog.hpp"
+@@ -19,6 +20,8 @@
+ #include <chrono>
+ #include <cmath>
+ #include <condition_variable>
++#include <cstdio>
++#include <cstdlib>
+ #include <cstring>
+ #include <deque>
+ #include <filesystem>
+@@ -28,6 +31,7 @@
+ #include <new>
+ #include <optional>
+ #include <sstream>
++#include <vector>
+ #include <string_view>
+ #include <thread>
+ #include <unordered_map>
+@@ -940,6 +944,9 @@ explicit Impl(double commandTimeoutSeconds)
+     // Allocations hold it weakly: they may outlive the backend.
+     std::shared_ptr<Residency> residency;
+     __strong id<MTLLibrary> library = nil;
++    // KSX (local Kapitsa patch set): libraries compiled at startup from the flattened .metal sources in
++    // $SPLASH_KSX_KERNELS; their functions replace the metallib's of the same name. Unset = Splash 1.4.0.
++    std::vector<id<MTLLibrary>> overrides;
+     // Looked up for every dispatch when its command is prepared, which the
+     // GPU may be waiting for; a hit allocates nothing. Used only by the
+     // submitting thread.
+@@ -995,7 +1002,13 @@ void markUnhealthy(std::string reason) {
+         }
+         if (const auto cached = pipelines.find(name); cached != pipelines.end())
+             return cached->second;
+-        id<MTLComputePipelineState> result = newPipeline(library, name);
++        id<MTLLibrary> from = library;
++        for (id<MTLLibrary> candidate : overrides)
++            if ([candidate.functionNames containsObject:checkedNSString(name, "pipeline name")]) {
++                from = candidate;
++                break;
++            }
++        id<MTLComputePipelineState> result = newPipeline(from, name);
+         pipelines.emplace(name, result);
+         sampleDeviceMemory();
+         return result;
+@@ -1695,6 +1708,25 @@ CommandTicket submitProfiled(std::span<const ComputeDispatch> dispatches,
+                     DISPATCH_AUTORELEASE_FREQUENCY_WORK_ITEM))];
+ 
+         impl_->library = loadLibrary(impl_->device, metallibPath);
++        if (const char *dir = std::getenv("SPLASH_KSX_KERNELS"); dir && *dir) {
++            MTLCompileOptions *options = [MTLCompileOptions new];
++            options.languageVersion = static_cast<MTLLanguageVersion>(4 << 16);
++            std::vector<std::filesystem::path> files;
++            for (const auto &entry : std::filesystem::directory_iterator(dir))
++                if (entry.path().extension() == ".metal") files.push_back(entry.path());
++            std::sort(files.begin(), files.end());
++            for (const auto &file : files) {
++                NSError *error = nil;
++                NSString *text = [NSString stringWithContentsOfFile:checkedNSString(file.string(), "kernel source")
++                                                           encoding:NSUTF8StringEncoding error:&error];
++                id<MTLLibrary> override = text ? [impl_->device newLibraryWithSource:text options:options error:&error] : nil;
++                if (!override)
++                    throw MetalBackendError("ksx: unable to compile " + file.string() + ": " + errorDescription(error));
++                impl_->overrides.push_back(override);
++                std::fprintf(stderr, "ksx: SPLASH_KSX_KERNELS (stock off): %s overrides %lu functions\n",
++                             file.filename().c_str(), static_cast<unsigned long>(override.functionNames.count));
++            }
++        }
+         impl_->hostStepLibraryPath =
+             std::filesystem::path(metallibPath).replace_filename(kHostStepLibrary).string();
+         // Ending residency dispatches a kernel built here, so no pipeline or
+-- 
+2.50.1 (Apple Git-155)
+

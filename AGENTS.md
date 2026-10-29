@@ -61,6 +61,7 @@ python3 tests/test_update.py build
 python3 tests/test_community.py build        # needs: jsonschema
 python3 tests/test_reasoning.py
 python3 tests/test_pr_size.py
+python3 tests/test_splash_patches.py --apply   # packaging/splash/: clones Splash and applies the patches; no build
 python3 tests/test_logit_compare.py
 python3 tests/test_logit_dump.py build      # its output directory only, before the lock and the model
 python3 tests/test_structured.py --cli build    # with a model folder's tokenizer when one is downloaded

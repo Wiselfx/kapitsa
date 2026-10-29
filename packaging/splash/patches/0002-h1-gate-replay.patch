@@ -1,0 +1,1076 @@
+This file changes Splash by Inco (https://github.com/incoai/splash), licensed under the Apache License 2.0 (the text
+is in Kapitsa's LICENSE). Modified by Nace AI, 2026. H1=3. A decode step's expert-load host step runs inside the command buffer, and a GPU gate replays the rest
+of the command when the CPU did not release the step in time. Off unless SPLASH_KSX_H1=3 and SPLASH_KSX_KERNELS are set.
+packaging/splash/build.py applies it, after the patches numbered before it, to the commit in pin.json.
+Every file it changes gets a "Modified by Nace AI" line, and every change is marked KSX.
+
+From 351424273b8d6ac5b959f52297d047c1799a4ea5 Mon Sep 17 00:00:00 2001
+From: Alisher Amantay <alish@nace.ai>
+Date: Thu, 29 Oct 2026 23:31:50 +0500
+Subject: [PATCH 2/2] H1=3: decode host steps inside the command buffer with
+ gate-and-replay (off unless SPLASH_KSX_H1=3)
+
+---
+ runtime/metal/CommandGraph.hpp |   8 +
+ runtime/metal/MetalBackend.hpp |  27 ++
+ runtime/metal/MetalBackend.mm  | 524 ++++++++++++++++++++++++++++++++-
+ runtime/model/ExpertStore.cpp  | 172 ++++++++++-
+ runtime/model/Runtime.cpp      |   9 +-
+ 5 files changed, 715 insertions(+), 25 deletions(-)
+
+diff --git a/runtime/metal/CommandGraph.hpp b/runtime/metal/CommandGraph.hpp
+index f11ff717..382c764a 100644
+--- a/runtime/metal/CommandGraph.hpp
++++ b/runtime/metal/CommandGraph.hpp
+@@ -1,3 +1,4 @@
++// Modified by Nace AI for Kapitsa (KFlash engine build): the changes are marked KSX. Apache License 2.0, see LICENSE.
+ #pragma once
+ 
+ #include "MetalBackend.hpp"
+@@ -79,6 +80,13 @@ public:
+     events_.push_back({dispatches_.size(), {}, 0, EventStep::Kind::Host, std::move(work), std::move(timed), gpu,
+                        std::move(then)});
+   }
++  // KSX H1: a host step with handshake words (EventStep::ksxCtl).
++  void hostKsx(std::function<void()> work, std::function<void(const HostStepTiming &)> timed, HostStepGpu gpu,
++               std::function<void()> then, uint32_t *ctl, uint32_t step) {
++    host(std::move(work), std::move(timed), gpu, std::move(then));
++    events_.back().ksxCtl = ctl;
++    events_.back().ksxStep = step;
++  }
+ 
+   [[nodiscard]] bool empty() const noexcept { return dispatches_.empty(); }
+   // The dispatches alone; command() has the event steps too.
+diff --git a/runtime/metal/MetalBackend.hpp b/runtime/metal/MetalBackend.hpp
+index 9119da01..69230865 100644
+--- a/runtime/metal/MetalBackend.hpp
++++ b/runtime/metal/MetalBackend.hpp
+@@ -1,3 +1,4 @@
++// Modified by Nace AI for Kapitsa (KFlash engine build): the changes are marked KSX. Apache License 2.0, see LICENSE.
+ #pragma once
+ 
+ #include "metal/DeviceCapabilities.hpp"
+@@ -189,6 +190,25 @@ struct HostStepTiming {
+ enum class HostStepGpu : uint8_t {
+   Idle,
+   Awake,
++  // KSX H1 (local Kapitsa patch 0014, SPLASH_KSX_H1=1; stock never uses it): the step stays inside the command
++  // buffer. The dispatch right after it (ksx_h1_step) writes EventStep::ksxStep into ksxCtl[0] once the work before
++  // it completed and spins until the runner, after `work`, writes it into ksxCtl[1]; on its spin bound it writes it
++  // into ksxCtl[2] and goes on, and the command then fails and marks the backend unhealthy.
++  InBuffer,
++  // KSX H1 with the event-path fallback (SPLASH_KSX_H1=2): the dispatch right before the step (ksx_h1_step) writes
++  // ksxStep into ksxCtl[0] and spins until ksxCtl[1] reaches it, on its bound counting into ksxCtl[3] and going on;
++  // the step then ends the buffer, and the next one waits on the runner's event as an idle step's does, so a spin
++  // that gave up costs time, not correctness. The runner picks the step up from ksxCtl[0].
++  InBufferEvent,
++  // KSX H1 gate and replay (SPLASH_KSX_H1=3): as InBuffer, but ksx_h1_step runs as ksx_h1_gate_step, and every
++  // dispatch after the command's first such step reads its grid from the command's gate table (or its own indirect
++  // grid, which must be GPU-written). On its spin bound the step writes its number into ksxCtl[2], skips its copy-in,
++  // zeroes the gate slots of every later dispatch and the indirect grids they read (saved first), and the runner
++  // skips every later host step; once the command completed, the backend restores the grids and encodes the command
++  // again from that ksx_h1_step on, its later in-buffer steps as awake event steps. A step runs in-buffer only when
++  // the command holds its graph (Command::keepAlive), signals no other agent after it, and is not its first host
++  // step; otherwise it runs as an awake event step.
++  InBufferGate,
+ };
+ 
+ // Orders a command against another agent, such as the Neural Engine, after
+@@ -249,6 +269,10 @@ struct EventStep {
+   std::function<void(const HostStepTiming &)> timed{};
+   HostStepGpu gpu = HostStepGpu::Idle;
+   std::function<void()> then{};
++  // KSX H1: the step's handshake words (Shared memory) and its number, for HostStepGpu::InBuffer; for any other host
++  // step that sets them the runner also writes ksxStep into ksxCtl[1] once the work returned.
++  uint32_t *ksxCtl = nullptr;
++  uint32_t ksxStep = 0;
+ };
+ 
+ // What one submission encodes: its dispatches in order, and the event steps
+@@ -256,6 +280,9 @@ struct EventStep {
+ struct Command {
+   std::span<const ComputeDispatch> dispatches;
+   std::span<const EventStep> events;
++  // KSX H1=3: owns what the spans point into until the command completed, so that the backend may encode its tail
++  // again (HostStepGpu::InBufferGate); null for a command that does not outlive submission.
++  std::shared_ptr<const void> keepAlive{};
+ };
+ 
+ struct CommandTiming {
+diff --git a/runtime/metal/MetalBackend.mm b/runtime/metal/MetalBackend.mm
+index b80a874c..2d5a5cb8 100644
+--- a/runtime/metal/MetalBackend.mm
++++ b/runtime/metal/MetalBackend.mm
+@@ -159,6 +159,28 @@ bool multiplyOverflows(uint64_t left, uint64_t right) {
+ // The most loads host_step_wait spins for: 60-190 ms on the M5 Max (0.23-0.71
+ // us a load), longer than nearly every step's work.
+ constexpr uint32_t kHostStepWaitLoads = 1u << 18;
++// KSX H1: in-buffer steps encoded, and those run as awake ones (their command's first); reported at exit.
++std::atomic<uint64_t> ksxInBufferSteps{0}, ksxAwakeFallbacks{0}, ksxEventSteps{0};
++// KSX H1=3: commands replayed after a gate step gave up, and those with gate steps that could not be gated.
++std::atomic<uint64_t> ksxReplays{0}, ksxUngated{0};
++// KSX H1=2: the handshake words, whose [3] counts the spins that gave up.
++std::atomic<uint32_t *> ksxEventCtl{nullptr};
++struct KsxH1Report {
++    ~KsxH1Report() {
++        if (const uint64_t n = ksxEventSteps.load())
++            std::fprintf(stderr, "ksx: H1 event-fallback steps %llu, GPU spins that gave up %u\n",
++                         static_cast<unsigned long long>(n), ksxEventCtl.load() ? ksxEventCtl.load()[3] : 0u);
++        if (ksxReplays.load() || ksxUngated.load())
++            std::fprintf(stderr, "ksx: H1=3 replays %llu, ungated commands %llu\n",
++                         static_cast<unsigned long long>(ksxReplays.load()),
++                         static_cast<unsigned long long>(ksxUngated.load()));
++        if (const uint64_t n = ksxInBufferSteps.load() + ksxAwakeFallbacks.load())
++            std::fprintf(stderr, "ksx: H1 steps in-buffer %llu, awake fallback %llu (of %llu)\n",
++                         static_cast<unsigned long long>(ksxInBufferSteps.load()),
++                         static_cast<unsigned long long>(ksxAwakeFallbacks.load()),
++                         static_cast<unsigned long long>(n));
++    }
++} ksxH1Report;
+ // Where in the spin's release buffer (HostStepSpin) host_step_wait writes the
+ // release it saw and the loads it made before: a cache line past the counter
+ // the CPU raises (word 0).
+@@ -176,7 +198,10 @@ NSUInteger addedBuffers(const EventStep &step) noexcept {
+     switch (step.kind) {
+     case EventStep::Kind::Signal: return 1;
+     case EventStep::Kind::Wait: return 0;
+-    case EventStep::Kind::Host: return step.gpu == HostStepGpu::Awake ? 2 : 1;
++    case EventStep::Kind::Host:
++        // KSX H1: an in-buffer step adds none, but runs as an awake one
++        // when it would be its command's first (encodeSteps).
++        return step.gpu == HostStepGpu::Idle || step.gpu == HostStepGpu::InBufferEvent ? 1 : 2;
+     }
+     return 0;
+ }
+@@ -194,6 +219,10 @@ throw MetalBackendError(step.kind == EventStep::Kind::Host
+                                         : "event step needs an event and a nonzero value");
+         if (step.gpu == HostStepGpu::Awake && step.kind != EventStep::Kind::Host)
+             throw MetalBackendError("only a host step keeps the GPU awake");
++        if ((step.gpu == HostStepGpu::InBuffer || step.gpu == HostStepGpu::InBufferEvent ||
++             step.gpu == HostStepGpu::InBufferGate) &&
++            (step.kind != EventStep::Kind::Host || !step.ksxCtl))
++            throw MetalBackendError("ksx: an in-buffer step is a host step with handshake words");
+         if (step.before < before)
+             throw MetalBackendError("event steps are out of dispatch order");
+         if (step.before > dispatches)
+@@ -434,6 +463,19 @@ void completeSubmission(uint64_t sequence) noexcept {
+ 
+     // A host step of the command was taken up or returned at nowSeconds
+     // (CommandWatchdog).
++    // KSX H1=3: commits `command`, a replay's last buffer (Impl::ksxReplayTail), as the command's last in place of
++    // the one that completed, for the watchdog.
++    void retargetSubmission(uint64_t sequence, id<MTLCommandBuffer> command,
++                            std::function<void(id<MTLCommandBuffer>)> completion) {
++        std::lock_guard lock(gateMutex);
++        if (activeSequence == sequence) {
++            activeCommand = command;
++            activeCompletion = std::move(completion);
++            commandWatchdog.progress(sequence, awakeSeconds());
++        }
++        [command commit];
++    }
++
+     void progressSubmission(uint64_t sequence, double nowSeconds) noexcept {
+         std::lock_guard lock(gateMutex);
+         commandWatchdog.progress(sequence, nowSeconds);
+@@ -530,6 +572,13 @@ void checkCommandHealth() {
+         // The release counter's value past the step, when the GPU spins
+         // through it.
+         std::optional<uint32_t> release;
++        // KSX H1 (EventStep::ksxCtl): the handshake words, and whether the
++        // step stays inside its buffer (HostStepGpu::InBuffer).
++        uint32_t *ksxCtl = nullptr;
++        uint32_t ksxStep = 0;
++        bool inBuffer = false;
++        // KSX H1=3: the last in-buffer gate step's number at or before this step (0 before the first).
++        uint32_t ksxGateAt = 0;
+     };
+     __strong id<MTLSharedEvent> readyEvent = nil, ranEvent = nil;
+     std::shared_ptr<BackendAsyncState> backend;
+@@ -540,6 +589,29 @@ void checkCommandHealth() {
+     // A deque, so that the runner holds on to a step while the submission
+     // appends the next.
+     std::deque<Step> steps;
++    // KSX H1: set when the command's encoding failed, so that the runner stops
++    // waiting for an in-buffer step whose buffer is never committed.
++    std::atomic<bool> encodingFailed{false};
++    // KSX H1=3 (HostStepGpu::InBufferGate): the handshake words of the command's in-buffer gate steps, and the
++    // first one's number; null without one.
++    uint32_t *ksxGateCtl = nullptr;
++    uint32_t ksxGateFirst = 0;
++    // The last gate step encoded so far, which each step encoded after it takes as its ksxGateAt (submission's).
++    uint32_t ksxGateAt = 0;
++    // The step number a gate step of this command gave up at (ctl[2]), or 0.
++    [[nodiscard]] uint32_t ksxGaveUp() const noexcept {
++        if (!ksxGateCtl) return 0;
++        const uint32_t at = __atomic_load_n(&ksxGateCtl[2], __ATOMIC_ACQUIRE);
++        return static_cast<int32_t>(at - ksxGateFirst) >= 0 ? at : 0;
++    }
++    // Whether a gate step at or before `step` gave up: the GPU skipped the work after it, which the backend
++    // encodes again once the command completed, with the steps after it.
++    [[nodiscard]] bool ksxSkipped(const Step &step) const noexcept {
++        if (!step.ksxGateAt) return false;
++        const uint32_t at = ksxGaveUp();
++        return at && static_cast<int32_t>(step.ksxGateAt - at) >= 0 &&
++               !(step.inBuffer && step.ksxStep == at);
++    }
+     std::mutex mutex;
+     std::string failure;
+     // Whether report() handed the round trips on: a command whose late
+@@ -553,6 +625,21 @@ void fail(std::string message) {
+         std::lock_guard lock(mutex);
+         if (failure.empty()) failure = std::move(message);
+     }
++    // KSX H1: fails the command when the GPU spin of one of its in-buffer
++    // steps reached its bound (ksx_h1_step wrote the step into ctl[2]): the
++    // work after it ran on what the buffers held before the CPU's writes.
++    void checkKsxSpins() {
++        uint32_t *ctl = nullptr;
++        {
++            std::lock_guard lock(mutex);
++            for (const Step &step : steps)
++                if (step.inBuffer) ctl = step.ksxCtl;
++        }
++        if (!ctl || ksxGateCtl) return;
++        if (const uint32_t gaveUp = __atomic_load_n(&ctl[2], __ATOMIC_ACQUIRE))
++            fail("ksx H1: the GPU spin of in-buffer host step " + std::to_string(gaveUp) +
++                 " reached its bound before the CPU released it (SPLASH_KSX_H1_SPIN)");
++    }
+     [[nodiscard]] std::string firstFailure() {
+         std::lock_guard lock(mutex);
+         return failure;
+@@ -675,6 +762,23 @@ bool reached(id<MTLSharedEvent> event, uint64_t value, id<MTLCommandBuffer> befo
+         return true;
+     }
+ 
++    // KSX H1: whether the GPU reached in-buffer step `step` (ksx_h1_step
++    // wrote it into ctl[0]) before the runner was stopped, the buffer failed
++    // or its encoding was given up.
++    bool reachedInBuffer(const HostSteps &steps, const HostSteps::Step &step, id<MTLCommandBuffer> before) const {
++        const auto ended = [&] {
++            return stopping_ || steps.encodingFailed.load(std::memory_order_acquire) ||
++                   before.status == MTLCommandBufferStatusError;
++        };
++        const auto spinEnd = AwakeClock::now() + kHostStepSpin;
++        for (uint64_t polls = 0;; ++polls) {
++            if (static_cast<int32_t>(__atomic_load_n(&step.ksxCtl[0], __ATOMIC_ACQUIRE) - step.ksxStep) >= 0)
++                return true;
++            if ((polls & 255) == 0 && (ended() || steps.ksxSkipped(step))) return false;
++            if (AwakeClock::now() >= spinEnd) std::this_thread::sleep_for(std::chrono::microseconds(50));
++        }
++    }
++
+     void run() {
+         pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+         for (;;) {
+@@ -694,8 +798,10 @@ void run() {
+                 std::optional<double> returned;
+                 // A halted command's step still waits for the work before
+                 // it, which the event's value then follows.
+-                const bool ready = before && reached(steps.readyEvent, step.ready, before) &&
+-                                   before.status != MTLCommandBufferStatusError;
++                const bool ready = before &&
++                                   (step.inBuffer ? reachedInBuffer(steps, step, before)
++                                                  : reached(steps.readyEvent, step.ready, before)) &&
++                                   before.status != MTLCommandBufferStatusError && !steps.ksxSkipped(step);
+                 if (ready && !steps.halted) {
+                     const double pickup = awakeSeconds();
+                     steps.backend->progressSubmission(steps.sequence, pickup);
+@@ -713,6 +819,7 @@ void run() {
+                     steps.fail("host step not run: the backend stopped");
+                 }
+                 if (!worked) steps.halted = true;
++                if (step.ksxCtl) __atomic_store_n(&step.ksxCtl[1], step.ksxStep, __ATOMIC_RELEASE);
+                 steps.ranEvent.signaledValue = step.ready;
+                 if (step.release) release(steps.releases, *step.release);
+                 // The step's return moves the deadline once the GPU went on.
+@@ -766,8 +873,40 @@ void run() {
+     std::string error;
+     bool completed = false;
+     bool released = false;
++    // KSX H1=3 (HostStepGpu::InBufferGate): the command's last buffer, which a replay replaces; the replay, set
++    // while the command may need one (Impl::ksxReplayTail); the host steps before a replay; and why it failed.
++    std::mutex ksxMutex;
++    __strong id<MTLCommandBuffer> ksxFinal = nil;
++    std::function<void(State &)> ksxReplay;
++    std::vector<std::shared_ptr<HostSteps>> ksxEarlierSteps;
++    std::string ksxReplayFailure;
++
++    // KSX H1=3: once the command's buffers completed after one of its gate steps gave up, encodes and commits the
++    // rest of the command again, whose last buffer finishes it; true then.
++    bool ksxReplayed(id<MTLCommandBuffer> command) {
++        std::lock_guard lock(ksxMutex);
++        // A late callback or the watchdog for a buffer that a replay replaced.
++        if (ksxFinal && command != ksxFinal) return true;
++        if (!ksxReplay || !hostSteps || !hostSteps->ksxGaveUp()) return false;
++        auto replay = std::move(ksxReplay);
++        ksxReplay = nullptr;
++        bool clean = command.status == MTLCommandBufferStatusCompleted && hostSteps->firstFailure().empty();
++        for (id<MTLCommandBuffer> earlier : leadingCommands)
++            clean = clean && earlier.status != MTLCommandBufferStatusError;
++        if (!clean) return false;
++        try {
++            replay(*this);
++            return true;
++        } catch (const std::exception &failure) {
++            ksxReplayFailure = std::string("ksx H1=3: the replay after a gate step failed: ") + failure.what();
++        } catch (...) {
++            ksxReplayFailure = "ksx H1=3: the replay after a gate step failed";
++        }
++        return false;
++    }
+ 
+     void finishCommand(id<MTLCommandBuffer> command) {
++        if (ksxReplayed(command)) return;
+         auto wallEnd = AwakeClock::now();
+         CommandTiming timing;
+         const double gpuStart = leadingCommands.empty()
+@@ -793,7 +932,11 @@ void finishCommand(id<MTLCommandBuffer> command) {
+                 break;
+             }
+         }
+-        const std::string host = hostSteps ? hostSteps->firstFailure() : std::string();
++        if (hostSteps) hostSteps->checkKsxSpins();
++        std::string host = ksxReplayFailure;
++        for (const auto &earlier : ksxEarlierSteps)
++            if (host.empty()) host = earlier->firstFailure();
++        if (host.empty() && hostSteps) host = hostSteps->firstFailure();
+         if (failed || !host.empty()) {
+             std::ostringstream message;
+             message << "Metal command " << sequence << " failed";
+@@ -805,9 +948,10 @@ void finishCommand(id<MTLCommandBuffer> command) {
+             if (hostSteps) message << hostSteps->longest();
+             error = message.str();
+         }
+-        if (hostSteps && error.empty()) {
++        if ((hostSteps || !ksxEarlierSteps.empty()) && error.empty()) {
+             try {
+-                timing.hostSeconds = hostSteps->report();
++                for (const auto &earlier : ksxEarlierSteps) timing.hostSeconds += earlier->report();
++                if (hostSteps) timing.hostSeconds += hostSteps->report();
+             } catch (...) {
+                 backend->markUnhealthy("Metal host step timing callback threw an exception");
+             }
+@@ -947,6 +1091,160 @@ explicit Impl(double commandTimeoutSeconds)
+     // KSX (local Kapitsa patch set): libraries compiled at startup from the flattened .metal sources in
+     // $SPLASH_KSX_KERNELS; their functions replace the metallib's of the same name. Unset = Splash 1.4.0.
+     std::vector<id<MTLLibrary>> overrides;
++    // KSX H1=3 (HostStepGpu::InBufferGate): the gate buffer (ksx_h1_gate_step: saved grids, then a slot per
++    // dispatch from the command's first gate step), its pipelines, and whether the first gated command was logged.
++    static constexpr uint32_t kKsxGateGrids = 8, kKsxGateBase = 32;
++    __strong id<MTLBuffer> ksxGateBuffer = nil;
++    __strong id<MTLComputePipelineState> ksxGatePipeline = nil, ksxStepPipeline = nil, ksxRestorePipeline = nil;
++    bool ksxGateLogged = false;
++    struct KsxGateParams {
++        uint32_t slot = 0, slots = 0, grids = 0;
++    };
++    // A gate step that stays in its buffer: its event and gate dispatch, its number, and the indirect grids that
++    // dispatches after its own read, which it zeroes when it gives up.
++    struct KsxGate {
++        size_t event = 0, dispatch = 0;
++        uint32_t step = 0;
++        KsxGateParams params;
++        __strong id<MTLBuffer> gridBuffers[kKsxGateGrids];
++        NSUInteger gridOffsets[kKsxGateGrids] = {};
++    };
++    // What a replay encodes again: the command (its graph held by keepAlive) and its gate steps.
++    struct KsxReplayData {
++        std::shared_ptr<const void> keepAlive;
++        std::vector<PreparedDispatch> dispatches;
++        std::span<const EventStep> events;
++        std::vector<KsxGate> gates;
++        __strong id<MTLBuffer> gateBuffer = nil;
++        __strong id<MTLComputePipelineState> gatePipeline = nil, stepPipeline = nil, restorePipeline = nil;
++        std::weak_ptr<CommandTicket::State> ticket;
++    };
++
++    // Binds the gate buffer, gate's grids and its parameters (buffers 20..29 of ksx_h1_gate_step, ksx_h1_restore).
++    static void bindKsxGate(id<MTLComputeCommandEncoder> encoder, id<MTLBuffer> gateBuffer, const KsxGate &gate) {
++        [encoder setBuffer:gateBuffer offset:0 atIndex:20];
++        for (uint32_t k = 0; k < kKsxGateGrids; ++k) {
++            if (k < gate.params.grids)
++                [encoder setBuffer:gate.gridBuffers[k] offset:gate.gridOffsets[k] atIndex:21 + k];
++            else
++                [encoder setBuffer:gateBuffer offset:0 atIndex:21 + k];
++        }
++        [encoder setBytes:&gate.params length:sizeof(gate.params) atIndex:29];
++    }
++
++    // Sets a prepared dispatch's pipeline, buffers and bytes.
++    static void bindDispatch(id<MTLComputeCommandEncoder> encoder, const PreparedDispatch &item,
++                             id<MTLComputePipelineState> pipeline) {
++        __unsafe_unretained id<MTLBuffer> buffers[kBufferArgumentEntries];
++        NSUInteger offsets[kBufferArgumentEntries];
++        const ComputeDispatch &dispatch = *item.source;
++        [encoder setComputePipelineState:pipeline];
++        for (const BufferBinding &binding : dispatch.buffers) {
++            const MetalBuffer::Impl &buffer = *binding.buffer.impl_;
++            buffers[binding.index] = buffer.allocation->buffer;
++            offsets[binding.index] = buffer.offsetBytes;
++        }
++        // One call per run of consecutive entries: a command graph's
++        // dispatch binds a single run.
++        for (uint32_t unbound = item.bufferIndices; unbound;) {
++            const uint32_t first = std::countr_zero(unbound);
++            const uint32_t count = std::countr_one(unbound >> first);
++            [encoder setBuffers:buffers + first offsets:offsets + first withRange:NSMakeRange(first, count)];
++            unbound &= ~(((uint32_t{1} << count) - 1) << first);
++        }
++        for (const BytesBinding &binding : dispatch.bytes)
++            [encoder setBytes:binding.data length:binding.sizeBytes atIndex:binding.index];
++    }
++
++    static void dispatchPrepared(id<MTLComputeCommandEncoder> encoder, const PreparedDispatch &item) {
++        const IndirectGrid &grid = item.source->indirectThreadgroups;
++        if (grid.buffer) {
++            const MetalBuffer::Impl &arguments = *grid.buffer.impl_;
++            [encoder dispatchThreadgroupsWithIndirectBuffer:arguments.allocation->buffer
++                                       indirectBufferOffset:arguments.offsetBytes + grid.offsetBytes
++                                      threadsPerThreadgroup:item.threads];
++        } else {
++            [encoder dispatchThreadgroups:item.groups threadsPerThreadgroup:item.threads];
++        }
++    }
++
++    // KSX H1=3: on the completion thread, once a command's buffers completed after its gate step S gave up
++    // (ksx_h1_gate_step skipped every dispatch after its own): encodes the command again from S's dispatch, run as
++    // ksx_h1_step, after S's work (a wait on its ranEvent) and the restore of the grids S zeroed, every later
++    // in-buffer step as an awake one, and commits it as the command's last buffer (CommandTicket::State).
++    void ksxReplayTail(CommandTicket::State &state, const KsxReplayData &data) {
++        const auto fail = [](std::string message) { throw MetalBackendError(std::move(message)); };
++        const std::shared_ptr<HostSteps> old = state.hostSteps;
++        const uint32_t at = old->ksxGaveUp();
++        const auto gate = std::ranges::find(data.gates, at, &KsxGate::step);
++        if (gate == data.gates.end()) fail("gave up at step " + std::to_string(at) + ", not a gate step");
++        uint64_t ran = 0;
++        {
++            std::lock_guard lock(old->mutex);
++            for (const HostSteps::Step &step : old->steps)
++                if (step.inBuffer && step.ksxStep == at) ran = step.ready;
++        }
++        if (!ran) fail("gate step " + std::to_string(at) + " has no host step");
++        auto ticket = data.ticket.lock();
++        if (!ticket) fail("the ticket is gone");
++        ksxReplays.fetch_add(1, std::memory_order_relaxed);
++        @autoreleasepool {
++            std::vector<id<MTLCommandBuffer>> leading;
++            std::shared_ptr<HostSteps> fresh;
++            id<MTLCommandBuffer> command = [queue commandBuffer];
++            if (!command) fail("unable to create Metal command buffer");
++            [command encodeWaitForEvent:old->ranEvent value:ran];
++            id<MTLComputeCommandEncoder> encoder = [command computeCommandEncoder];
++            if (!encoder) fail("unable to create Metal compute encoder");
++            [encoder setComputePipelineState:data.restorePipeline];
++            bindKsxGate(encoder, data.gateBuffer, *gate);
++            [encoder dispatchThreadgroups:MTLSizeMake(1, 1, 1) threadsPerThreadgroup:MTLSizeMake(32, 1, 1)];
++            size_t event = gate->event + 1;
++            const auto encodeSteps = [&](size_t encoded) {
++                for (; event < data.events.size() && data.events[event].before == encoded; ++event) {
++                    const EventStep &step = data.events[event];
++                    if (encoder) {
++                        [encoder endEncoding];
++                        encoder = nil;
++                    }
++                    if (step.kind == EventStep::Kind::Host) {
++                        EventStep awake = step;
++                        if (awake.gpu != HostStepGpu::Idle) awake.gpu = HostStepGpu::Awake;
++                        command = encodeHostStep(command, leading, fresh, state.sequence, awake, fail);
++                    } else if (step.kind == EventStep::Kind::Wait) {
++                        [command encodeWaitForEvent:(__bridge id<MTLSharedEvent>)step.event.nativeHandle()
++                                              value:step.value];
++                    } else {
++                        fail("a signal follows a gate step");
++                    }
++                }
++            };
++            for (size_t index = gate->dispatch; index < data.dispatches.size(); ++index) {
++                encodeSteps(index);
++                const PreparedDispatch &item = data.dispatches[index];
++                if (!encoder) {
++                    encoder = [command computeCommandEncoder];
++                    if (!encoder) fail("unable to create Metal compute encoder");
++                }
++                bindDispatch(encoder, item, item.pipeline == data.gatePipeline ? data.stepPipeline : item.pipeline);
++                dispatchPrepared(encoder, item);
++            }
++            encodeSteps(data.dispatches.size());
++            if (encoder) [encoder endEncoding];
++            [command addCompletedHandler:^(id<MTLCommandBuffer> completed) {
++                ticket->finishCommand(completed);
++            }];
++            state.leadingCommands.push_back(state.ksxFinal);
++            state.leadingCommands.insert(state.leadingCommands.end(), leading.begin(), leading.end());
++            state.ksxFinal = command;
++            state.ksxEarlierSteps.push_back(old);
++            state.hostSteps = fresh;
++            asyncState->retargetSubmission(state.sequence, command,
++                [weakTicket = data.ticket](id<MTLCommandBuffer> completed) {
++                    if (auto again = weakTicket.lock()) again->finishCommand(completed);
++                });
++        }
++    }
+     // Looked up for every dispatch when its command is prepared, which the
+     // GPU may be waiting for; a hit allocates nothing. Used only by the
+     // submitting thread.
+@@ -1196,13 +1494,43 @@ throw MetalBackendError(
+         id<MTLCommandBuffer> next = [queue commandBuffer];
+         if (!next) failEncoding("unable to create Metal command buffer");
+         [next encodeWaitForEvent:steps->ranEvent value:ready];
+-        steps->steps.push_back({ready, step.work, step.timed, step.then, command, next, 0.0, 0.0, released});
++        steps->steps.push_back({ready, step.work, step.timed, step.then, command, next, 0.0, 0.0, released,
++                                step.ksxCtl, step.ksxStep, step.gpu == HostStepGpu::InBufferEvent, steps->ksxGateAt});
+         for (auto buffer = leading.end() - (released ? 2 : 1); buffer != leading.end(); ++buffer)
+             [*buffer commit];
+         hostStepRunner->add(steps, steps->steps.back());
+         return next;
+     }
+ 
++    // KSX H1: hands in-buffer host step `step` to the runner without ending
++    // `command`, which goes on in the same encoder: the dispatch after it
++    // (ksx_h1_step) holds the GPU until the runner released the step. Its
++    // round trip has no buffers of its own (before and after are `command`).
++    template <class Fail>
++    void encodeInBufferStep(id<MTLCommandBuffer> command, std::shared_ptr<HostSteps> &steps, uint64_t sequence,
++                            const EventStep &step, Fail &&failEncoding, bool gate = false) {
++        if (!steps) {
++            steps = std::make_shared<HostSteps>();
++            steps->backend = asyncState;
++            steps->sequence = sequence;
++            steps->readyEvent = [device newSharedEvent];
++            steps->ranEvent = [device newSharedEvent];
++            if (!steps->readyEvent || !steps->ranEvent) failEncoding("unable to create Metal shared event");
++        }
++        // KSX H1=3: a gate step (HostStepGpu::InBufferGate) and every step after it skip once one gave up.
++        if (gate) {
++            if (!steps->ksxGateCtl) {
++                steps->ksxGateCtl = step.ksxCtl;
++                steps->ksxGateFirst = step.ksxStep;
++            }
++            steps->ksxGateAt = step.ksxStep;
++        }
++        const uint64_t ready = steps->steps.size() + 1;
++        steps->steps.push_back({ready, step.work, step.timed, step.then, command, command, 0.0, 0.0, std::nullopt,
++                                step.ksxCtl, step.ksxStep, true, steps->ksxGateAt});
++        hostStepRunner->add(steps, steps->steps.back());
++    }
++
+     // Encodes into `buffer` one host_step_wait thread, which spins until the
+     // release counter reaches the spin's next release value, and returns that
+     // value.
+@@ -1311,10 +1639,112 @@ HostStepSpin newHostStepSpin() {
+ 
+     // Encodes and commits prepared dispatches and the event steps between
+     // them; the ticket retains `retained` until it is consumed.
+-    CommandTicket commit(std::span<const PreparedDispatch> dispatches,
++    CommandTicket commit(std::vector<PreparedDispatch> prepared,
+                          std::span<const EventStep> events,
++                         std::shared_ptr<const void> keepAlive,
+                          std::vector<std::shared_ptr<MetalAllocation>> retained,
+                          CommandCompletion completion) {
++        const std::span<const PreparedDispatch> dispatches = prepared;
++        // KSX H1=3: which gate steps stay in their buffer (HostStepGpu::InBufferGate): with the command's graph
++        // held, after its first host step and after its last signal, followed by ksx_h1_gate_step, and with at
++        // most kKsxGateGrids indirect grids read after it. Every direct dispatch from the first one's on is
++        // dispatched from its slot of the gate buffer.
++        std::shared_ptr<KsxReplayData> ksx;
++        size_t ksxGateFrom = dispatches.size();
++        if (std::ranges::any_of(events, [](const EventStep &step) { return step.gpu == HostStepGpu::InBufferGate; })) {
++            if (!ksxGatePipeline) {
++                ksxGatePipeline = pipeline("ksx_h1_gate_step");
++                ksxStepPipeline = pipeline("ksx_h1_step");
++                ksxRestorePipeline = pipeline("ksx_h1_restore");
++            }
++            ksx = keepAlive ? std::make_shared<KsxReplayData>() : nullptr;
++            size_t lastSignal = 0;
++            for (size_t index = 0; index < events.size(); ++index)
++                if (events[index].kind == EventStep::Kind::Signal) lastSignal = index + 1;
++            bool earlier = false;
++            for (size_t index = 0; ksx && index < events.size(); ++index) {
++                const EventStep &step = events[index];
++                if (step.kind == EventStep::Kind::Host && step.gpu == HostStepGpu::InBufferGate && earlier &&
++                    index >= lastSignal && step.before < dispatches.size() &&
++                    dispatches[step.before].pipeline == ksxGatePipeline) {
++                    KsxGate gate;
++                    gate.event = index;
++                    gate.dispatch = step.before;
++                    gate.step = step.ksxStep;
++                    ksx->gates.push_back(gate);
++                }
++                if (step.kind == EventStep::Kind::Host || step.kind == EventStep::Kind::Signal) earlier = true;
++            }
++            if (ksx && !ksx->gates.empty()) {
++                ksxGateFrom = ksx->gates.front().dispatch;
++                // The indirect grids read from the first gate step on, each with its last reader.
++                struct Read {
++                    __unsafe_unretained id<MTLBuffer> buffer;
++                    NSUInteger offset;
++                    size_t last;
++                    std::string_view reader;
++                };
++                std::vector<Read> reads;
++                for (size_t index = ksxGateFrom; index < dispatches.size(); ++index) {
++                    const IndirectGrid &grid = dispatches[index].source->indirectThreadgroups;
++                    if (!grid.buffer) continue;
++                    id<MTLBuffer> buffer = grid.buffer.impl_->allocation->buffer;
++                    const NSUInteger offset = grid.buffer.impl_->offsetBytes + grid.offsetBytes;
++                    const auto read = std::ranges::find_if(
++                        reads, [&](const Read &r) { return r.buffer == buffer && r.offset == offset; });
++                    if (read == reads.end())
++                        reads.push_back({buffer, offset, index, dispatches[index].source->pipelineName});
++                    else
++                        read->last = index;
++                }
++                const uint32_t slots = static_cast<uint32_t>(dispatches.size() - ksxGateFrom);
++                for (KsxGate &gate : ksx->gates) {
++                    gate.params.slot = static_cast<uint32_t>(gate.dispatch - ksxGateFrom);
++                    gate.params.slots = slots;
++                    for (const Read &read : reads) {
++                        if (read.last <= gate.dispatch) continue;
++                        if (gate.params.grids == kKsxGateGrids) {
++                            ksx = nullptr;
++                            break;
++                        }
++                        gate.gridBuffers[gate.params.grids] = read.buffer;
++                        gate.gridOffsets[gate.params.grids++] = read.offset;
++                    }
++                    if (!ksx) break;
++                }
++                if (!ksxGateLogged) {
++                    ksxGateLogged = true;
++                    std::fprintf(stderr, "ksx: H1=3 first gated command: %zu dispatches, %zu gate steps from dispatch "
++                                         "%zu, %zu indirect grids read after it%s:",
++                                 dispatches.size(), ksx ? ksx->gates.size() : size_t{0}, ksxGateFrom, reads.size(),
++                                 ksx ? "" : " (too many: ungated)");
++                    for (const Read &read : reads)
++                        std::fprintf(stderr, " [%s+%lu, last %zu by %.*s]",
++                                     read.buffer.label ? read.buffer.label.UTF8String : "?",
++                                     static_cast<unsigned long>(read.offset), read.last,
++                                     static_cast<int>(read.reader.size()), read.reader.data());
++                    std::fprintf(stderr, "\n");
++                }
++            } else {
++                ksx = nullptr;
++            }
++            if (!ksx) {
++                ksxGateFrom = dispatches.size();
++                if (keepAlive) ksxUngated.fetch_add(1, std::memory_order_relaxed);
++            } else {
++                const NSUInteger bytes = (kKsxGateBase + 4 * NSUInteger(dispatches.size() - ksxGateFrom)) * sizeof(uint32_t);
++                if (!ksxGateBuffer || ksxGateBuffer.length < bytes)
++                    ksxGateBuffer = newBuffer(std::max<NSUInteger>(bytes, 64 * 1024), BufferStorage::Shared, @"ksx/h1-gate");
++                ksx->keepAlive = std::move(keepAlive);
++                ksx->events = events;
++                ksx->gateBuffer = ksxGateBuffer;
++                ksx->gatePipeline = ksxGatePipeline;
++                ksx->stepPipeline = ksxStepPipeline;
++                ksx->restorePipeline = ksxRestorePipeline;
++            }
++        }
++        auto *ksxSlots = ksx ? static_cast<uint32_t *>(ksxGateBuffer.contents) + kKsxGateBase : nullptr;
++        size_t ksxNextGate = 0, ksxNextGateEvent = ksx ? ksx->gates.front().event : SIZE_MAX;
+         if (!hostStepSpin && AwakeClock::now() >= nextSpinCheck &&
+             std::ranges::any_of(events, [](const EventStep &step) { return step.gpu == HostStepGpu::Awake; }))
+             checkHostStepSpin();
+@@ -1361,13 +1791,51 @@ CommandTicket commit(std::span<const PreparedDispatch> dispatches,
+                 auto step = events.begin();
+                 const auto encodeSteps = [&](size_t encoded) {
+                     for (; step != events.end() && step->before == encoded; ++step) {
++                        // KSX H1: an in-buffer step stays in its buffer, but not
++                        // its command's first one: that one commits the work
++                        // before it, so that the GPU starts while the rest is
++                        // encoded, as an awake step (its ksx_h1_step then finds
++                        // the step released).
++                        EventStep awake;
++                        const EventStep *encodedStep = &*step;
++                        if (step->kind == EventStep::Kind::Host && step->gpu == HostStepGpu::InBufferEvent) {
++                            ksxEventSteps.fetch_add(1, std::memory_order_relaxed);
++                            ksxEventCtl.store(step->ksxCtl, std::memory_order_relaxed);
++                        }
++                        if (step->kind == EventStep::Kind::Host && step->gpu == HostStepGpu::InBufferGate) {
++                            const size_t eventIndex = static_cast<size_t>(step - events.begin());
++                            if (eventIndex == ksxNextGateEvent) {
++                                encodeInBufferStep(command, ticketState->hostSteps, ticketState->sequence, *step,
++                                                   failEncoding, true);
++                                ksxInBufferSteps.fetch_add(1, std::memory_order_relaxed);
++                                ++ksxNextGate;
++                                ksxNextGateEvent = ksxNextGate < ksx->gates.size() ? ksx->gates[ksxNextGate].event : SIZE_MAX;
++                                continue;
++                            }
++                            ksxAwakeFallbacks.fetch_add(1, std::memory_order_relaxed);
++                            awake = *step;
++                            awake.gpu = HostStepGpu::Awake;
++                            encodedStep = &awake;
++                        }
++                        if (step->kind == EventStep::Kind::Host && step->gpu == HostStepGpu::InBuffer) {
++                            if (!leading.empty()) {
++                                encodeInBufferStep(command, ticketState->hostSteps, ticketState->sequence, *step,
++                                                   failEncoding);
++                                ksxInBufferSteps.fetch_add(1, std::memory_order_relaxed);
++                                continue;
++                            }
++                            ksxAwakeFallbacks.fetch_add(1, std::memory_order_relaxed);
++                            awake = *step;
++                            awake.gpu = HostStepGpu::Awake;
++                            encodedStep = &awake;
++                        }
+                         if (encoder) {
+                             [encoder endEncoding];
+                             encoder = nil;
+                         }
+                         if (step->kind == EventStep::Kind::Host) {
+                             command = encodeHostStep(command, leading, ticketState->hostSteps,
+-                                                     ticketState->sequence, *step, failEncoding);
++                                                     ticketState->sequence, *encodedStep, failEncoding);
+                             continue;
+                         }
+                         id<MTLSharedEvent> event =
+@@ -1400,6 +1868,7 @@ CommandTicket commit(std::span<const PreparedDispatch> dispatches,
+                 // keep the buffers alive.
+                 __unsafe_unretained id<MTLBuffer> buffers[kBufferArgumentEntries];
+                 NSUInteger offsets[kBufferArgumentEntries];
++                size_t ksxGateDispatch = 0;
+                 for (size_t index = 0; index < dispatches.size(); ++index) {
+                     encodeSteps(index);
+                     const PreparedDispatch &item = dispatches[index];
+@@ -1410,7 +1879,16 @@ CommandTicket commit(std::span<const PreparedDispatch> dispatches,
+                             failEncoding("unable to create Metal compute encoder");
+                         }
+                     }
+-                    [encoder setComputePipelineState:item.pipeline];
++                    // KSX H1=3: a gate step's dispatch binds the gate (ksx_h1_gate_step); one whose step is not
++                    // gated runs as ksx_h1_step.
++                    const KsxGate *ksxGate = nullptr;
++                    if (ksx && ksxGateDispatch < ksx->gates.size() && ksx->gates[ksxGateDispatch].dispatch == index)
++                        ksxGate = &ksx->gates[ksxGateDispatch++];
++                    if (ksxGatePipeline && item.pipeline == ksxGatePipeline && !ksxGate)
++                        [encoder setComputePipelineState:ksxStepPipeline];
++                    else
++                        [encoder setComputePipelineState:item.pipeline];
++                    if (ksxGate) bindKsxGate(encoder, ksxGateBuffer, *ksxGate);
+                     for (const BufferBinding &binding : dispatch.buffers) {
+                         const MetalBuffer::Impl &buffer = *binding.buffer.impl_;
+                         buffers[binding.index] = buffer.allocation->buffer;
+@@ -1432,7 +1910,18 @@ CommandTicket commit(std::span<const PreparedDispatch> dispatches,
+                                   atIndex:binding.index];
+                     }
+                     const IndirectGrid &grid = dispatch.indirectThreadgroups;
+-                    if (grid.buffer) {
++                    if (ksx && index > ksxGateFrom && !grid.buffer) {
++                        // From its slot, which a gate step that gives up zeroes.
++                        uint32_t *slot = ksxSlots + 4 * (index - ksxGateFrom);
++                        slot[0] = static_cast<uint32_t>(item.groups.width);
++                        slot[1] = static_cast<uint32_t>(item.groups.height);
++                        slot[2] = static_cast<uint32_t>(item.groups.depth);
++                        slot[3] = 0;
++                        [encoder dispatchThreadgroupsWithIndirectBuffer:ksxGateBuffer
++                                                   indirectBufferOffset:(kKsxGateBase + 4 * (index - ksxGateFrom)) *
++                                                                        sizeof(uint32_t)
++                                                  threadsPerThreadgroup:item.threads];
++                    } else if (grid.buffer) {
+                         const MetalBuffer::Impl &arguments = *grid.buffer.impl_;
+                         [encoder
+                             dispatchThreadgroupsWithIndirectBuffer:
+@@ -1457,6 +1946,13 @@ CommandTicket commit(std::span<const PreparedDispatch> dispatches,
+                 [command addCompletedHandler:^(id<MTLCommandBuffer> completed) {
+                     ticketState->finishCommand(completed);
+                 }];
++                if (ksx) {
++                    ksx->ticket = ticketState;
++                    ksx->dispatches = std::move(prepared);
++                    std::lock_guard lock(ticketState->ksxMutex);
++                    ticketState->ksxFinal = command;
++                    ticketState->ksxReplay = [this, ksx](CommandTicket::State &state) { ksxReplayTail(state, *ksx); };
++                }
+                 asyncState->commitSubmission(ticketState->sequence, command,
+                     [weakTicket = std::weak_ptr(ticketState)](
+                         id<MTLCommandBuffer> completed) {
+@@ -1472,6 +1968,7 @@ CommandTicket commit(std::span<const PreparedDispatch> dispatches,
+                 } catch (...) {
+                 }
+                 markUnhealthy(std::move(reason));
++                if (ticketState->hostSteps) ticketState->hostSteps->encodingFailed.store(true, std::memory_order_release);
+                 asyncState->releaseSubmission(ticketState->sequence);
+                 // The state holds the committed buffers too: a host step's
+                 // runner reaches the buffer before it only through that.
+@@ -1503,6 +2000,7 @@ CommandTicket submitProfiled(std::span<const ComputeDispatch> dispatches,
+         const auto runSteps = [&](size_t before) {
+             for (; step != events.end() && step->before == before; ++step) {
+                 step->work();
++                if (step->ksxCtl) __atomic_store_n(&step->ksxCtl[1], step->ksxStep, __ATOMIC_RELEASE);
+                 if (step->then) step->then();
+             }
+         };
+@@ -1510,7 +2008,7 @@ CommandTicket submitProfiled(std::span<const ComputeDispatch> dispatches,
+             runSteps(index);
+             const PreparedDispatch &item = command.dispatches[index];
+             const CommandTiming timing =
+-                commit({&item, 1}, {}, command.retainedAllocations, {}).wait();
++                commit({item}, {}, nullptr, command.retainedAllocations, {}).wait();
+             dispatchProfile.push_back(
+                 {item.source->pipelineName, timing.gpuSeconds});
+             total.gpuSeconds += timing.gpuSeconds;
+@@ -1915,7 +2413,7 @@ throw MetalBackendError(
+         return impl_->submitProfiled(command.dispatches, command.events, std::move(completion));
+ #endif
+     Impl::PreparedCommand prepared = impl_->prepare(command.dispatches);
+-    return impl_->commit(prepared.dispatches, command.events,
++    return impl_->commit(std::move(prepared.dispatches), command.events, command.keepAlive,
+                          std::move(prepared.retainedAllocations),
+                          std::move(completion));
+ }
+diff --git a/runtime/model/ExpertStore.cpp b/runtime/model/ExpertStore.cpp
+index ea6f15cb..9f5dae2c 100644
+--- a/runtime/model/ExpertStore.cpp
++++ b/runtime/model/ExpertStore.cpp
+@@ -1,3 +1,4 @@
++// Modified by Nace AI for Kapitsa (KFlash engine build): the changes are marked KSX. Apache License 2.0, see LICENSE.
+ #include "model/ExpertStore.hpp"
+ 
+ #include "metal/abi/MoE.h"
+@@ -12,6 +13,8 @@
+ #include <algorithm>
+ #include <array>
+ #include <atomic>
++#include <cstdio>
++#include <cstdlib>
+ #include <cstring>
+ #include <exception>
+ #include <mutex>
+@@ -33,6 +36,41 @@ constexpr uint32_t kNoSlot = UINT32_MAX;
+ // then takes 276 us instead of 1223 us.
+ constexpr uint64_t kAheadPieceBytes = 512 << 10;
+ constexpr unsigned kAheadReaders = 4;
++// KFlash: env knobs, unset = stock Splash.
++uint64_t ksxEnv(const char *name, uint64_t stock) {
++  const char *v = std::getenv(name);
++  if (!v || !*v) return stock;
++  const uint64_t n = std::strtoull(v, nullptr, 10);
++  std::fprintf(stderr, "ksx: %s=%llu (stock %llu)\n", name, static_cast<unsigned long long>(n ? n : stock),
++               static_cast<unsigned long long>(stock));
++  return n ? n : stock;
++}
++// SPLASH_KSX_H1=1 (patch 0014; needs SPLASH_KSX_KERNELS with ksx_h1.metal): a decode step's single-round load runs
++// its host step inside the command buffer (metal::HostStepGpu::InBuffer): ksx_h1_step copies what the CPU reads out
++// with system-coherent stores, spins until the CPU released the step, and copies what the CPU wrote (the block's
++// slot table row, the jobs, sources and grid) into GPU-written shadows with system-coherent loads, which the kernels
++// after it read; the staging is repacked through coherent loads (ksx_moe_expert_load_c). Other loads stay on the
++// event path and refresh the block's shadow row after each round (ksx_h1_copy). Unset = stock Splash.
++const bool kH1 = ksxEnv("SPLASH_KSX_H1", 0) != 0;
++// SPLASH_KSX_H1=2: as 1, but the step ends its buffer after the GPU spin and the next buffer waits on the runner's
++// event (metal::HostStepGpu::InBufferEvent), so a spin that reaches its bound falls back to the event path.
++const bool kH1Event = ksxEnv("SPLASH_KSX_H1", 0) == 2;
++// SPLASH_KSX_H1=3: as 1, but a spin that reaches its bound gives up (metal::HostStepGpu::InBufferGate,
++// ksx_h1_gate_step): the rest of the command does nothing and the backend encodes it again from the step. A decode
++// load on the event path reads its jobs, sources and grid from the shadows too, which the gate may zero and the
++// backend restores, as the CPU may be writing the originals then.
++const bool kH1Gate = ksxEnv("SPLASH_KSX_H1", 0) == 3;
++// The GPU spin's bound in loads, ~0.3 us each on the M5 (2^22: ~1.3 s); past it the command fails.
++const uint32_t kH1Spin = static_cast<uint32_t>(ksxEnv("SPLASH_KSX_H1_SPIN", 1u << 22));
++constexpr uint32_t kH1Out = 5, kH1In = 4;
++// ksx_h1.metal's KsxH1Params.
++struct KsxH1Params {
++  uint32_t step;
++  uint32_t spin_limit;
++  uint32_t out_words[kH1Out];
++  uint32_t in_words[kH1In];
++};
++static_assert(sizeof(KsxH1Params) == 44);
+ // Apple silicon's pages: a read the kernel does straight into memory
+ // (F_NOCACHE without the buffer cache) starts and ends on them in the file
+ // and in memory. With its ends elsewhere it goes through the buffer cache:
+@@ -312,6 +350,10 @@ struct ExpertStore::Impl {
+   // their projections' sources (MoE::addExpertLoad's), and its grid
+   // (MTLDispatchThreadgroupsIndirectArguments), all Shared.
+   metal::MetalBuffer tables, staging, jobs, sources, grid;
++  // KSX H1 (kH1): the handshake words (ctl[0] reached, [1] released, [2] gave up), the GPU-written shadows of the
++  // streamed blocks' slot tables, of the jobs, sources and grid, and the last step number handed out.
++  metal::MetalBuffer ksxCtl, shadowTables, shadowJobs, shadowSources, shadowGrid;
++  uint32_t ksxNext = 0;
+   // A decode step's prediction of the next block's routes (addLoad): its
+   // router's fp32 scores of this block's input, then each row's experts and
+   // routing weights as the routing selects them (ops::MoE::addRoutes), for
+@@ -765,6 +807,8 @@ void ExpertStore::Impl::load(uint32_t index, ops::MoePhase phase, uint32_t rows,
+         const uint64_t bound = part.descriptors.sizeBytes() / sizeof(MoeTileDescriptor);
+         if (!counted || !descriptors || counted->tiles > bound)
+           throw std::runtime_error("a MoE block's tiles are out of bounds");
++        if (kH1 && phase == ops::MoePhase::Decode && counted->tiles > uint64_t{rows} * (shape.expertsPerToken + 1))
++          throw std::runtime_error("ksx H1: a decode load's tiles exceed what its step copies out");
+         partTiles.push_back({descriptors, counted->tiles});
+       }
+       route(index, partTiles, phase, rows, use);
+@@ -943,6 +987,23 @@ ExpertStore::ExpertStore(metal::MetalBackend &backend, StreamedBlocks streamed,
+                                         "experts/sources");
+   impl.grid = backend.allocateBuffer(4 * sizeof(uint32_t), metal::BufferStorage::Shared, "experts/grid");
+   std::memset(impl.grid.contents(), 0, 4 * sizeof(uint32_t));
++  if (kH1) {
++    const auto shadow = [&](const metal::MetalBuffer &of, const char *label) {
++      metal::MetalBuffer buffer = backend.allocateBuffer(of.sizeBytes(), metal::BufferStorage::Shared, label);
++      std::memset(buffer.contents(), 0, buffer.sizeBytes());
++      return buffer;
++    };
++    impl.ksxCtl = backend.allocateBuffer(4 * sizeof(uint32_t), metal::BufferStorage::Shared, "ksx/h1-ctl");
++    std::memset(impl.ksxCtl.contents(), 0, 4 * sizeof(uint32_t));
++    impl.shadowTables = shadow(impl.tables, "ksx/h1-tables");
++    impl.shadowJobs = shadow(impl.jobs, "ksx/h1-jobs");
++    impl.shadowSources = shadow(impl.sources, "ksx/h1-sources");
++    impl.shadowGrid = shadow(impl.grid, "ksx/h1-grid");
++    std::fprintf(stderr, "ksx: SPLASH_KSX_H1=%d (stock off): in-buffer decode loads%s, spin bound %u, shadows %llu B\n",
++                 kH1Gate ? 3 : kH1Event ? 2 : 1, kH1Gate ? " with gate and replay" : kH1Event ? " with event fallback" : "",
++                 kH1Spin, static_cast<unsigned long long>(impl.tables.sizeBytes() + impl.jobs.sizeBytes() +
++                                                          impl.sources.sizeBytes() + impl.grid.sizeBytes() + 16));
++  }
+   impl.routedIn.assign(shape.experts, 0);
+   impl.waiting.assign(shape.experts, 0);
+   impl.counters.arenaBytes = impl.arenaTotal;
+@@ -974,7 +1035,9 @@ void ExpertStore::bind(uint32_t block, ops::BlockMoeWeights &weights) {
+         ops::QuantizedSegment::planes(projection.format, static_cast<uint32_t>(size.slots * projection.rows),
+                                       static_cast<uint32_t>(projection.columns), plane(0), plane(1), plane(2));
+   }
+-  weights.slotTable = impl.backend.view(impl.tables, uint64_t{block} * impl.shape.experts * sizeof(uint32_t),
++  // KSX H1: a streamed block's kernels read its shadow row, which each of its loads refreshes.
++  weights.slotTable = impl.backend.view(kH1 && impl.streams(block) ? impl.shadowTables : impl.tables,
++                                        uint64_t{block} * impl.shape.experts * sizeof(uint32_t),
+                                         uint64_t{impl.shape.experts} * sizeof(uint32_t));
+   weights.slots = size.slots;
+   // The experts of a size of one block stay in their slots: nothing loads
+@@ -1027,15 +1090,104 @@ void ExpertStore::addLoad(metal::CommandGraph &graph, std::span<const ops::MoeLo
+   // Each step's read-ahead starts once the GPU went on (startAhead).
+   const auto startAhead = [impl = impl_] { impl->startAhead(); };
+   const metal::MetalBuffer verifyRows = predicted ? parts.front().buffers->verifyRows : metal::MetalBuffer{};
+-  for (uint32_t round = 0; round < rounds; ++round) {
+-    graph.host(
+-        [impl = impl_, block, phase, rows, predicted, tiles, round, rounds, verifyRows] {
+-          impl->load(block, phase, rows, predicted, tiles, round, rounds, verifyRows);
+-        },
+-        timed, gpu, startAhead);
+-    ops::MoE::addExpertLoad(graph, impl.staging, size.arena, impl.jobs, impl.sources, size.load,
+-                            static_cast<uint32_t>(std::min<uint64_t>(routable, impl.places.count)),
+-                            metal::IndirectGrid{impl.grid, 0});
++  const uint32_t loadJobs = static_cast<uint32_t>(std::min<uint64_t>(routable, impl.places.count));
++  if (kH1) {
++    // KSX H1: see kH1. Buffers 0..18 of ksx_h1_step / ksx_h1_copy, then its params.
++    Impl &state = *impl_;
++    const uint64_t rowBytes = uint64_t{shape.experts} * sizeof(uint32_t);
++    const metal::MetalBuffer tableRow = impl.backend.view(impl.tables, block * rowBytes, rowBytes);
++    const metal::MetalBuffer shadowRow = impl.backend.view(impl.shadowTables, block * rowBytes, rowBytes);
++    const auto words = [](uint64_t bytes) { return static_cast<uint32_t>(bytes / sizeof(uint32_t)); };
++    const bool inBuffer = phase == ops::MoePhase::Decode && rounds == 1 && parts.size() == 1;
++    std::vector<metal::MetalBuffer> bound(19, impl.ksxCtl);
++    KsxH1Params params{};
++    params.spin_limit = kH1Spin;
++    const auto in = [&](uint32_t k, const metal::MetalBuffer &from, const metal::MetalBuffer &to, uint64_t bytes) {
++      bound[11 + k] = from;
++      bound[15 + k] = to;
++      params.in_words[k] = words(bytes);
++    };
++    if (inBuffer) {
++      const ops::MoeLoadPart &part = parts.front();
++      const auto out = [&](uint32_t k, const metal::MetalBuffer &buffer, uint64_t bytes) {
++        bound[1 + k] = bound[6 + k] = buffer;
++        params.out_words[k] = words(std::min<uint64_t>(bytes, buffer.sizeBytes()));
++      };
++      out(0, part.buffers->scratch.tileCount, sizeof(MoeTileCount));
++      out(1, part.buffers->scratch.tileDescriptors,
++          uint64_t{rows} * (shape.expertsPerToken + 1) * sizeof(MoeTileDescriptor));
++      if (predicted) {
++        if (verifyRows) out(2, verifyRows, uint64_t{(rows + SPLASH_TARGET_VERIFY_ROWS - 1) / SPLASH_TARGET_VERIFY_ROWS} * sizeof(uint32_t));
++        out(3, impl.predictionRoutes, uint64_t{rows} * shape.routesPerToken() * sizeof(uint32_t));
++        out(4, impl.predictionWeights, uint64_t{rows} * shape.routesPerToken() * sizeof(float));
++      }
++      in(0, tableRow, shadowRow, rowBytes);
++      in(1, impl.jobs, impl.shadowJobs, impl.jobs.sizeBytes());
++      in(2, impl.sources, impl.shadowSources, impl.sources.sizeBytes());
++      in(3, impl.grid, impl.shadowGrid, impl.grid.sizeBytes());
++      params.step = ++state.ksxNext;
++      if (kH1Event) {
++        graph.add("ksx_h1_spin", bound, params, {1, 1, 1}, {256, 1, 1});
++        graph.hostKsx(
++            [impl = impl_, block, phase, rows, predicted, tiles, verifyRows] {
++              impl->load(block, phase, rows, predicted, tiles, 0, 1, verifyRows);
++            },
++            timed, metal::HostStepGpu::InBufferEvent, startAhead, static_cast<uint32_t *>(impl.ksxCtl.contents()),
++            params.step);
++        graph.add("ksx_h1_copy", bound, params, {1, 1, 1}, {256, 1, 1});
++        graph.add("ksx_moe_expert_load_c", {impl.staging, size.arena, impl.shadowJobs, impl.shadowSources}, size.load,
++                  {ops::MoE::expertLoadGroups(size.load), loadJobs, 3}, metal::IndirectGrid{impl.shadowGrid, 0},
++                  {MOE_EXPERT_LOAD_THREADS, 1, 1});
++      } else {
++      graph.hostKsx(
++          [impl = impl_, block, phase, rows, predicted, tiles, verifyRows] {
++            impl->load(block, phase, rows, predicted, tiles, 0, 1, verifyRows);
++          },
++          timed, kH1Gate ? metal::HostStepGpu::InBufferGate : metal::HostStepGpu::InBuffer, startAhead,
++          static_cast<uint32_t *>(impl.ksxCtl.contents()), params.step);
++      graph.add(kH1Gate ? "ksx_h1_gate_step" : "ksx_h1_step", bound, params, {1, 1, 1}, {256, 1, 1});
++      graph.add("ksx_moe_expert_load_c", {impl.staging, size.arena, impl.shadowJobs, impl.shadowSources}, size.load,
++                {ops::MoE::expertLoadGroups(size.load), loadJobs, 3}, metal::IndirectGrid{impl.shadowGrid, 0},
++                {MOE_EXPERT_LOAD_THREADS, 1, 1});
++      }
++    } else if (kH1Gate && phase == ops::MoePhase::Decode) {
++      in(0, tableRow, shadowRow, rowBytes);
++      in(1, impl.jobs, impl.shadowJobs, impl.jobs.sizeBytes());
++      in(2, impl.sources, impl.shadowSources, impl.sources.sizeBytes());
++      in(3, impl.grid, impl.shadowGrid, impl.grid.sizeBytes());
++      for (uint32_t round = 0; round < rounds; ++round) {
++        graph.host(
++            [impl = impl_, block, phase, rows, predicted, tiles, round, rounds, verifyRows] {
++              impl->load(block, phase, rows, predicted, tiles, round, rounds, verifyRows);
++            },
++            timed, gpu, startAhead);
++        graph.add("ksx_h1_copy", bound, params, {1, 1, 1}, {256, 1, 1});
++        ops::MoE::addExpertLoad(graph, impl.staging, size.arena, impl.shadowJobs, impl.shadowSources, size.load,
++                                loadJobs, metal::IndirectGrid{impl.shadowGrid, 0});
++      }
++    } else {
++      in(0, tableRow, shadowRow, rowBytes);
++      for (uint32_t round = 0; round < rounds; ++round) {
++        graph.host(
++            [impl = impl_, block, phase, rows, predicted, tiles, round, rounds, verifyRows] {
++              impl->load(block, phase, rows, predicted, tiles, round, rounds, verifyRows);
++            },
++            timed, gpu, startAhead);
++        ops::MoE::addExpertLoad(graph, impl.staging, size.arena, impl.jobs, impl.sources, size.load, loadJobs,
++                                metal::IndirectGrid{impl.grid, 0});
++        graph.add("ksx_h1_copy", bound, params, {1, 1, 1}, {256, 1, 1});
++      }
++    }
++  } else {
++    for (uint32_t round = 0; round < rounds; ++round) {
++      graph.host(
++          [impl = impl_, block, phase, rows, predicted, tiles, round, rounds, verifyRows] {
++            impl->load(block, phase, rows, predicted, tiles, round, rounds, verifyRows);
++          },
++          timed, gpu, startAhead);
++      ops::MoE::addExpertLoad(graph, impl.staging, size.arena, impl.jobs, impl.sources, size.load, loadJobs,
++                              metal::IndirectGrid{impl.grid, 0});
++    }
+   }
+   // A long chunk routes nearly every expert of the next block too: once the
+   // GPU has repacked the last round, the next block's experts are read ahead
+diff --git a/runtime/model/Runtime.cpp b/runtime/model/Runtime.cpp
+index c84635c2..f0396bc8 100644
+--- a/runtime/model/Runtime.cpp
++++ b/runtime/model/Runtime.cpp
+@@ -1,3 +1,4 @@
++// Modified by Nace AI for Kapitsa (KFlash engine build): the changes are marked KSX. Apache License 2.0, see LICENSE.
+ #include "model/Runtime.hpp"
+ #ifdef SPLASH_RUNTIME_INSTRUMENTATION
+ #include "metal/abi/GDN.h"
+@@ -3010,8 +3011,12 @@ Runtime::decodeAsync(const BatchPlan &plan,
+                  items = std::move(copiedItems)](CommandTiming timing) mutable {
+     return impl->finalizeDecode(lanes, items, timing, *reads, false);
+   };
+-  CommandTicket command = impl_->backend.submitCommandAsync(
+-      commandGraph.command(), std::move(completion));
++  // KSX H1=3: the backend holds the graph until the command completes, to encode its tail again
++  // (Command::keepAlive).
++  auto heldGraph = std::make_shared<CommandGraph>(std::move(commandGraph));
++  metal::Command held = heldGraph->command();
++  held.keepAlive = heldGraph;
++  CommandTicket command = impl_->backend.submitCommandAsync(held, std::move(completion));
+   return std::make_unique<DeferredMetalTicket>(std::move(command),
+                                                std::move(finish));
+ }
+-- 
+2.50.1 (Apple Git-155)
+
