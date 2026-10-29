@@ -95,11 +95,10 @@ But its `dory_*` kernels bake in NVIDIA's scaling constants, NVFP4 formats, sler
 so its **kernels** are the wrong template. Reuse the structure, write Spark's own encode path.
 
 **D3. Reuse these existing generic kernels where the math matches exactly:**
-- `attn_prep` (`src/kernels/attn.metal`): q/k RMSNorm + RoPE + KV store. Parametrized by `AttnPrepParams{D,Hq,Hkv,rot,pos,
-  max_seq,eps,theta}` — Spark's 64-rot-dim full layers and 256-rot-dim sliding layers both fit, since `rot` is a
-  per-dispatch value. Needs no q_norm/k_norm ⇒ that path already takes them as buffers; we simply do not pass them (or
-  pass an all-ones vector, see D5). **Decided: pass all-ones norms and leave kernel math untouched** (cheap, 256 floats,
-  and avoids a kernel variant that could drift numerically).
+- ~~`attn_prep`~~ — **this part of D3 was wrong and is superseded (see §13, defect 5).** `attn_prep` applies an RMSNorm
+  to q and k *unconditionally*; an all-ones weight means "normalize to unit RMS", which is not the identity, and it
+  changes `softmax(q·k/√D)` because q and k get different per-row factors. Spark has no q/k norm at all, so the prologue
+  had to be Spark's own: **`spark_attn_prep`** (RoPE + q|gate packing + KV store in one pass). The rest of D3 stands.
 - `attn_prefill11r` / `attn_prefill11` (simdgroup prefill attention, head dim 256, G = Hq/Hkv).
 - `qmv` / `qmvf` / `qmms` / `qmm3` quantized matvec and tile GEMMs — but **only after** the GELU work in D4.
 - The sampler, tokenizer, KV caches, `Seq`, prefix cache, server, API adapters: untouched.
@@ -276,6 +275,26 @@ RoPE convention (`rotate_half` half-split + `theta^(-2i/rot)`, matching `attn.me
 `out_proj`, tied embeddings, the absence of q/k norm, and the `(i+1) % 4 == 0` full-attention pattern.
 
 What it does **not** establish: anything about the kernels' arithmetic on a GPU. The PR remains "Not verified on a GPU".
+
+**2026-10-29 (later still) — QA pass 2, three more defects; CI green again on 5c16e64.**
+
+Continuing the review found the worst defect of the batch, plus two more:
+
+- **`attn_prep` cannot be reused** (this overturns decision **D3** in §4). It RMS-normalizes q and k unconditionally;
+  handing it an all-ones weight means "normalize to unit RMS", not "skip", and because q and k get different factors it
+  changes `softmax(q·k/√D)`. Replaced by `spark_attn_prep`. The `ones_` buffer that existed only to feed it is gone,
+  which is the tell: it had no reason to exist.
+- **`spark_pack_qg` read a buffer nothing had written** (dense q came from `qg_`, the pack read `qo_`), and the obvious
+  in-place fixes for both the packing and the rotation are races. q now has three distinct buffers.
+- **`hf_norms` was dead** — detected, logged, never applied, so every RMSNorm would have used a weight centred on 0.
+
+CI on `5c16e64`: `lint`, `docs-links`, `pr-size-script`, `metal-compile` (both Spark kernels translate at metal3.2) and
+`build-and-test` on `macos-15` all green, with `spark_config_test` **executing** — it now covers the exact-GELU
+decision, the HF-vs-MLX norm rule, and the 1 + w conversion.
+
+The honest status is unchanged in one respect and better in another. Better: seven defects are fixed and the host-side
+logic is now either tested or asserted. Unchanged: **no GPU has run any of this**, so the kernel arithmetic, the ring
+cache, the RoPE end-to-end and every speed number remain unverified, and the PR still says so.
 
 **2026-10-29 (later) — a note on how to review this branch.**
 The QA pass is the reason to distrust any claim in this branch that is not backed either by a CPU test that runs in CI
