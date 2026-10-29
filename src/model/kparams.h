@@ -78,6 +78,15 @@ struct QmmLd {
   uint32_t w_ld, s_ld;
 };
 
+// Spark (src/kernels/spark/spark.metal)
+struct SparkGu {
+  uint32_t n, ld;
+};
+
+struct SparkGate {  // spark_pack_qg
+  uint32_t Hq, D, T, g_ld;
+};
+
 struct AttnPref {
   uint32_t T, Hq, Hkv, pos0, max_seq;
   float scale;

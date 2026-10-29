@@ -65,6 +65,17 @@ add_custom_command(
           ${CMAKE_SOURCE_DIR}/cmake/embed_kernels_flint.cmake
   COMMENT "Embedding the Flint Metal kernels")
 
+# Spark kernels: a library of their own (src/kernels/spark/), so the Spark family's GELU and per-head-gate epilogues
+# recompile nothing the existing models run.
+file(GLOB NI_SPARK_KERNELS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/kernels/spark/*.metal)
+set(NI_SPARK_EMBED ${CMAKE_BINARY_DIR}/generated/spark_kernels_embed.cpp)
+add_custom_command(
+  OUTPUT ${NI_SPARK_EMBED}
+  COMMAND ${CMAKE_COMMAND} -DOUT=${NI_SPARK_EMBED} -DSRC_DIR=${CMAKE_SOURCE_DIR}/src/kernels
+          -P ${CMAKE_SOURCE_DIR}/cmake/embed_kernels_spark.cmake
+  DEPENDS ${NI_SPARK_KERNELS} ${CMAKE_SOURCE_DIR}/src/kernels/common.h ${CMAKE_SOURCE_DIR}/cmake/embed_kernels_spark.cmake
+  COMMENT "Embedding the Spark Metal kernels")
+
 # Metal 4 tensor_ops kernels (src/kernels/tensor/): a library of their own, compiled as Metal 4 on a GPU with matrix units
 file(GLOB NI_TENSOR_KERNELS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/kernels/tensor/*.metal)
 set(NI_TENSOR_EMBED ${CMAKE_BINARY_DIR}/generated/tensor_kernels_embed.cpp)
@@ -97,7 +108,7 @@ file(GLOB_RECURSE NI_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/src/*.cpp ${CMAKE_SOURCE_DIR}/src/*.mm)
 list(FILTER NI_SOURCES EXCLUDE REGEX ".*/src/server/.*")
 
-add_library(naceinfer STATIC ${NI_SOURCES} ${NI_EMBED} ${NI_NH_EMBED} ${NI_DORY_EMBED} ${NI_FLINT_EMBED} ${NI_TENSOR_EMBED} ${NI_BENCH_CORPUS} ${NI_MAC_MODELS})
+add_library(naceinfer STATIC ${NI_SOURCES} ${NI_EMBED} ${NI_NH_EMBED} ${NI_DORY_EMBED} ${NI_FLINT_EMBED} ${NI_SPARK_EMBED} ${NI_TENSOR_EMBED} ${NI_BENCH_CORPUS} ${NI_MAC_MODELS})
 target_include_directories(naceinfer PUBLIC ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/third_party PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(naceinfer PUBLIC "-framework Metal" "-framework Foundation" "-framework CoreFoundation" "-framework IOSurface"
   "-framework IOKit" "-framework ImageIO" "-framework CoreGraphics" "-framework Security"
@@ -123,6 +134,11 @@ target_include_directories(execution_session_test PRIVATE ${CMAKE_SOURCE_DIR}/sr
 target_link_libraries(execution_session_test PRIVATE Threads::Threads)
 enable_testing()
 add_test(NAME load_error_test COMMAND load_error_test)
+# Spark's config test reads the published config.json files from the source tree (docs/spark/configs/), so it is told
+# where they are rather than guessing: it also takes SPARK_CONFIG_DIR at run time.
+add_test(NAME spark_config_test COMMAND spark_config_test)
+set_tests_properties(spark_config_test PROPERTIES TIMEOUT 30
+  ENVIRONMENT "SPARK_CONFIG_DIR=${CMAKE_SOURCE_DIR}/docs/spark/configs")
 set_tests_properties(load_error_test PROPERTIES TIMEOUT 30)
 add_test(NAME execution_session_test COMMAND execution_session_test)
 set_tests_properties(execution_session_test PROPERTIES TIMEOUT 30)

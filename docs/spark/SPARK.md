@@ -1,0 +1,259 @@
+# Spark-X2.6 in Kapitsa — the working plan
+
+**READ THIS FIRST AFTER ANY CONTEXT COMPACTION.** If you are an agent resuming this task, or you think you are missing
+information, read this file top to bottom before touching a file. It is the single source of truth for the Spark port.
+Section 9 is the state log: it says exactly what is done, what is next, and what must not be claimed.
+
+---
+
+## 1. What we are doing
+
+Port **Spark-X2.6-1.7B** and **Spark-X2.6-4B** (XHToken) into Kapitsa, the native Apple-silicon engine that runs Qwen,
+Nemotron and Flint models. Both are dense transformers in the `spark2_5` family; they are architecturally simpler than
+anything Kapitsa already runs (no GDN, no MoE, no Mamba, no sparse indexer), which is why this is worth doing.
+
+The goal is a new `Spark` model backend in `src/model/`, reusing Kapitsa's existing generic kernels wherever their math
+matches, plus a small number of new Metal kernels where Spark's math genuinely differs. Speed is the product; a change
+that is faster but produces different tokens is a different change and must say so (`AGENTS.md`).
+
+## 2. Hard constraints (do not forget these)
+
+- **No Apple hardware on the dev box.** Development happens on Linux aarch64: no Metal, no Xcode, no Apple SDK. A local
+  `cmake --build` of `kapitsa` **cannot** succeed and must not be attempted as proof of anything.
+- **The author does not run a GPU.** Per repo precedent (AGENTS.md, PR #170), the PR is marked **"Not verified on a GPU"**
+  in both title and description. The user runs the Mac verification pass.
+- **CI does the compile checking.** GitHub Actions `macos-15` runners build the C++ and, via `metal-compile`, run
+  `xcrun metal` over the embedded kernel libraries. That is the only automated signal about the Metal sources here.
+  Note `metal-compile` cannot see wrong arithmetic, races, or the 32 KB threadgroup budget.
+- **One change per PR**, ~1000 changed lines max (`pr-size.yml`). This port is deliberately kept in one coherent PR to
+  the fork; see §7 for the upstream-split plan.
+- **We push to the fork `Wiselfx/kapitsa`**, never upstream `nace-ai/kapitsa`. Never merge, never use admin bypasses.
+- **Never write a speedup number, "bit for bit", or "same outputs"** for anything not run on a GPU.
+- **Do not commit** `build/`, models, `*.bin`, agent plans or personal settings. `docs/spark/` is a deliberate exception:
+  it is project documentation required by the user, and is described in §8.
+
+## 3. The two models, as facts
+
+Source of truth: `docs/spark/configs/*.json` (verbatim copies of the HF `config.json`) and `docs/spark/configs/NOTES.md`.
+
+| | 1.7B | 4B |
+|---|---|---|
+| HF repo | `XHToken/Spark-X2.6-1.7B` | `XHToken/Spark-X2.6-4B` |
+| `model_type` | `spark2_5` | `spark2_5` |
+| `architectures` | `Spark2_5ForCausalLM` | `Spark2_5ForCausalLM` |
+| params | 1,707,657,216 | 4,112,079,360 |
+| hidden_size | 2048 | 2560 |
+| intermediate_size | 6656 | 10240 |
+| layers | 28 | 36 |
+| q heads / kv heads | 8 / 2 (**G=4**) | 16 / 4 (**G=4**) |
+| head_dim | 256 | 256 |
+| layer pattern | (S,S,S,F)×7, 21 S + 7 F | (S,S,S,F)×9, 27 S + 9 F |
+| sliding_window | 512 | 512 |
+| MLP act | `gelu` (tanh approx) | `gelu` (tanh approx) |
+| attn output gate | **per head**, sigmoid | **per head**, sigmoid |
+| RoPE full layers | θ=5e6, `partial_rotary_factor` 0.25 → 64 rot dims | same |
+| RoPE sliding layers | θ=1e4, `partial_rotary_factor` 1.0 → 256 rot dims | same |
+| vocab / tied | 131072 / yes | 131072 / yes |
+| q_norm / k_norm | **absent** | **absent** |
+| MLP/attn bias | none | none |
+| max_position_embeddings | 1048576 | 1048576 |
+
+**Weight keys (identical set for both, 290 keys for the 4B):**
+`model.embedding.weight`, `model.norm.weight`, and per layer `model.layers.N.input_layernorm.weight`,
+`model.layers.N.post_attention_layernorm.weight`, `model.layers.N.self_attn.q_k_v_proj.weight`,
+`model.layers.N.self_attn.g_proj.weight`, `model.layers.N.self_attn.out_proj.weight`,
+`model.layers.N.mlp.{gate,up,down}_proj.weight`. Note the **fused `q_k_v_proj`** (one matrix, `[q_dim+2*kv_dim, hidden]`)
+and the **`g_proj` of shape `[num_heads]`** (8 for the 1.7B, 16 for the 4B).
+
+Per-head gate: `attn_out *= sigmoid(g_proj(x))` where the scalar is broadcast over all 256 head dims.
+This is `sigmoid`, not silu, and it is **per head**, not per channel. Kapitsa's existing kernels apply a *per-channel*
+gate vector, so this needs a broadcast mode.
+
+### Available quantized packs (no conversion needed)
+
+`mlx-community/Spark-X2.6-4B-OptiQ-4bit` is MLX affine, group 64, 3.04 GB, with **per-tensor mixed bits**
+(8-bit on `q_k_v_proj`/`g_proj`/`out_proj`/`embedding`, mostly 4-bit MLP). Kapitsa's `Qwen35::quant_of()` already reads
+exactly that per-tensor `{bits, group_size}` map, so pointing Kapitsa at the repo should load without repacking.
+Others: `abenzerps/...-MLX-{4,6,8}bit`, `0x36/...-mlx-{4bit,8bit,bf16}`, `hermitdave/...-SLQ-4.50bpw`,
+`code-and-canvas/...-oQ{4,6,8}e-fp16`, `Jakevin/...-gptq4-mlx`, and the official `XHToken/...-{INT4,INT8,FP8,GGUF}`.
+Kapitsa's supported quant formats (`format_supported`, `src/model/qwen35.cpp`): bf16; group 64 at 3/4/5/6/8 bit;
+group 32 at 4 bit.
+
+## 4. Architecture decisions (settled — do not re-litigate without evidence)
+
+**D1. A new model class `Spark`, not a config of `Qwen35`.**
+`Qwen35` hard-requires the GDN fields (`linear_num_key_heads`, `linear_num_value_heads`, `linear_key_head_dim`,
+`linear_value_head_dim` — read unconditionally at the top of `read_config`) and unconditionally loads
+`q_norm.weight`/`k_norm.weight` per attention layer. Spark has neither. Bending `Qwen35` would put `if (spark)` branches
+through a 3610-line file that is the engine's hottest path. A separate class matches how this repo already handles
+Divergent architectures (`Dory`, `Flint`, `NemotronH`, `Clover`, `Qwen4Exp` are all separate classes).
+
+**D2. Reuse Dory's skeleton shape, not its kernels.**
+`Dory` is the closest existing dense-attention-only model (also 256 head_dim, also per-layer
+`sliding_attention`/`full_attention` with per-type RoPE). Its *config parsing and cache layout* are the right template.
+But its `dory_*` kernels bake in NVIDIA's scaling constants, NVFP4 formats, slerp residuals and looped-recurrent layout,
+so its **kernels** are the wrong template. Reuse the structure, write Spark's own encode path.
+
+**D3. Reuse these existing generic kernels where the math matches exactly:**
+- `attn_prep` (`src/kernels/attn.metal`): q/k RMSNorm + RoPE + KV store. Parametrized by `AttnPrepParams{D,Hq,Hkv,rot,pos,
+  max_seq,eps,theta}` — Spark's 64-rot-dim full layers and 256-rot-dim sliding layers both fit, since `rot` is a
+  per-dispatch value. Needs no q_norm/k_norm ⇒ that path already takes them as buffers; we simply do not pass them (or
+  pass an all-ones vector, see D5). **Decided: pass all-ones norms and leave kernel math untouched** (cheap, 256 floats,
+  and avoids a kernel variant that could drift numerically).
+- `attn_prefill11r` / `attn_prefill11` (simdgroup prefill attention, head dim 256, G = Hq/Hkv).
+- `qmv` / `qmvf` / `qmms` / `qmm3` quantized matvec and tile GEMMs — but **only after** the GELU work in D4.
+- The sampler, tokenizer, KV caches, `Seq`, prefix cache, server, API adapters: untouched.
+
+**D4. New kernel work is limited to three things.**
+1. **GELU-tanh MLP.** Kapitsa is SiLU throughout. Spark needs `gelu` (PyTorch's `gelu`, i.e. tanh approximation) in the
+   fused gate/up+SwiGLU store sites of the GEMM/matvec kernels. Add it as a compile-time template flag (`GELU`) so SiLU
+   instantiation stays bit-identical for every existing model — this is the key numerics-safety property: **existing
+   models must compile to exactly the same kernel code as before.**
+2. **Per-head broadcast gate.** A variant of the attention epilogue that broadcasts one scalar per head over 256 dims,
+   instead of a per-channel vector. Cheapest correct option is to keep the existing per-channel gate layout and have the
+   host *write the same scalar to all 256 slots* — zero kernel change. **Decided: do the host-side broadcast first**
+   (it costs 256 writes per head per token on the host, negligible), and only add a kernel variant if measurement shows
+   it matters. This keeps the numerics surface at zero.
+3. **Sliding-window masking** for the prefill attention path. `qattn_t_*` and `attn_prefill11*` have no window parameter;
+   `dory_attn` does. For correctness-first, either (a) cap the key range per query in the encode path, or (b) add a
+   `window` field to `AttnPrefParams` and use it exactly as `dory_attn.metal` does (`kfirst`/`klo`). **(b) is the plan:**
+   it mirrors proven logic and is a small, reviewable diff. Note: adding a field to `AttnPrefParams` changes a struct
+   that `qattn_t.metal` also declares as `QaParams` — keep both in sync, and prefer appending the field so existing
+   dispatches keep their offsets.
+
+**D5. Read `rot` per layer type, not globally.** `Qwen35` computes one global `rot_dims = head_dim *
+partial_rotary_factor`. Spark needs 64 on full layers and 256 on sliding layers. `AttnPrepParams.rot` is already a
+per-dispatch argument, so this is a host-side change only: store `rot_full` and `rot_swa`, pick per layer.
+
+**D6. No drafter in scope.** Spark ships no MTP head and no DFlash drafter. `VitreousCut/Spark-X2.6-4B-EAGLE3` exists
+but Kapitsa has no EAGLE support and adding one is a separate project. Ship prompt-lookup (`--spec N`) only. The user
+confirmed a drafter is not critical.
+
+**D7. No Neural Engine split.** Kapitsa's ANE FFN split is gated on measured shapes (`mma_share_measured` wants
+hidden 2560 / I 9216 / 32 layers). Spark-4B is hidden 2560 but I=10240, 36 layers, so it will not auto-enable; leave
+`NI_ANE` off. Revisit only with measurements.
+
+## 5. Work breakdown
+
+See `docs/spark/TODO.md` for the live checklist. The phases are:
+
+- **P0 — Scaffolding.** `Spark` class skeleton, `is_model()`, engine dispatch, CMake wiring, config struct + parser,
+   dense/quant format validation. No kernels. Must compile.
+- **P1 — Load.** Map Spark tensor names onto `QLinear`/`Tensor`, handle the fused `q_k_v_proj` (slice into q/k/v views,
+   which the existing multi-matvec dispatch already supports as 3 segments) and the `g_proj` vector, tied embeddings.
+- **P2 — GELU kernels.** Template flag through the MLP kernels; assert existing instantiations are unchanged.
+- **P3 — Attention path.** Prefill + decode with per-layer `rot`, window masking, all-ones q/k norm, per-head gate
+   broadcast, correct KV cache sizing (sliding layers only need a 512-slot ring).
+- **P4 — Config tests.** Extend the CPU-test surface so `Spark` config parsing is covered without a GPU, in the style of
+   `qwen4_config_test` (which is a *pure CPU* test in the CI list — this is our main automated proof).
+- **P5 — Docs + catalog.** `docs/spark/` finalized, README/usage notes, model detection documented.
+- **P6 — PR + push to fork.**
+
+## 6. Verification plan (what is provable here, and what is not)
+
+| Claim | Provable on this box? | How |
+|---|---|---|
+| C++ compiles | No — needs macOS | CI `build-and-test` |
+| Config parsing / shape validation correct | **Yes** | new `spark_config_test`, run locally if a host compiler is present |
+| Tensor-name mapping / quant-format acceptance | **Yes** | same CPU test with synthetic metadata |
+| Metal kernels compile | No | CI `metal-compile` |
+| Kernels compute the right answer | No | **user's Mac** |
+| Outputs match the reference | No | **user's Mac**, `logit_dump` + `tools/logit_compare.py` |
+| Speed | No | **user's Mac**, `kapitsa bench` |
+
+Local C++ checks that *are* possible on Linux: compile individual translation units that have no Apple framework
+dependency (`src/model/dory.cpp`-style code pulls in Metal, so mostly not possible), and run the pure-logic tests if
+their dependencies allow. Treat every local build claim as best-effort and state it precisely.
+
+## 7. Delivery
+
+- Work on a branch in the fork, push at the end, open a PR **against the fork's own main** (not upstream) unless the
+  user says otherwise.
+- PR body: what changed; a **Not verified** section naming the GPU/Metal gap explicitly; the exact Mac commands the user
+  should run to verify.
+- Workflows, as the user asked: the fork keeps **`ci.yml`** (trimmed to `lint`, `pr-size-script`, `docs-links`,
+  `build-and-test`, `metal-compile`) and **`pr-size.yml`**. Deleted: `release.yml` (signing/tarball/Homebrew, irrelevant
+  here) and `community-bench.yml` (community benchmark ingestion, and it uses `pull_request_target`). Also dropped from
+  `ci.yml`: the `community-table` and `bench-readme` jobs (they police `bench/community` tables and the harness README,
+  which this project does not touch) and `agentic-metrics-script` (tests `bench/harness/agentic.py`). `build-and-test`
+  and `metal-compile` are the two that matter: they are the only automated proof that the C++ compiles and that the
+  Metal libraries translate.
+  - Deleting `release.yml` broke a relative link in `CONTRIBUTING.md`; found by the kept `docs-links` job and fixed.
+- Keep one logical change per PR at the upstream-contribution level; if the user later wants to send this upstream, the
+  split is: (PR1) `Spark` class + config + tests, (PR2) GELU kernel flag, (PR3) window masking, (PR4) docs/catalog.
+
+## 8. What lives in `docs/spark/`
+
+- `SPARK.md` — this file. The plan and the state log.
+- `TODO.md` — the live checklist.
+- `configs/*.json` — verbatim HF `config.json` for both models (facts, not edited).
+- `configs/NOTES.md` — derived architecture notes, per-layer tables, weight-key inventory.
+- `reference/spark_modelling.py` — reference `modeling_spark.py` from HF, for checking math (vendored for reference only).
+- `reference/spark_configuration.py` — reference `configuration_spark.py`.
+
+## 9. State log (append a dated entry at every major turn)
+
+**2026-10-29 — P0/P1/P3-code landed; nothing run on a GPU.**
+- Forked to `Wiselfx/kapitsa`, cloned to `/home/paseo/workspace/kapitsa-spark`.
+- Dev box is Linux aarch64: no Metal, no Xcode. The **user tests on a Mac**; CI compiles on GitHub.
+- Read `AGENTS.md` in full; constraints captured in §2.
+- **Decisions taken, with the evidence:**
+  - `Qwen35` hard-requires GDN config fields and `q_norm`/`k_norm` weights (`src/model/qwen35.cpp:988-989`,
+    `read_config` at `:604-610`) ⇒ **D1**, a separate `Spark` class.
+  - `AttnPrepParams.rot` and `.theta` are per-dispatch ⇒ **D5** is host-side only.
+  - **D4 was changed from the original plan:** instead of adding a `GELU` template flag to the shipping MLP kernels
+    (which would recompile the hot path of *every existing model* and put their numerics at risk), Spark gets its own
+    tiny kernel library `src/kernels/spark/`. The change is purely additive. See §10.
+- **Landed:**
+  - `src/model/spark_config.{h,cpp}` — pure-CPU config parse, validation, derived tables (rot/window/kv/rings).
+  - `tools/spark_config_test.cpp` — CPU test over both published configs + 13 refusal cases. **Runs and passes on
+    this Linux box.** Verified it has teeth (deliberately broke `rot_dims` → 2 failures).
+  - `src/model/spark.{h,cpp}` — the `Spark` model: load (per-tensor mixed quant, fused `q_k_v_proj` row-slicing, tied
+    embeddings, HF vs MLX norms decided from values), KV caches (512-slot rings for sliding layers, full for the 9/7),
+    the full decode path, and prefill as a loop over decode rows.
+  - `src/kernels/spark/spark.metal` + `cmake/embed_kernels_spark.cmake` + CMake/CI wiring.
+  - Engine dispatch (`engine.cpp`), the "model Kapitsa cannot run" refusal, the memory plan, and the no-drafter gate.
+  - `tools/lx_syntax_check.sh` — local Linux syntax check (see §11).
+- **A real bug caught by reading the kernel contracts, not by compiling:** `attn_prep` reads the query out of an
+  **interleaved `[row][Hq][2][D]`** buffer (Qwen's `q_proj` emits query+gate together, `attn.metal:35`), while my first
+  version handed it the dense `q_k_v_proj` output. Fixed with `spark_pack_qg`, which assembles the interleaved layout
+  from the dense q and the broadcast per-head scalar. This is exactly the class of mistake only a GPU run confirms —
+  see §6.
+- **Known gaps (P3 remainder), all stated in code comments and `TODO.md`:**
+  - A **wrapped sliding window** is not implemented: `enc_attn` runs the plain range while `pos < window` and stops
+    with a clear fatal once the window wraps. Needs the ring-aware attention kernel.
+  - Prefill is correct-but-slow (decode path per row); the batched path is not bound.
+  - `encode_logits_rows` works but is slow for the same reason.
+  - No drafter (by design, D6); prompt-lookup only.
+- Next: ring-aware attention, then batched prefill, then the Mac verification pass.
+
+## 10. Why Spark's kernels are a separate library (the numerics argument)
+
+Kapitsa's rule is that a change which is faster but produces different tokens is a different change. Adding a `GELU`
+flag to `qmms.metal` / `qmm3.metal` / `qmv.metal` / `qmvf.metal` would instantiate new templates in the same translation
+unit that every existing model's kernels are built from. Even with the flag defaulted off, that is a recompile of the
+hottest code in the engine for a new family's convenience, and any accidental change to the SiLU path would move
+Qwen/Nemotron/Dory/Flint outputs — requiring the full `logit_dump` gate on models nobody meant to touch.
+
+`src/kernels/spark/spark.metal` is therefore its own library, embedded by `cmake/embed_kernels_spark.cmake` and compiled
+by `Gpu::compile_extra("spark", kSparkKernelSource)` on first use (the same mechanism Dory and the tensor library use).
+Existing libraries are byte-identical to before this change. The cost is two extra dispatches per MLP (the GELU fold)
+rather than a fused epilogue; that is a speed trade to revisit *after* correctness, with measurements.
+
+## 11. The local verification loop (Linux, no Apple SDK)
+
+`tools/lx_syntax_check.sh` compiles the C++ side with `g++ -fsyntax-only`, shimming the two macOS-only things in the
+scratch directory (never committed): `__builtin_available(...)` and `<sys/sysctl.h>`. It proves: no typos, correct
+signatures, correct struct/field use, no missing includes. It does **not** prove: that the code links, that Metal
+compiles, or that anything computes the right answer.
+
+Verified working on this box for `spark.cpp`, `spark_config.cpp`, `engine.cpp` (and, as a control, `dory.cpp` /
+`qwen35.cpp` / `nemotron_h.cpp` all check clean too). `tools/spark_config_test.cpp` is a genuine executable test and is
+run for real. Both are wrapped by the same commands recorded in the PR body.
+
+## 12. If you are resuming after a compaction
+
+1. Read §2 (constraints), §4 (decisions D1–D7), then the last §9 entry.
+2. `docs/spark/TODO.md` is the live checklist — trust it over your memory of this file.
+3. Run `bash tools/lx_syntax_check.sh` and the config test before changing anything, so you know the baseline is green.
+4. Do not claim anything about Metal, speed or output equality. The PR says "Not verified on a GPU" because it is.

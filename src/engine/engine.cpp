@@ -370,6 +370,10 @@ Engine::Engine(const EngineOptions& o) : opts_(o) {
     flint_ = m.get();
     model_ = std::move(m);
     publisher_sampling();
+  } else if (Spark::is_model(opts_.model_dir)) {
+    auto m = std::make_unique<Spark>(opts_.model_dir, opts_.prefill_chunk);
+    model_ = std::move(m);
+    publisher_sampling();
   } else if (Clover::is_model(opts_.model_dir)) {
     auto m = std::make_unique<Clover>(opts_.model_dir, opts_.prefill_chunk);
     q35_ = clover_ = m.get();
@@ -710,6 +714,8 @@ std::string unsupported_model(const std::string& model_dir) {
   if (Qwen4Exp::is_model(model_dir) || Dory::is_model(model_dir) || NemotronH::is_model(model_dir) ||
       Flint::is_model(model_dir) || Clover::is_model(model_dir))
     return "";
+  // Spark-X2.6 (spark2_5): what this path does not run, or "" (model/spark_config.h)
+  if (spark_family(j)) return spark_refusal(j, model_dir);
   // the Qwen3.5 family by its model_type (Hugging Face's, and what the GGUF import writes); a config that names none,
   // by the hybrid's shape, as the Hub check reads it (src/hub/fetch.cpp, check_supported)
   auto type = [](const nlohmann::json& c) {
@@ -728,7 +734,8 @@ std::string unsupported_model(const std::string& model_dir) {
     return family();
   const std::string runs = " Kapitsa runs the Qwen3.5 family (Qwen3.5, 3.6 and 3.8: qwen3_5, qwen3_5_moe), "
                            "Qwen3.8-Flash-Next (qwen4_exp), NVIDIA's Nemotron-H (nemotron_h: Nemotron Nano, Nemotron 3.5), "
-                           "Nemotron Labs Dory (dory), Recursive's Flint (flint) and DiffuSpace's Clover (clover_moe).";
+                           "Nemotron Labs Dory (dory), Recursive's Flint (flint), DiffuSpace's Clover (clover_moe) and "
+                           "XHToken's Spark-X2.6 (spark2_5).";
   const std::string what = !mt.empty() ? mt : tt;
   if (what.empty()) return model_dir + " is not a model Kapitsa runs: its config.json names no model_type." + runs;
   return model_dir + " is a " + what + " model (its config.json's model_type), an architecture Kapitsa does not run." +
@@ -751,6 +758,7 @@ MemPlan model_plan(const std::string& model_dir, int prefill_chunk) {
   }
   if (const std::string why = unsupported_model(model_dir); !why.empty()) throw std::runtime_error(why);
   const MemPlan p = Dory::is_model(model_dir)       ? Dory::plan(model_dir, prefill_chunk)
+                    : Spark::is_model(model_dir)    ? Spark::plan(model_dir, prefill_chunk)
                     : Flint::is_model(model_dir)    ? Flint::plan(model_dir, prefill_chunk)
                     : Qwen4Exp::is_model(model_dir) ? Qwen4Exp::plan(model_dir, prefill_chunk)
                     : NemotronH::is_model(model_dir) ? NemotronH::plan(model_dir, prefill_chunk)
@@ -760,7 +768,7 @@ MemPlan model_plan(const std::string& model_dir, int prefill_chunk) {
   return p;
 }
 static size_t model_ane_bytes(const std::string& model_dir, const MemPlan& p) {
-  if (Dory::is_model(model_dir) || Flint::is_model(model_dir)) return 0;
+  if (Dory::is_model(model_dir) || Flint::is_model(model_dir) || Spark::is_model(model_dir)) return 0;
   return NemotronH::is_model(model_dir) ? p.ane : Qwen35::ane_plan(model_dir, p).bytes;
 }
 
@@ -883,8 +891,8 @@ LoadPlan plan_load(const std::string& model_dir, const std::string& dflash, bool
   // its own decoding (self-speculative or block diffusion)
   const bool clover = Clover::is_model(model_dir);
   if (clover && Clover::decode_mode() != "auto" && Clover::decode_mode() != "dflash") lp.dflash_off = true;
-  if (Dory::is_model(model_dir) || Flint::is_model(model_dir)) {
-    lp.dflash_off = true;  // no block drafter for Dory or Flint
+  if (Dory::is_model(model_dir) || Flint::is_model(model_dir) || Spark::is_model(model_dir)) {
+    lp.dflash_off = true;  // no block drafter for Dory, Flint or Spark (Spark ships none)
   } else if (NemotronH::is_model(model_dir)) {
     // the block drafter (LiLiCorr, DSpark) in the model's dflash/ folder (auto), or the one named
     if (!lp.dflash_off) {

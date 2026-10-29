@@ -266,10 +266,10 @@ one engine at a time; [docs/benchmarks.md](docs/benchmarks.md) has the published
 
 A release is a pull request that sets the version (`CMakeLists.txt`, the `KAPITSA_VERSION` fallbacks in `src/`, the
 `install.sh` example and `packaging/homebrew/kapitsa.rb`) and, once it is merged, the tag `vX.Y.Z` on the merge commit.
-The tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml): it builds the tarball, publishes the
-GitHub release with its `.sha256`, and installs and tests the Homebrew formula locally before it reaches users. Then
-write the release notes (`gh release edit vX.Y.Z --notes-file FILE`), one line per user-facing change, crediting
-outside authors.
+The tag runs `release.yml`: it builds the tarball, publishes the GitHub release with its `.sha256`, and installs and
+tests the Homebrew formula locally before it reaches users. (This fork does not carry `release.yml` — see
+`docs/spark/SPARK.md` for why the fork's workflows are trimmed.) Then write the release notes
+(`gh release edit vX.Y.Z --notes-file FILE`), one line per user-facing change, crediting outside authors.
 
 ### The `TAP_GITHUB_TOKEN` secret (Homebrew tap)
 
