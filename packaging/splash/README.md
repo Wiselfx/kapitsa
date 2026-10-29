@@ -17,7 +17,7 @@ engine; benchmark rows measured with it say KFlash, not Splash.
 
 | File | What |
 |---|---|
-| `pin.json` | The upstream repo, tag and commit, and the sha256 of that release's engine binary and metallib |
+| `pin.json` | The upstream repo, tag and commit, and the sha256 of that release's engine binary and both metallibs |
 | `patches/NNNN-*.patch` | Applied in order with `git apply`. Each starts with its license header; each file it changes gets a `Modified by Nace AI` line, and each change is marked `KSX` |
 | `kernels/ksx_h1_kernels.metal` | The Metal kernels patch 0002 dispatches, written by hand |
 | `gen_kernels.py` | Writes `ksx_h1.metal` at build time: Splash's repack helpers from the pinned source, with staging read through system-coherent loads, followed by the kernels above |
@@ -30,7 +30,10 @@ engine; benchmark rows measured with it say KFlash, not Splash.
 | `0001-runtime-kernels` | Splash compiles the `.metal` files in `$SPLASH_KSX_KERNELS` at startup; their functions replace the metallib's of the same name | `SPLASH_KSX_KERNELS` unset |
 | `0002-h1-gate-replay` | H1=3: a decode step's expert-load host step runs inside the command buffer, with a GPU gate that replays the rest of the command when the CPU did not release the step in time | `SPLASH_KSX_H1` is not `3` |
 
-With neither variable set, the patched binary runs Splash's own code paths.
+With neither variable set, the patched binary runs Splash's own code paths. `SPLASH_KSX_H1=3` needs `SPLASH_KSX_KERNELS`
+too: its kernels are not in Splash's metallib, so with H1=3 alone the first decode fails on a missing function rather
+than falling back to stock. Kapitsa always sets both (`kflash.json`'s `env`); patch 0002's header line "Off unless
+SPLASH_KSX_H1=3 and SPLASH_KSX_KERNELS are set" means that pair.
 
 ## Build
 

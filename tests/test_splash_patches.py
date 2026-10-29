@@ -26,7 +26,7 @@ with open(os.path.join(PKG, "pin.json")) as f:
     pin = json.load(f)
 check(pin["repo"] == "https://github.com/incoai/splash.git", "pin: upstream Splash", pin["repo"])
 check(re.fullmatch(r"[0-9a-f]{40}", pin["commit"]) is not None, "pin: full commit hash", pin["commit"])
-for k in ("release_binary_sha256", "release_metallib_sha256"):
+for k in ("release_binary_sha256", "release_metallib_sha256", "release_host_step_metallib_sha256"):
     check(re.fullmatch(r"[0-9a-f]{64}", pin[k]) is not None, f"pin: {k}", pin[k])
 
 PATCHES = sorted(n for n in os.listdir(os.path.join(PKG, "patches")) if n.endswith(".patch"))
@@ -82,6 +82,29 @@ for broken, what in ((REPACK.replace("device const ushort *p6", "ushort *p6"), "
         check(False, f"gen: refuses {what}", "generated")
     except ValueError:
         check(True, f"gen: refuses {what}")
+
+
+# build.py --out: an earlier build (marker) or an empty dir is replaced; anything else is refused and left as it was.
+import build  # noqa: E402
+
+t = tempfile.mkdtemp()
+mine, empty, theirs, afile = (os.path.join(t, n) for n in ("mine", "empty", "theirs", "afile"))
+for d in (mine, empty, theirs):
+    os.makedirs(d)
+open(os.path.join(mine, build.MARKER), "w").close()
+open(os.path.join(mine, "stale"), "w").close()
+open(os.path.join(theirs, "keep.txt"), "w").write("user data")
+open(afile, "w").close()
+for d in (mine, empty, os.path.join(t, "new")):
+    build.clear_out(d)
+    check(os.listdir(d) == [build.MARKER], f"out: {os.path.basename(d)} becomes an empty build dir", os.listdir(d))
+for d, what in ((theirs, "a directory that is not a build"), (afile, "a file")):
+    try:
+        build.clear_out(d)
+        check(False, f"out: refuses {what}", "cleared")
+    except build.BuildError:
+        check(True, f"out: refuses {what}")
+check(open(os.path.join(theirs, "keep.txt")).read() == "user data", "out: the refused directory's files survive")
 
 if "--apply" in sys.argv[1:]:
     cache = os.environ.get("SPLASH_CACHE") or os.path.join(tempfile.mkdtemp(), "splash")

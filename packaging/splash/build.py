@@ -12,7 +12,8 @@ engine/splash, engine/*.metallib, kernels/ksx_h1.metal and kflash.json (what was
 KFlash with SPLASH_KSX_H1=3 SPLASH_KSX_KERNELS=<DIR>/kernels; unset, it runs as Splash.
 
 Fails, naming the step, when the clone is not the pinned commit, a patch stops applying, the release's metallibs are
-not the pinned ones, or the build fails. Nothing is reused from a failed build: DIR is rebuilt from scratch."""
+not the pinned ones, or the build fails. Nothing is reused from a failed build: DIR is rebuilt from scratch. DIR is
+deleted first only when it is empty or an earlier build.py output (MARKER or kflash.json); any other DIR is refused."""
 import argparse
 import hashlib
 import json
@@ -29,6 +30,21 @@ import gen_kernels  # noqa: E402
 
 class BuildError(Exception):
     pass
+
+
+MARKER = ".kflash-build"  # written first into DIR, so a failed build's leftovers are recognised as this script's
+
+
+def clear_out(out):
+    """Make out an empty directory carrying MARKER. Deletes only an empty directory or an earlier output of this script (MARKER, or a finished build's kflash.json)."""
+    if os.path.lexists(out):
+        if os.path.islink(out) or not os.path.isdir(out):
+            raise BuildError(f"--out {out} exists and is not a directory")
+        if os.listdir(out) and not any(os.path.isfile(os.path.join(out, n)) for n in (MARKER, "kflash.json")):
+            raise BuildError(f"--out {out} exists and is not a KFlash build: not deleting it; pass a new or empty directory")
+        shutil.rmtree(out)
+    os.makedirs(out)
+    open(os.path.join(out, MARKER), "w").close()
 
 
 def sha256(path):
@@ -112,13 +128,12 @@ def build(pin, cache, release, out):
         rel = json.load(f)
     if rel.get("version") != pin["tag"]:
         raise BuildError(f"{release} is Splash {rel.get('version')}, the pin is {pin['tag']}")
-    metallib = os.path.join(release, "engine", "splash.metallib")
-    if sha256(metallib) != pin["release_metallib_sha256"]:
-        raise BuildError(f"{metallib} is not the pinned release's metallib")
-    if os.path.exists(out):
-        shutil.rmtree(out)
+    for m, key in (("splash.metallib", "release_metallib_sha256"), ("host-step.metallib", "release_host_step_metallib_sha256")):
+        path = os.path.join(release, "engine", m)
+        if sha256(path) != pin[key]:
+            raise BuildError(f"{path} is not the pinned release's {m}")
+    clear_out(out)
     src = os.path.join(out, "src")
-    os.makedirs(out)
     pinned_source(pin, cache, src)
     apply_patches(src)
     os.makedirs(os.path.join(src, "build"))

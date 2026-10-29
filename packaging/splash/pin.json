@@ -4,5 +4,6 @@
   "commit": "1482f6bbc2abf12375332725302019594150b6cb",
   "release_binary_sha256": "20b36bcc051145b425403dee7489d06cdbb5060460dfdb2e0cfc8d49cebfc29f",
   "release_metallib_sha256": "e30124e8bceba1a9de7afe75cf1a10439bcfa5c1b777490c829ba4da0d0cd1cd",
+  "release_host_step_metallib_sha256": "8e177c753e2051cd8a31c79bf031b3fae8daf04f5564ced9fc37db064bdfe51a",
   "kflash_binary_sha256": ""
 }
