@@ -227,9 +227,9 @@ def agent_checks(run, home):
             return json.loads(p.stdout) if p.returncode == 0 else p.stderr
         got = provider([{"id": "qwen3.6-35b-a3b", "context": 65536}, {"id": "flint:4bit", "context": 131072}])
         check("cli: Pi's provider lists every model it is given, the served one first, each with its context",
-              got == [[["qwen3.6-35b-a3b", 65536, 16384], ["flint:4bit", 131072, 32768]]], str(got))
+              got == [[["qwen3.6-35b-a3b", 65536, 65536], ["flint:4bit", 131072, 131072]]], str(got))
         got = provider(None)
-        check("cli: Pi's provider without a list: the one model", got == [[["qwen3.6-35b-a3b", 65536, 16384]]], str(got))
+        check("cli: Pi's provider without a list: the one model", got == [[["qwen3.6-35b-a3b", 65536, 65536]]], str(got))
     for label in ["sh.brew.kapitsa", "homebrew.mxcl.kapitsa"]:  # current Homebrew's label (the reporter's), older ones'
         rc, out, got = pi(port, label)
         check(f"cli: pi on the Homebrew service's port ({label}) says it is the service, and how to stop it",

@@ -927,6 +927,7 @@ tools and MCP servers work as usual:
   opencode 2 on, it runs with `--standalone` unless you pick a server.
 - **Pi** uses the Anthropic Messages API through a `kapitsa` provider, with the server's model and context window. An
   extension adds the provider for that run (`pi -e ~/.cache/kapitsa/agents/pi-kapitsa.js`); `~/.pi` is not changed.
+  The provider's `maxTokens` is the window itself: Pi fits each request's `max_tokens` to what the prompt leaves of it.
   Each turn's reasoning goes back as it was generated (in the thinking block's signature, a turn cut short included),
   so every request of a tool loop continues the prompt the server has cached; Pi's thinking levels become the model's
   reasoning efforts. The server `kapitsa pi` starts runs with `--allow-switch`: Pi's model list (`/model`) has every

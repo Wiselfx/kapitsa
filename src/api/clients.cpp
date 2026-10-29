@@ -202,7 +202,9 @@ export default function (pi) {
         reasoning: true,
         input: ["text", "image"],
         contextWindow: context,
-        maxTokens: Math.min(32768, Math.max(1024, Math.floor(context / 4))),
+        // Pi sends this as max_tokens and fits it to the room the prompt leaves (window - prompt - 4096), and compacts at
+        // window - 16384 whatever it is: the window is the ceiling, not a quarter of it
+        maxTokens: context,
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         compat: { forceAdaptiveThinking: true, allowEmptySignature: true },
       };
