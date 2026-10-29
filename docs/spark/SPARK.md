@@ -188,8 +188,9 @@ their dependencies allow. Treat every local build claim as best-effort and state
 - `TODO.md` — the live checklist.
 - `configs/*.json` — verbatim HF `config.json` for both models (facts, not edited).
 - `configs/NOTES.md` — derived architecture notes, per-layer tables, weight-key inventory.
-- `reference/spark_modelling.py` — reference `modeling_spark.py` from HF, for checking math (vendored for reference only).
-- `reference/spark_configuration.py` — reference `configuration_spark.py`.
+- `configs/NOTES.md` §"Reference file pointers" — the upstream URLs and the line numbers that matter. The reference
+  sources are deliberately **not** vendored: they are someone else's code, and carrying them would trip the repo's own
+  lint and PR-size checks for no benefit.
 
 ## 9. State log (append a dated entry at every major turn)
 

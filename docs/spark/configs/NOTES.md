@@ -96,11 +96,18 @@ Then `model.norm(hidden)` → tied `lm_head` = `model.embedding.weight`.
 - **Tokenizer**: BPE with `vocab.json` + `merges.txt` + `tokenizer.json` (standard); Kapitsa's tokenizer already reads
   `model.merges` (verified at `src/tokenizer/tokenizer.cpp:491`).
 
-## Reference file pointers
+## Reference file pointers (not vendored — read them on the Hub)
 
-- `reference/spark_modelling.py` — `Spark2_5Attention.__init__` (l.135) documents the `q_dim`/`kv_dim`/`gate_score`
-  layout; `forward` (l.158) is the exact order above. `Spark2_5MLP` (l.116) enforces `hidden_act == 'gelu'`.
-- `reference/spark_configuration.py` — `get_partial_rotary_factor(layer_type)` (l.113) is the per-layer RoPE accessor;
-  `layer_types` fallback logic is at l.93.
-- Note the reference uses `eager_attention_forward`, i.e. an ordinary dense causal path; there is no exotic attention
-  mechanism to replicate.
+Vendoring HF's `modeling_spark.py` / `configuration_spark.py` here would mean carrying ~600 lines of someone else's
+code that the repo's own lint and PR-size checks would then have an opinion about. They are cited instead:
+
+- `https://huggingface.co/XHToken/Spark-X2.6-4B/blob/main/modeling_spark.py`
+  - `Spark2_5Attention.__init__` (l.135): the `q_dim` / `kv_dim` / `gate_score` layout.
+  - `Spark2_5Attention.forward` (l.158): the exact order in the forward-pass block above.
+  - `Spark2_5MLP` (l.116): enforces `hidden_act == 'gelu'`.
+- `https://huggingface.co/XHToken/Spark-X2.6-4B/blob/main/configuration_spark.py`
+  - `get_partial_rotary_factor(layer_type)` (l.113): the per-layer RoPE accessor.
+  - `layer_types` fallback (l.93): "full_attention" every `full_attention_interval` layers.
+
+Note the reference uses `eager_attention_forward`, i.e. an ordinary dense causal path: there is no exotic attention
+mechanism to replicate.
