@@ -247,6 +247,41 @@ their dependencies allow. Treat every local build claim as best-effort and state
   reviewer to grant `size/override`, and the author must not label their own PR through it, so it stays red and is
   explained in the PR body rather than bypassed.
 
+**2026-10-29 (later) — QA pass against primary sources: four defects fixed.**
+
+I reviewed my own port against primary sources rather than against my memory of them: the pinned
+`transformers==4.57.1` wheel, the official PyTorch docs, and this repo's own kernel and encoder code. It found four
+real defects. Three would have shipped silently or died on the first Mac run. Full detail in §13; the summary:
+
+1. **The MLP used the wrong GELU** (correctness, silent). I had written the tanh approximation and claimed in a comment
+   that `ACT2FN["gelu"]` meant it. `transformers==4.57.1 activations.py` maps `"gelu" -> GELUActivation`, whose forward
+   is `nn.functional.gelu` with **no** `approximate` argument, and torch's default is `'none'` — the exact erf form.
+   `"gelu_pytorch_tanh"` is a *separate* key that Spark's config does not request. Up to 4.7e-4 per element wrong,
+   through 28-36 layers. Now exact erf via the same A&S 7.1.26 approximation `vit.metal` already carries (Metal has no
+   `erf` — the repo knew this and I initially wrote `metal::precise::erf`, which does not exist). The CPU test now
+   asserts exact-not-tanh and was verified to fail if it is reverted.
+2. **`SparkLinear::fmt()` returned the wrong spelling** (`"bf16"` / `"4-bit group 64"`) for a string that is
+   concatenated into kernel names, where the suffixes are `"f16"` / `"f4g64"`. Every non-4-bit weight would have failed
+   its pipeline lookup at load.
+3. **A kernel name that does not exist** — `qmv2_b8_g64_r2`; `qmv.metal` only instantiates `_r{1,2,4}_norm` for b8.
+4. **An unstated alignment assumption** in the fused-qkv byte-offset slicing, now asserted rather than assumed.
+
+Defects 2 and 3 had one root cause: **the matvec kernel-selection rule was copy-pasted into four call sites** with
+slightly different conditions. It is now a single function, `Spark::matvec_pipe(W, norm, add)`. That is the structural
+fix; the naming fixes are just its symptoms.
+
+The pass also *confirmed* several things with citations, so they should not be re-litigated without new evidence: the
+RoPE convention (`rotate_half` half-split + `theta^(-2i/rot)`, matching `attn.metal`), the per-layer rotary dims
+(64 / 256 with the tail passed through), the attention math and scale, the gate's position after attention and before
+`out_proj`, tied embeddings, the absence of q/k norm, and the `(i+1) % 4 == 0` full-attention pattern.
+
+What it does **not** establish: anything about the kernels' arithmetic on a GPU. The PR remains "Not verified on a GPU".
+
+**2026-10-29 (later) — a note on how to review this branch.**
+The QA pass is the reason to distrust any claim in this branch that is not backed either by a CPU test that runs in CI
+or by a quoted primary source. Where those two disagree with a code comment, the comment is wrong. Every remaining
+GPU-dependent assertion is listed in §6 and marked as such.
+
 ## 10. Why Spark's kernels are a separate library (the numerics argument)
 
 Kapitsa's rule is that a change which is faster but produces different tokens is a different change. Adding a `GELU`
@@ -272,6 +307,18 @@ Verified working on this box for `spark.cpp`, `spark_config.cpp`, `engine.cpp` (
 run for real. Both are wrapped by the same commands recorded in the PR body.
 
 ## 12. If you are resuming after a compaction
+
+**Read §13 (the QA pass) and §9's last two entries before touching anything.** §13 lists four defects that were already
+fixed and six properties that were verified against primary sources; re-deriving those from scratch burns context and
+risks "fixing" something that is already correct. The current state of the branch is:
+
+- **Host-side logic: reviewed, and it had four defects, now fixed.** Config parsing, kernel-name construction, the
+  fused-qkv byte-offset slicing and the GELU choice are covered by `tools/spark_config_test.cpp` (runs in CI) or by
+  explicit asserts.
+- **Kernel arithmetic: entirely unverified.** No GPU has run any of it. Do not describe it as working.
+- **Two known functional gaps**, both fatal-with-a-clear-message rather than silently wrong: a sliding window that
+  wraps past 512 tokens, and no batched prefill (correct but slow). See §6.
+
 
 1. Read §2 (constraints), §4 (decisions D1–D7), then the last §9 entry.
 2. `docs/spark/TODO.md` is the live checklist — trust it over your memory of this file.
