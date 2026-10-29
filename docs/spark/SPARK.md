@@ -277,3 +277,74 @@ run for real. Both are wrapped by the same commands recorded in the PR body.
 2. `docs/spark/TODO.md` is the live checklist — trust it over your memory of this file.
 3. Run `bash tools/lx_syntax_check.sh` and the config test before changing anything, so you know the baseline is green.
 4. Do not claim anything about Metal, speed or output equality. The PR says "Not verified on a GPU" because it is.
+
+## 13. QA pass (2026-10-29) — what it found, and what it cost
+
+A review of the port against **primary sources** (the pinned `transformers==4.57.1` wheel, the official PyTorch docs,
+and this repo's own kernels), not against my recollection. Four real defects, three of which would have produced wrong
+numbers or a crash on the first Mac run. Recorded here because the pattern matters more than the individual bugs.
+
+### Defect 1 (correctness): the MLP activation was the wrong GELU
+
+I wrote tanh-approximation GELU and asserted in a code comment that `ACT2FN["gelu"]` meant it. It does not.
+
+Evidence chain, all primary:
+- `transformers==4.57.1`, `src/transformers/activations.py`, `ACT2CLS` l.315: `"gelu": GELUActivation`, and l.320:
+  `"gelu_pytorch_tanh": GELUTanh` — **a separate key**, which Spark's config does not ask for.
+- Same file, `GELUActivation.__init__` l.79: `self.act = nn.functional.gelu` — called with no `approximate` argument.
+- `docs.pytorch.org/docs/stable/generated/torch.nn.functional.gelu`: signature `gelu(input, approximate='none')`, and
+  `'none'` is `x * Phi(x)`, the exact erf form. (`'tanh'` is the other option.)
+- So Spark needs `0.5 x (1 + erf(x/sqrt(2)))`. Measured difference from the tanh form: **up to 4.7e-4** near |x|~3,
+  1.5e-4 near |x|~1 — per element, through 28-36 layers. That is a silent-corruption bug, not a rounding nit.
+- Metal has no `erf`; this repo already knew that (`src/kernels/vit.metal:86`, "erf to 1.5e-7 … Metal has no erf").
+  Spark now carries the same A&S 7.1.26 rational approximation, measured at max 1.4e-7 (erf) / 2.1e-7 (gelu) against
+  `math.erf`.
+- `tools/spark_config_test.cpp` now asserts exact-not-tanh and fails loudly if anyone "simplifies" it back (verified:
+  swapping the formula in produces 3 failures).
+
+**Lesson:** "gelu" in a config is ambiguous across five HF registrations. The mapping had to be read, not assumed.
+
+### Defect 2 (would not have loaded): kernel-name suffix
+
+`SparkLinear::fmt()` returned `"bf16"` / `"4-bit group 64"`. It is concatenated into kernel names
+(`pipe("qmvg_" + fmt() + "_r2")`), and `wfmt.metal`'s suffixes are `f16` / `f4g64` / `f8g64` (see `QLinear::fmt` in
+`qwen35.cpp:100`). Every non-4-bit weight would have died on a pipeline lookup at load.
+
+### Defect 3 (same class): a kernel that does not exist
+
+`qmv2_b8_g64_r2` (8-bit, no folded norm) has no instantiation — `qmv.metal` only defines `qmv2_b8_g64_r{1,2,4}_norm`.
+The 8-bit path had to route to `qmv3_b8_r2`, which does have plain/`_add`/`_norm`.
+
+Defects 2 and 3 had the same root cause: **the matvec kernel-selection rule was copy-pasted into four call sites** with
+subtly different conditions. Fixed by extracting `Spark::matvec_pipe(W, norm, add) -> {pipeline, rows, nsg}`; the rule
+now exists once. This is the kind of thing that only bites at run time, on a Mac, one format at a time.
+
+### Defect 4 (latent): an unstated alignment assumption
+
+The fused `q_k_v_proj` is sliced into q/k/v by binding the weights at a byte offset (`row0 * K * bits / 8`). That keeps
+16-byte alignment only if a row is a whole number of 16-byte words. Verified true for both models at every supported
+format (hidden 2048/2560, ffn 6656/10240, 3/4/5/6/8/16 bits, group 32/64) — and now **asserted in the encode path**
+rather than left implicit, so a future variant with an awkward `ffn` fails loudly instead of reading misaligned data.
+
+### Verified as correct (so do not re-litigate without new evidence)
+
+- **RoPE convention.** The reference's `rotate_half` is GPT-NeoX style (split the `rot` dims in half, `cat(-x2, x1)`),
+  and `compute_rope_cos_sin` builds `inv_freq = theta^(-2i/rot)` for `i` in `[0, rot/2)` doubled by `cat(freqs, freqs)`.
+  `attn_prep` (`src/kernels/attn.metal:40-51`) does exactly this: `half_rot = rot/2`, `inv_freq = theta^(-2i/rot)`, with
+  the `-x[+half]/+x[-half]` swap. **Match.**
+- **Rotary dims.** `partial_rotary_factor` 0.25 → 64 on full layers, 1.0 → 256 on sliding: the reference applies RoPE to
+  `x[:rot]` and passes the rest through, which is what `attn_prep` does with `tid < p.rot`.
+- **Attention math.** `eager_attention_forward` is plain dense causal (optionally sliding-masked) with
+  `scaling = 1/sqrt(head_dim)`; `attn_decode_partial`/`_reduce` use the same scale and sigmoid the gate. **Match.**
+- **Gate ordering.** The reference applies `attn * sigmoid(g)` **after** attention and **before** `out_proj`; so does
+  the Kapitsa path (the epilogue multiplies, then `o_proj` runs). **Match.**
+- **Tied embeddings** (`_tied_weights_keys`), **no biases**, **no q/k norm** in this family, and the config-level layer
+  pattern (`(i+1) % 4 == 0` → full attention) all confirmed against the reference and covered by the CPU test.
+- **Embedding gather** exists for every format (`embed_f16`, `embed_f4g64`, `embed_f8g64` via `NI_WF_ALL`), so the
+  OptiQ pack's 8-bit embedding is fine.
+
+### Still unverified, and honestly so
+
+Everything in §6 that needs a GPU. The QA pass raised confidence in the *host-side* logic (config, names, layouts,
+activation choice) and caught four defects; it says nothing about whether the kernels compute the right answer. The PR
+stays "Not verified on a GPU".

@@ -2,19 +2,36 @@
 
 // ---- Spark-X2.6 (src/model/spark.cpp) ----
 //
-// Spark's MLP is gelu(gate) * up, where gelu is PyTorch's default ("gelu", the tanh approximation):
-//     gelu(x) = 0.5 x (1 + tanh(sqrt(2/pi) (x + 0.044715 x^3)))
+// Spark's MLP is gelu(gate) * up. The activation is NOT the tanh approximation: the reference sets
+// `self.act_fn = ACT2FN[config.hidden_act]` with hidden_act == "gelu", and in transformers 4.57.1
+// (src/transformers/activations.py) the mapping is
+//     ACT2CLS["gelu"] = GELUActivation,   whose forward is nn.functional.gelu(input)
+// i.e. with no `approximate` argument, and torch.nn.functional.gelu's default is approximate='none':
+//     gelu(x) = x * Phi(x) = x * 0.5 * (1 + erf(x / sqrt(2)))
+// sources: docs.pytorch.org/docs/stable/generated/torch.nn.functional.gelu (signature
+// `gelu(input, approximate='none')`); huggingface/transformers v4.57.1 activations.py l.66-85 and l.314-321. Note that
+// ACT2CLS has a *separate* key "gelu_pytorch_tanh" -> GELUTanh; Spark's config does not ask for it. Using the tanh form
+// here is the classic mistake (it is 1.5e-4 off per element, worst near |x| ~ 1, and it compounds over 28-36 layers).
 // Everywhere else Kapitsa is SiLU (silu in common.h). Rather than add an activation flag to the fused gate/up store
 // sites of the shipping GEMM kernels — which would recompile the hot path of every existing model and put their
 // numerics at risk for a new family's sake — Spark runs its own tiny epilogue kernels here. The GEMMs themselves are
-// the existing generic ones (qmv2/qmv3/qmvg for rows, qmms/qrf for prefill), and these kernels do the activation.
+// the existing generic ones (qmv2/qmv3/qmvg for rows), and these kernels do the activation.
 //
 // This keeps the change additive: no existing kernel is touched, so no existing model's outputs can move.
 
-// The tanh approximation of gelu, in fp32.
-NI_INLINE float spark_gelu(float x) {
-  return 0.5f * x * (1.0f + metal::precise::tanh(0.7978845608028654f * (x + 0.044715f * x * x * x)));
+// erf to 1.5e-7 (Abramowitz & Stegun 7.1.26). Metal has no erf — the same reason vit.metal carries vit_erf (its
+// comment says so) — so this is the same rational approximation, kept local to this library rather than shared, so
+// that Spark's library does not depend on the base library's contents changing.
+NI_INLINE float spark_erf(float x) {
+  const float z = metal::abs(x), t = 1.0f / (1.0f + 0.3275911f * z);
+  const float poly = t * (0.254829592f + t * (-0.284496736f + t * (1.421413741f + t * (-1.453152027f + t * 1.061405429f))));
+  const float r = 1.0f - poly * metal::precise::exp(-z * z);
+  return x >= 0.0f ? r : -r;
 }
+
+// Exact (erf) GELU, fp32: x * Phi(x) = x * 0.5 * (1 + erf(x / sqrt(2))). The reference's inputs are bf16-rounded and
+// nn.functional.gelu runs in the activation's dtype, then the gate*up product goes to the output dtype.
+NI_INLINE float spark_gelu(float x) { return 0.5f * x * (1.0f + spark_erf(x * 0.7071067811865476f)); }
 
 // gate|up -> activation. Both inputs are the raw GEMM results of the MLP's gate_proj and up_proj, fp32, laid out
 // with `ld` floats per row and `rows` rows of `n` columns.

@@ -22,8 +22,12 @@ using json = nlohmann::json;
 // ---------------------------------------------------------------------------------------------------------------
 
 std::string SparkLinear::fmt() const {
-  if (dense()) return "bf16";
-  return std::to_string(bits) + "-bit group " + std::to_string(gs);
+  // Exactly wfmt.metal's name suffix (QLinear::fmt in qwen35.cpp): "f16" for bf16, else "f{bits}g{gs}".
+  return dense() ? std::string("f16") : "f" + std::to_string(bits) + "g" + std::to_string(gs);
+}
+
+std::string SparkLinear::name() const {
+  return dense() ? std::string("bf16") : std::to_string(bits) + "-bit group " + std::to_string(gs);
 }
 
 namespace {
@@ -358,6 +362,33 @@ void Spark::alloc_state() {
 // the pieces of a layer
 // ---------------------------------------------------------------------------------------------------------------
 
+// The matvec kernel for one matrix and how its result is consumed. One rule, one place: qmv2's b8 instantiations
+// exist only with a folded norm, qmv2's b4 ones with every combination, qmv3 covers wide K, and qmvg (wfmt.metal)
+// covers every other format. Getting a name wrong here is a fatal "no such pipeline" only at run time, so this is
+// deliberately not copy-pasted per call site.
+Spark::Matvec Spark::matvec_pipe(const SparkLinear& W, bool norm, bool add) {
+  const bool huge = W.N >= 65536;
+  uint32_t rows = huge ? 4 : 2;
+  std::string name;
+  if (W.q4() || (W.q8() && norm && W.K <= 4096)) {
+    name = "qmv2_b" + std::to_string(W.bits) + "_g64_r" + std::to_string(rows);
+    if (W.K > 4096) {
+      if (W.bits == 8 || add) rows = 2;
+      name = "qmv3_b" + std::to_string(W.bits) + "_r" + std::to_string(rows);
+    }
+  } else if (W.q8()) {
+    rows = 2;  // qmv3_b8_r2: the only 8-bit form without a folded norm
+    name = "qmv3_b8_r2";
+  } else {
+    if (add || (!huge && !norm)) rows = 2;
+    name = "qmvg_" + W.fmt() + "_r" + std::to_string(rows);
+  }
+  if (add) name += "_add";
+  if (norm) name += "_norm";
+  const uint32_t nsg = name.find("qmv3") == 0 ? 8 : (huge ? 4 : 8);
+  return Matvec{pipe(name), rows, nsg};
+}
+
 void Spark::enc_embed(Encoder& e, const Buffer& tokens, int tok_off, int R, const Buffer& out) {
   const uint32_t D = uint32_t(cfg_.hidden);
   kp::Embed ep{D, uint32_t(embed_.gs), uint32_t(tok_off)};
@@ -372,21 +403,11 @@ void Spark::enc_embed(Encoder& e, const Buffer& tokens, int tok_off, int R, cons
 }
 
 void Spark::enc_head(Encoder& e, const Buffer& x, const Buffer& out) {
-  // the tied output layer after the final norm (a folded RMSNorm on qmvf where the format allows it)
+  // the tied output layer after the final norm (the RMSNorm folded into the matvec)
   const SparkLinear& L = head_;
-  static Pipeline none;
-  const bool huge = L.N >= 65536;
-  uint32_t rows = huge ? 4 : 2, nsg = huge ? 4 : 8;
-  std::string name;
-  if (L.q4() || (L.q8() && L.K <= 4096)) {
-    name = "qmv2_b" + std::to_string(L.bits) + "_g64_r" + std::to_string(rows) + "_norm";
-    if (L.K > 4096) name = "qmv3_b" + std::to_string(L.bits) + "_r2_norm";
-  } else if (L.q8()) {
-    name = "qmv3_b8_r2_norm";
-  } else {
-    name = "qmvg_" + L.fmt() + "_r2_norm";
-  }
-  e.use(pipe(name));
+  const Matvec m = matvec_pipe(L, /*norm=*/true, /*add=*/false);
+  const uint32_t rows = m.rows, nsg = m.nsg;
+  e.use(m.p);
   kp::Qmv p{L.N, L.K, L.K, L.N, cfg_.eps};
   e.buf(0, L.w->buf);
   e.buf(1, L.s->buf);
@@ -403,25 +424,9 @@ void Spark::enc_mlp(Encoder& e, const SparkLayer& L) {
   // gate and up with the post-attention norm folded in, GELU-tanh folded in by Spark's own epilogue, then down added
   // into x_.
   auto matvec = [&](const SparkLinear& W, const Buffer& y, const Tensor* norm, const Buffer* resid) {
-    const bool huge = W.N >= 65536;
-    uint32_t rows = huge ? 4 : 2, nsg = huge ? 4 : 8;
-    std::string name;
-    if (W.q4() || (W.q8() && norm && W.K <= 4096)) {
-      name = "qmv2_b" + std::to_string(W.bits) + "_g64_r" + std::to_string(rows);
-      if (W.K > 4096) {
-        if (W.bits == 8 || resid) rows = 2;
-        name = "qmv3_b" + std::to_string(W.bits) + "_r" + std::to_string(rows);
-      }
-    } else if (W.q8()) {
-      rows = 2;
-      name = "qmv3_b8_r2";
-    } else {
-      if (resid || (!huge && !norm)) rows = 2;
-      name = "qmvg_" + W.fmt() + "_r" + std::to_string(rows);
-    }
-    if (resid) name += "_add";
-    if (norm) name += "_norm";
-    e.use(pipe(name));
+    const Matvec m = matvec_pipe(W, norm != nullptr, resid != nullptr);
+    const uint32_t rows = m.rows, nsg = m.nsg;
+    e.use(m.p);
     kp::Qmv p{W.N, W.K, W.K, W.N, cfg_.eps};
     e.buf(0, W.w->buf);
     e.buf(1, W.s->buf);
@@ -457,12 +462,18 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
   // q | k | v out of the fused matrix: three row ranges, each folding the layer's input norm. The row offsets are
   // exact byte offsets into the packed weights (a row of w is K*bits/8 bytes, of the scales K/gs*2).
   auto rows = [&](const Buffer& y, int n, int row0) {
-    const bool q = L.qkv.q();
-    const uint32_t r = 2, nsg = 8;
+    const Matvec m = matvec_pipe(L.qkv, /*norm=*/true, /*add=*/false);
+    const uint32_t r = m.rows, nsg = m.nsg;
     const size_t w_row = size_t(L.qkv.K) * size_t(L.qkv.bits) / 8;
     const size_t s_row = size_t(L.qkv.K) / size_t(L.qkv.gs) * 2;
-    e.use(pipe(q ? ("qmv2_b" + std::to_string(L.qkv.bits) + "_g64_r" + std::to_string(r))
-                  : ("qmvg_" + L.qkv.fmt() + "_r" + std::to_string(r) + "_norm")));
+    // The row offset below is a byte offset into the packed weight/scales/biases. That needs a row to be a whole
+    // number of 16-byte words, so the view stays 16-byte aligned (the kernels load it as vectors). True for both
+    // models and every supported format -- hidden 2048/2560 and ffn 6656/10240 at 3/4/5/6/8/16 bits, group 32/64 --
+    // but asserted here rather than assumed, because a future Spark-Coder with an odd ffn would break it silently.
+    if (w_row % 16 || ((L.qkv.q() ? s_row : 0) % 16))
+      fatal("layer's q_k_v_proj row stride (%zu bytes of w, %zu of scales) is not 16-byte aligned: the q/k/v row "
+            "slices cannot be bound as byte offsets", w_row, s_row);
+    e.use(m.p);
     kp::Qmv p{uint32_t(n), L.qkv.K, L.qkv.K, uint32_t(n), cfg_.eps};
     e.buf(0, L.qkv.w->buf, size_t(row0) * w_row);
     e.buf(1, L.qkv.s->buf, size_t(row0) * s_row);
@@ -479,9 +490,9 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
   rows(vr_, kd, qd + kd);
   // the per-head gate rows, which share the same normalized input
   {
-    const uint32_t r = 2, nsg = 8;
-    e.use(pipe(L.gate.q() ? ("qmv2_b" + std::to_string(L.gate.bits) + "_g64_r2_norm")
-                          : ("qmvg_" + L.gate.fmt() + "_r2_norm")));
+    const Matvec m = matvec_pipe(L.gate, /*norm=*/true, /*add=*/false);
+    const uint32_t r = m.rows, nsg = m.nsg;
+    e.use(m.p);
     kp::Qmv p{L.gate.N, L.gate.K, L.gate.K, L.gate.N, cfg_.eps};
     e.buf(0, L.gate.w->buf);
     e.buf(1, L.gate.s->buf);
@@ -557,9 +568,9 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
 
   // out_proj, added into x_ (the residual)
   {
-    const uint32_t r = 2, nsg = 8;
-    e.use(pipe(L.o.q() ? ("qmv2_b" + std::to_string(L.o.bits) + "_g64_r2_add")
-                       : ("qmvg_" + L.o.fmt() + "_r2_add")));
+    const Matvec m = matvec_pipe(L.o, /*norm=*/false, /*add=*/true);
+    const uint32_t r = m.rows, nsg = m.nsg;
+    e.use(m.p);
     kp::Qmv p{L.o.N, L.o.K, L.o.K, L.o.N, cfg_.eps};
     e.buf(0, L.o.w->buf);
     e.buf(1, L.o.s->buf);

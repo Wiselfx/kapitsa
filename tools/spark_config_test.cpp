@@ -9,6 +9,8 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
+#include <algorithm>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -202,6 +204,43 @@ void check_flat_rope() {
   CHECK(s.theta_full == 10000.0f && s.theta_swa == 10000.0f, "flat rope theta %g/%g", s.theta_full, s.theta_swa);
 }
 
+// The activation is exact (erf) GELU, not the tanh approximation. This check exists because getting it wrong is silent:
+// the config says "gelu", ACT2FN maps that to transformers' GELUActivation, and that is nn.functional.gelu with its
+// default approximate='none'. Metalside the kernel is a thin wrapper over an Abramowitz-Stegun erf; what is checked
+// here is the *decision* (exact vs tanh) at the reference's own values, since a later "simplification" to the tanh
+// form would pass every other test in this file.
+void check_gelu_is_exact_not_tanh() {
+  // erf to 1.5e-7, Abramowitz & Stegun 7.1.26 — the same rational form src/kernels/spark/spark.metal carries.
+  auto erf_as = [](double x) {
+    const double z = std::fabs(x), t = 1.0 / (1.0 + 0.3275911 * z);
+    const double poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+    const double r = 1.0 - poly * std::exp(-z * z);
+    return x >= 0.0 ? r : -r;
+  };
+  auto gelu_exact = [&](double x) { return 0.5 * x * (1.0 + erf_as(x * 0.7071067811865476)); };
+  auto gelu_tanh = [](double x) { return 0.5 * x * (1.0 + std::tanh(0.7978845608028654 * (x + 0.044715 * x * x * x))); };
+
+  // The erf approximation against the true erf: A&S 7.1.26 states 1.5e-7, and measured over x in [-40, 40] the max
+  // |error| is 1.4e-7 (at |x| ~ 0.5); carried through gelu the max is 2.1e-7 (near |x| ~ 3). Bound it at 4e-7, i.e.
+  // comfortably inside A&S's claim but tight enough to fail if the polynomial is mistyped.
+  double worst_erf = 0, worst_gelu = 0;
+  for (double x = -40.0; x <= 40.0; x += 0.01) {
+    worst_erf = std::max(worst_erf, std::fabs(erf_as(x) - std::erf(x)));
+    worst_gelu = std::max(worst_gelu, std::fabs(gelu_exact(x) - 0.5 * x * (1.0 + std::erf(x * 0.7071067811865476))));
+  }
+  CHECK(worst_erf < 4e-7, "spark_erf max |error| %.2e vs the true erf", worst_erf);
+  CHECK(worst_gelu < 4e-7, "gelu max |error| %.2e vs the true erf gelu", worst_gelu);
+
+  // and it must NOT be the tanh form: the two differ by up to ~1.5e-4, which is why the choice matters.
+  int differing = 0;
+  for (double x = -6.0; x <= 6.0; x += 0.25)
+    if (std::fabs(gelu_exact(x) - gelu_tanh(x)) > 1e-5) ++differing;
+  CHECK(differing > 8, "the exact and tanh GELUs barely differ here, so this check proves nothing (%d samples)", differing);
+  // spot-check a known pair (exact vs tanh at x=1)
+  CHECK(std::fabs(gelu_exact(1.0) - 0.8413447460685429) < 1e-7, "gelu_exact(1) = %.9f", gelu_exact(1.0));
+  CHECK(std::fabs(gelu_tanh(1.0) - 0.8411919906082768) < 1e-7, "gelu_tanh(1) = %.9f", gelu_tanh(1.0));
+}
+
 }  // namespace
 
 int main() {
@@ -210,6 +249,7 @@ int main() {
   check_layer_fallback();
   check_refusals();
   check_flat_rope();
+  check_gelu_is_exact_not_tanh();
   if (g_fail) {
     fprintf(stderr, "%d check(s) failed\n", g_fail);
     return 1;

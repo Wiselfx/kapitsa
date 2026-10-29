@@ -44,7 +44,10 @@ struct SparkLinear {
   bool q4() const { return bits == 4 && gs == 64; }
   bool q8() const { return bits == 8 && gs == 64; }
   bool q() const { return bits != 16; }
+  // The suffix the kernel names carry (wfmt.metal's NI_WF_LOW: "f16" for bf16, else "f{bits}g{gs}"), NOT a human
+  // description. pipe("qmvg_" + fmt() + "_r2") depends on this being exactly the kernel's spelling.
   std::string fmt() const;
+  std::string name() const;  // "4-bit group 64", "bf16", ... for logs and error messages
 };
 
 struct SparkLayer {
@@ -102,6 +105,13 @@ class Spark : public Model {
   int cache_rows(const Seq& s, int li) const;
 
   // one row through one layer (the decode path; prefill runs this per row for now)
+  // The matvec kernel for one matrix and its geometry (rows per simdgroup, simdgroups per threadgroup). One rule in
+  // one place: the kernel names are a run-time lookup, so a wrong suffix is a fatal "no such pipeline" at load.
+  struct Matvec {
+    Pipeline p;
+    uint32_t rows = 2, nsg = 8;
+  };
+  Matvec matvec_pipe(const SparkLinear& W, bool norm, bool add);
   void enc_attn(Encoder& e, Seq& s, int li, int pos);
   void enc_mlp(Encoder& e, const SparkLayer& L);
   void enc_embed(Encoder& e, const Buffer& tokens, int tok_off, int R, const Buffer& out);
