@@ -226,7 +226,26 @@ their dependencies allow. Treat every local build claim as best-effort and state
   - Prefill is correct-but-slow (decode path per row); the batched path is not bound.
   - `encode_logits_rows` works but is slow for the same reason.
   - No drafter (by design, D6); prompt-lookup only.
-- Next: ring-aware attention, then batched prefill, then the Mac verification pass.
+- **CI, first green run (PR #1, commit 4a14d22 → 4c8e9f1):**
+  - `lint` success, `docs-links` success, `pr-size-script` success.
+  - `metal-compile` success — **all six embedded libraries translate**, `spark` among them at metal3.2.
+  - `build-and-test` success on `macos-15` — the whole CLI plus every CPU test target builds, and
+    `build/spark_config_test` **ran and printed `spark_config_test: ok`** on a macOS runner. So the C++ does compile
+    for real (not just under the Linux shim) and the config logic is verified on the shipped configs.
+  - `metal-compile` earned its keep immediately: it caught a **Metal vector-width mismatch** (`uint2` grid position
+    with a scalar `uint` thread position) in both Spark kernels that no Linux check could see. Fixed in 4c8e9f1.
+- **What "green CI" does NOT mean**, and the PR says so: the kernels' arithmetic, the ring cache, the interleaved
+  q|gate layout, and every speed number are still unverified. `metal-compile` explicitly cannot see wrong arithmetic,
+  races or the 32 KB threadgroup budget; `build-and-test` never loads a model.
+- Next, in order: ring-aware attention (the wrapped-window fatal), then batched prefill + GELU fold in the GEMM tile,
+  then the Mac verification pass (a short generation and, if it works, the `logit_dump` output check).
+
+**2026-10-29 — delivery.**
+- Branch `spark-x2.6` pushed to `Wiselfx/kapitsa`; PR #1 opened against the fork's `main` (not upstream).
+- `pr-size` is red by design: ~2,100 counted lines against a 1,000 cap. That cap exists to keep *upstream* PRs one
+  change each; a new model backend is one indivisible change (model + config + kernels + tests). The fork has no
+  reviewer to grant `size/override`, and the author must not label their own PR through it, so it stays red and is
+  explained in the PR body rather than bypassed.
 
 ## 10. Why Spark's kernels are a separate library (the numerics argument)
 

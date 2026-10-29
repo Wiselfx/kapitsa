@@ -53,11 +53,41 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 - [ ] README / `docs/usage.md` mention — only if this goes upstream; not needed for the fork
 - [ ] `src/hub/catalog.cpp` entry — upstream concern only
 
-## P6 — delivery  [ ]
-- [ ] Prune workflows: delete `release.yml` and `community-bench.yml`, keep `ci.yml` + `pr-size.yml`
-- [ ] `prek run --all-files` (lint) — cannot run here without the tool; CI `lint` job covers it
-- [ ] Branch + push to `Wiselfx/kapitsa`
-- [ ] PR with **"Not verified on a GPU"** in the title and body + the exact Mac commands (SPARK.md §6)
+## P6 — delivery  ✅
+- [x] Prune workflows: `release.yml` + `community-bench.yml` deleted; `ci.yml` trimmed to lint, pr-size-script,
+      docs-links, build-and-test, metal-compile; `pr-size.yml` kept
+- [x] `lint` green on CI (the hook set runs there; `prek` is not installable on this box)
+- [x] Branch `spark-x2.6` pushed to `Wiselfx/kapitsa`
+- [x] PR #1 with **"Not verified on a GPU"** in the title and body
+- [x] **CI green**: `lint`, `docs-links`, `pr-size-script`, `metal-compile`, `build-and-test` all success;
+      `spark_config_test: ok` on a macOS runner
+- [x] `pr-size` red by design and explained in the PR body (no reviewer on a fork to grant the override)
+- [ ] **Your Mac pass**: build, load a checkpoint, generate, compare against `transformers`
+
+### The Mac commands for the verification pass (also in the PR body)
+```bash
+# 1. build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(sysctl -n hw.ncpu)" --target kapitsa api_test logit_dump
+ctest --test-dir build -R spark_config_test --output-on-failure
+
+# 2. fetch a pack (the 4B first: it is the better-tuned shape and has pre-quantized MLX packs)
+#    mlx-community/Spark-X2.6-4B-OptiQ-4bit is 3.04 GB, per-tensor mixed 4/8-bit group 64
+huggingface-cli download mlx-community/Spark-X2.6-4B-OptiQ-4bit --local-dir ~/models/spark-4b
+
+# 3. does it load and plan?
+build/kapitsa doctor ~/models/spark-4b
+
+# 4. does it speak?  (short, greedy, no drafter)
+build/kapitsa run --model ~/models/spark-4b --prompt "What is the capital of Anhui Province?" --max-tokens 32
+#    expect something coherent; the window wraps at 512 tokens, and past that the encode path stops with a clear
+#    "ring-aware attention kernel" fatal rather than producing wrong tokens — that is the known gap, not a crash.
+
+# 5. if 4 works, the reference comparison
+MTL_SHADER_VALIDATION=1 MTL_DEBUG_LAYER=1 \
+  build/logit_dump --model ~/models/spark-4b --prompt-file bench/prompts/prose.txt --out /tmp/spark-dump
+#    and transformers' own logits for the same prompt (transformers==4.57.1, per the model card) via
+#    tools/logit_compare.py -- see CONTRIBUTING.md "Output check". Nothing there is claimed until it runs.
 
 ## Open questions for the user
 - [ ] Push to fork `main`, or a `spark-port` branch with a PR against fork `main`?
