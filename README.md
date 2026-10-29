@@ -213,6 +213,8 @@ The catalog models measured on each Mac, against the engines that run them: one 
 | --- | ---: | ---: | ---: |
 | **Recursive Flint 40B-A2.5B** · `flint`<br><sub>MoE, 2.5B active · 4-bit, 22.6 GB</sub> | 🟩 968 / **128**<br><sub>KFlash</sub> | 977 / 80 | 796 / 127 |
 
+<sub>Splash's cells are Splash 1.4.0 at decode only (2026-10-21): Splash needs macOS 26.4 or later, and this MacBook is on 27.0.1. On an AWS EC2 Mac mini M4 Pro (48 GB, macOS 26.7) on 2026-10-28, Splash 1.4.1 read 1056 / 140 on the 35B-A3B and 251 / 50 on the 27B, against Kapitsa 0.2.23's 1171 / 169 and 392 / 65 on the same Mac ([record](bench/results/2026-10-28-m4pro-ec2-macos26/README.md)).</sub>
+
 </details>
 
 <details>
