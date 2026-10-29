@@ -27,8 +27,9 @@ struct SparkGuParams {
 
 [[kernel]] void spark_gelu_gu(const device float* gate [[buffer(0)]], const device float* up [[buffer(1)]],
                               device float* out [[buffer(2)]], constant SparkGuParams& p [[buffer(3)]],
-                              uint2 tg [[threadgroup_position_in_grid]], uint tid [[thread_position_in_threadgroup]]) {
-  const uint32_t c = tg.x * 256 + tid;
+                              uint2 tg [[threadgroup_position_in_grid]],
+                              uint2 tid [[thread_position_in_threadgroup]]) {
+  const uint32_t c = tg.x * 256u + tid.x;
   if (c >= p.n) return;
   const size_t i = size_t(tg.y) * p.ld + c;
   out[i] = spark_gelu(gate[i]) * up[i];
@@ -57,8 +58,9 @@ struct SparkGateParams {
 // grid: Hq x T threadgroups, D threads each.
 [[kernel]] void spark_pack_qg(const device float* q_in [[buffer(0)]], const device float* gate_in [[buffer(1)]],
                               device float* out [[buffer(2)]], constant SparkGateParams& p [[buffer(3)]],
-                              uint2 tg [[threadgroup_position_in_grid]], uint tid [[thread_position_in_threadgroup]]) {
-  const uint32_t h = tg.x, t = tg.y, d = tid;
+                              uint2 tg [[threadgroup_position_in_grid]],
+                              uint2 tid [[thread_position_in_threadgroup]]) {
+  const uint32_t h = tg.x, t = tg.y, d = tid.x;
   if (h >= p.Hq || d >= p.D || t >= p.T) return;
   const size_t o = (size_t(t) * p.Hq + h) * 2 * p.D;
   out[o + d] = q_in[(size_t(t) * p.Hq + h) * p.D + d];  // the query half attn_prep reads
