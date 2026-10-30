@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "")
 project(nace_infer LANGUAGES C CXX OBJCXX)
 
-set(KAPITSA_VERSION "0.2.34")
+set(KAPITSA_VERSION "0.2.35")
 if(NOT DEFINED KAPITSA_GIT)  # packaging/release/build.sh passes the commit it exported
   execute_process(COMMAND git -C ${CMAKE_SOURCE_DIR} rev-parse --short HEAD OUTPUT_VARIABLE KAPITSA_GIT
                   OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
@@ -165,6 +165,10 @@ set_tests_properties(minja_template_test PROPERTIES TIMEOUT 30)
 # write side's slot, or the model attends over the wrong keys without failing.
 add_test(NAME ring_slot_test COMMAND ring_slot_test)
 set_tests_properties(ring_slot_test PROPERTIES TIMEOUT 30)
+# The prefill side of the same ring read (no GPU, no model): attn.metal's attn11_slot / attn11_kstart and its two masks
+# must select exactly the keys the reference model attends to, over several laps of the ring.
+add_test(NAME ring_prefill_test COMMAND ring_prefill_test)
+set_tests_properties(ring_prefill_test PROPERTIES TIMEOUT 60)
 add_test(NAME execution_session_test COMMAND execution_session_test)
 set_tests_properties(execution_session_test PROPERTIES TIMEOUT 30)
 

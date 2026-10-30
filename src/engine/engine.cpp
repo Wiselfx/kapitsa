@@ -395,6 +395,10 @@ Engine::Engine(const EngineOptions& o) : opts_(o) {
   if (flint_) src = flint_template(src);
   tmpl_ = std::make_unique<minja::chat_template>(src, flint_ ? "<|begin_of_text|>" : "",
                                                  flint_ ? "<|end_of_text|>" : "<|im_end|>");
+  // The tool call's markup, from the template's own source: <arg_key> is GLM's (and Spark's), <function= is the Qwen
+  // XML form. Decided once here, not per model family: the old `flint_ ? Glm : QwenXml` sent Spark's calls to a parser
+  // that did not recognise them, so every tool call came back as raw text in `content`.
+  call_format_ = src.find("<arg_key>") != std::string::npos ? CallFormat::Glm : CallFormat::QwenXml;
   think_open_ = tok_.find("<think>");
   think_close_ = tok_.find("</think>");
   tc_open_ = tok_.find("<tool_call>");
@@ -2345,8 +2349,20 @@ ChatResult Engine::chat(const ChatRequest& r_in, const std::function<bool(const 
     res.prompt_limit = opts_.context - 2;
     return res;
   }
-  // the reply starts inside the reasoning (the prompt ends with the think tag)
-  const bool think = !text.empty() && text.size() >= 8 && text.compare(text.size() - 8, 8, "<think>\n") == 0;
+  // The reply starts inside the reasoning when the prompt ends with the opening tag: the template wrote it and the
+  // model continues from there, so the reply carries no opening tag of its own and everything up to the closing one is
+  // reasoning.
+  //
+  // What precedes the tag is not fixed, and assuming it was the bug. This tested for the literal 8-character string
+  // " think" -- i.e. a newline before the tag, which is where the Qwen templates put it. Spark's template writes
+  // '<|Bot|>' + ' thinking' with nothing between, so its prompt ends "> thinking" and the test missed: `think` stayed
+  // false, the parser never entered the reasoning state, and the entire think block streamed out as `content` with
+  // `reasoning_content` empty. The model looked like it ignored thinking and printed its own closing tag mid-reply.
+  // Match the opening tag itself, with any (or no) separator before it.
+  std::string think_open_text = think_open_ >= 0 ? tok_.decode({think_open_}) : std::string();
+  if (think_open_text.empty()) think_open_text = " thinking";
+  const bool think = text.size() >= think_open_text.size() &&
+                     text.compare(text.size() - think_open_text.size(), think_open_text.size(), think_open_text) == 0;
   // Structured output: the grammar's matcher on this model's vocabulary (the vocabulary's trie is built by the first
   // such request, here, before the GPU turn). The grammar holds the reply from its first token, or after </think>.
   std::unique_ptr<GrammarMatcher> gm;
@@ -3054,7 +3070,7 @@ ChatResult Engine::chat(const ChatRequest& r_in, const std::function<bool(const 
   // Flint's calls in GLM's markup)
   OutputParser parser(tok_, think_open_, think_close_, tc_open_, tc_close_, think, !r.tools.empty(), r.tools,
                       think_tools, (nh_ != nullptr || dory_ != nullptr || flint_ != nullptr) && think_ws_, text_tags_,
-                      flint_ ? CallFormat::Glm : CallFormat::QwenXml);
+                      call_format_);
   const auto& eos = stop_ids_;
   double t1 = now_ms();
   int gen = 0;

@@ -1,7 +1,6 @@
 #include "common.h"
 #include <metal_tensor>
 #include <MetalPerformancePrimitives/MetalPerformancePrimitives.h>
-using namespace mpp::tensor_ops;
 
 // ---- qattn_t: Qwen3.5/3.6 prefill attention (head dim 256, 4 or 8 query heads per KV head, sigmoid output gate) on the GPU's
 // matrix units (Metal 4 tensor_ops; Apple10 = M5). Buffers and result as attn_prefill11r (q fp32 [T][Hq][256], half KV
@@ -13,7 +12,21 @@ using namespace mpp::tensor_ops;
 struct QaParams {  // = AttnPrefParams
   uint T, Hq, Hkv, pos0, max_seq;
   float scale;
+  // a sliding window's ring: the same two fields AttnPrefParams gained, in the same order, so kp::AttnPref describes
+  // this kernel's argument too (this library is a translation unit of its own and cannot see attn.metal's struct, which
+  // is why the mirror exists). 0 / 0 for the linear caches every other model has.
+  uint window, slot_mask;
 };
+
+// The slot an absolute key position occupies: its position for a cache that only appends, and p & slot_mask for a
+// sliding layer's ring. Mirrors attn.metal's attn11_slot, because both prefill paths have to agree on which keys a
+// sliding layer holds.
+NI_INLINE uint qattn_slot(uint pos, constant QaParams& p) { return p.slot_mask ? (pos & p.slot_mask) : pos; }
+
+// The oldest key a ring still holds: position 0 for a linear cache, kend - window for a ring.
+NI_INLINE uint qattn_kstart(uint kend, constant QaParams& p) {
+  return p.window && kend > p.window ? kend - p.window : 0u;
+}
 
 
 // a fragment of 16 tile rows r0 + [0, 16) x 16 columns c0 + [0, 16) from threadgroup memory
@@ -67,13 +80,14 @@ NI_INLINE void qattn_t_impl(const device float* q, const device half* kc, const 
   float m[2] = {-1e30f, -1e30f}, l[2] = {0.0f, 0.0f};
   const device half* kb = kc + size_t(kvh) * p.max_seq * D;
   const device half* vb = vc + size_t(kvh) * p.max_seq * D;
-  for (uint k0 = 0; k0 <= tgl; k0 += BK) {
+  for (uint k0 = qattn_kstart(tgl + 1, p) / BK * BK; k0 <= tgl; k0 += BK) {
     threadgroup_barrier(mem_flags::mem_threadgroup);   // the previous step is done with the tiles
     for (uint i = tid; i < BK * 32; i += 32 * NS) {   // BK rows x 32 half8
       const uint r = i >> 5, c = (i & 31) * 8;
       const bool ok = k0 + r <= tgl;
-      *(threadgroup uint4*)(kt + r * LD + c) = ok ? *(const device uint4*)(kb + size_t(k0 + r) * D + c) : uint4(0);
-      *(threadgroup uint4*)(vt + r * LD + c) = ok ? *(const device uint4*)(vb + size_t(k0 + r) * D + c) : uint4(0);
+      const uint slot = qattn_slot(k0 + r, p);
+      *(threadgroup uint4*)(kt + r * LD + c) = ok ? *(const device uint4*)(kb + size_t(slot) * D + c) : uint4(0);
+      *(threadgroup uint4*)(vt + r * LD + c) = ok ? *(const device uint4*)(vb + size_t(slot) * D + c) : uint4(0);
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
     if (!live) continue;   // (tile loads and barriers are uniform over the threadgroup)
@@ -220,13 +234,14 @@ NI_INLINE void qattn_t_d2_impl(const device float* q, const device half* kc, con
   const device half* vb = vc + size_t(kvh) * p.max_seq * D;
   threadgroup float4* xme = (threadgroup float4*)(xs + sg * 256) + lane * 2;
   const threadgroup float4* xpa = (const threadgroup float4*)(xs + (sg ^ 1) * 256) + lane * 2;
-  for (uint k0 = 0; k0 <= tgl; k0 += BK) {
+  for (uint k0 = qattn_kstart(tgl + 1, p) / BK * BK; k0 <= tgl; k0 += BK) {
     threadgroup_barrier(mem_flags::mem_threadgroup);
     for (uint i = tid; i < BK * 32; i += 32 * NS) {
       const uint r = i >> 5, c = (i & 31) * 8;
       const bool ok = k0 + r <= tgl;
-      *(threadgroup uint4*)(kt + r * LD + c) = ok ? *(const device uint4*)(kb + size_t(k0 + r) * D + c) : uint4(0);
-      *(threadgroup uint4*)(vt + r * LD + c) = ok ? *(const device uint4*)(vb + size_t(k0 + r) * D + c) : uint4(0);
+      const uint slot = qattn_slot(k0 + r, p);
+      *(threadgroup uint4*)(kt + r * LD + c) = ok ? *(const device uint4*)(kb + size_t(slot) * D + c) : uint4(0);
+      *(threadgroup uint4*)(vt + r * LD + c) = ok ? *(const device uint4*)(vb + size_t(slot) * D + c) : uint4(0);
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
     nhf_f8 s = nhf_f8(0.0f), s1 = nhf_f8(0.0f);

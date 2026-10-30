@@ -1,6 +1,7 @@
 // Host mirrors of the kernel parameter structs (must match src/kernels/*.metal field for field).
 #pragma once
 #include <cstdint>
+#include <cstddef>
 
 namespace ni::kp {
 
@@ -95,7 +96,16 @@ struct SparkPrep {  // spark_attn_prep: RoPE + the q|gate packing + the cache ap
 struct AttnPref {
   uint32_t T, Hq, Hkv, pos0, max_seq;
   float scale;
+  // a sliding window's ring (AttnPrefParams); window = 0 and slot_mask = 0 for the linear caches every other model has,
+  // so the existing brace initialisers keep their meaning and zero-fill these (Spark is the only writer of them)
+  uint32_t window, slot_mask;
 };
+// attn.metal's AttnPrefParams and tensor/qattn_t.metal's QaParams are both described by this struct, and the tensor
+// library is a translation unit of its own that cannot include attn.metal -- so QaParams is a hand-kept mirror. Appending
+// a field here without appending it there would leave the tensor_ops prefill reading the wrong offsets, silently, on the
+// only GPUs that run it (M5). These two pin the shape: 5 words + scale + the ring pair = 8 words.
+static_assert(sizeof(AttnPref) == 8 * 4, "AttnPref: AttnPrefParams / QaParams in the Metal sources");
+static_assert(offsetof(AttnPref, window) == 6 * 4, "AttnPref.window: must follow scale in both Metal structs");
 
 struct Bucket {
   uint32_t P, k, E, BM;

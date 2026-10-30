@@ -202,6 +202,19 @@ struct AttnPrefParams {
   uint pos0;     // absolute position of query 0
   uint max_seq;
   float scale;
+  // Cyclic read, for a sliding window held in a ring -- the prefill counterpart of the two fields AttnDecParams carries
+  // for the decode path. Every model but Spark leaves both 0 and reads the cache exactly as before: when slot_mask is 0
+  // a key's slot is its position, and when window is 0 the first key is always position 0.
+  //
+  // A sliding layer's cache is a ring of `window` slots, so absolute position p lives in slot p & slot_mask, and only
+  // the last `window` keys are live. Reading such a ring from key 0 therefore reads the wrong slots entirely once the
+  // position has passed the window: the keys of the current window are scattered over all `window` slots, and the slots
+  // before them hold keys from the previous lap. The two numbers below are all it takes -- `window` gives the first live
+  // key (kend - window, clamped at 0) and slot_mask gives where each key sits. Attention is a weighted sum over the
+  // keys, so reading the ring in ring order is the same softmax as reading it linearly: the order comes from the
+  // scores, not from the slots (see v0.2.28 for the decode path and docs/spark/SPARK.md §12d).
+  uint window;     // live keys the cache holds (the sliding window); 0 = the cache only appends
+  uint slot_mask;  // ring length - 1, a power of two; 0 = slot == position
 };
 
 constant constexpr uint kQB = 4;    // queries per threadgroup
@@ -1690,6 +1703,19 @@ constant constexpr uint kBQ11 = 32;            // queries per threadgroup
 constant constexpr uint kVLD11 = kHD + 8;      // V tile row stride (halves)
 constant constexpr float kNeg11 = -1.0e30f;    // masked score: exp2 underflows to 0, no inf arithmetic
 
+// The slot an absolute key position occupies. A linear cache stores key p at p (every model but Spark); a sliding
+// layer's ring stores it at p & slot_mask, because it only holds the last `window` keys. Read through this at the two
+// places a cache is addressed, and the rest of the kernel keeps working in absolute positions -- which is what makes
+// the ring a two-field change rather than a second code path.
+NI_INLINE uint attn11_slot(uint pos, constant AttnPrefParams& p) { return p.slot_mask ? (pos & p.slot_mask) : pos; }
+
+// The first live key a tile read must consider: 0 for a linear cache, and for a ring the oldest key still in it
+// (`kend - window`). Tiles entirely before it contribute nothing, because the softmax masks their keys anyway -- the
+// lower bound only has to keep them from reading slots a lap out of date.
+NI_INLINE uint attn11_kstart(uint kend, constant AttnPrefParams& p) {
+  return p.window && kend > p.window ? kend - p.window : 0u;
+}
+
 // K^T row stride (halves; conflict-free half2 fragment reads), tile buffer (halves), exchange (float2)
 template <uint BK> constexpr uint attn11_kld() { return BK + 8; }
 template <uint BK> constexpr uint attn11_kv() { return kHD * (BK + 8) > BK * kVLD11 ? kHD * (BK + 8) : BK * kVLD11; }
@@ -1697,10 +1723,12 @@ template <uint BK> constexpr uint attn11_xs() { return 8 * (BK / 8) * 32; }
 
 // K rows of one tile into registers: thread = (key tid % BK, BK-dim slice tid / BK), 2*BK bytes.
 template <uint BK>
-NI_INLINE void attn11_fetch_k(thread uint4* r, const device half* kb, uint k0, uint kend, uint tid) {
+NI_INLINE void attn11_fetch_k(thread uint4* r, const device half* kb, uint k0, uint kend, uint tid,
+                              constant AttnPrefParams& p) {
   const uint key = tid % BK;
-  const bool ok = k0 + key < kend;
-  const device uint4* src = (const device uint4*)(kb + (k0 + key) * kHD + (tid / BK) * BK);
+  const uint pos = k0 + key;
+  const bool ok = pos < kend;  // (a tile below the ring's first live key is masked out by the softmax)
+  const device uint4* src = (const device uint4*)(kb + size_t(attn11_slot(pos, p)) * kHD + (tid / BK) * BK);
   NI_UNROLL for (uint u = 0; u < BK / 8; ++u) r[u] = ok ? src[u] : uint4(0);
 }
 
@@ -1718,10 +1746,12 @@ NI_INLINE void attn11_store_k(threadgroup half* kt, thread const uint4* r, uint 
 
 // V rows of one tile: thread = (key, BK-dim slice); 256 / BK lanes cover one 512-byte row.
 template <uint BK>
-NI_INLINE void attn11_fetch_v(thread uint4* r, const device half* vb, uint k0, uint kend, uint tid) {
+NI_INLINE void attn11_fetch_v(thread uint4* r, const device half* vb, uint k0, uint kend, uint tid,
+                              constant AttnPrefParams& p) {
   const uint key = tid / (kHD / BK);
-  const bool ok = k0 + key < kend;
-  const device uint4* src = (const device uint4*)(vb + (k0 + key) * kHD + (tid % (kHD / BK)) * BK);
+  const uint pos = k0 + key;
+  const bool ok = pos < kend;
+  const device uint4* src = (const device uint4*)(vb + size_t(attn11_slot(pos, p)) * kHD + (tid % (kHD / BK)) * BK);
   NI_UNROLL for (uint u = 0; u < BK / 8; ++u) r[u] = ok ? src[u] : uint4(0);
 }
 
@@ -1781,12 +1811,18 @@ NI_INLINE void attn_prefill11_impl(const device float* q, const device half* kc,
   }
   const uint qpos = p.pos0 + t;
   const uint ntiles = (kend + BK - 1) / BK;
-  uint it_begin = 0, it_end = ntiles;
+  // A ring instead starts at its oldest live key. Starting the loop there (rather than masking from 0) keeps a sliding
+  // layer's prefill proportional to its window instead of to the position: with 200k tokens of history in a 512-slot
+  // ring, tiles 0..6200 hold nothing live. `kstart` is on a BK boundary only by luck, so a tile straddling it has its
+  // early keys masked below -- the mask is on absolute positions, so it needs no alignment.
+  const uint kstart = attn11_kstart(kend, p);
+  uint it_begin = kstart / BK, it_end = ntiles;
   if (SPLIT) {
     // seg > 0: split s covers the fixed key tiles [s * seg, (s + 1) * seg), the same whatever T and the block
     const uint per = seg ? seg : (ntiles + nsplit - 1) / nsplit;
     it_begin = min(split * per, ntiles);
     it_end = min(it_begin + per, ntiles);
+    it_begin = max(it_begin, kstart / BK);  // a ring's dead tiles hold nothing live, whichever split covers them
   }
 
   // Q straight from device into fragments (own 128 dims), scaled by 1/sqrt(D) (a power of two:
@@ -1824,7 +1860,7 @@ NI_INLINE void attn_prefill11_impl(const device float* q, const device half* kc,
       mword = mask[min(t, p.T - 1) * mwords + k0 / 32];
     }
     uint4 r[BK / 8];
-    attn11_fetch_k<BK>(r, kb, k0, kend, tid);
+    attn11_fetch_k<BK>(r, kb, k0, kend, tid, p);
     threadgroup_barrier(mem_flags::mem_threadgroup);   // previous P.V is done with the buffer
     attn11_store_k<BK>(kv, r, tid);
     threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -1854,17 +1890,20 @@ NI_INLINE void attn_prefill11_impl(const device float* q, const device half* kc,
     }
     if (!XS) threadgroup_barrier(mem_flags::mem_threadgroup);  // exchange reads done: V may overwrite
     // V load issued before the softmax so the two overlap
-    attn11_fetch_v<BK>(r, vb, k0, kend, tid);
+    attn11_fetch_v<BK>(r, vb, k0, kend, tid, p);
     attn11_store_v<BK>(kv, r, tid);
 
     // online softmax on this lane's scores (row frow; the row's other lanes are lane^1, lane^8)
     // tile reaches past the row group's first query (BIDI: past the pass's last key)
     const bool diag = BIDI ? k0 + BK > kend : k0 + BK - 1 > qpos_rg;
+    // keys a ring no longer holds: absolute position below the first live one
+    const bool ring_floor = k0 < kstart;
     float mx = kNeg11;
     NI_UNROLL for (uint c = 0; c < NC; ++c)
       NI_UNROLL for (uint i = 0; i < 2; ++i) {
         float v = s[c].thread_elements()[i] * M_LOG2E_F;
         if (diag && k0 + c * 8 + fcol + i > (BIDI ? kend - 1 : qpos)) v = kNeg11;
+        if (ring_floor && k0 + c * 8 + fcol + i < kstart) v = kNeg11;
         if (MASK && !((mword >> (c * 8 + fcol + i)) & 1u)) v = kNeg11;
         s[c].thread_elements()[i] = v;
         mx = max(mx, v);

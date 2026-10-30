@@ -272,10 +272,23 @@ size_t spark_ring_bytes(const SparkConfig& c) {
 }
 
 size_t spark_activation_bytes(const SparkConfig& c, int prefill_chunk, uint32_t cores) {
-  (void)prefill_chunk;  // see the header: one row whatever the chunk, until batched prefill lands
   const size_t H = size_t(c.hidden), Q = size_t(c.q_dim()), KV = size_t(c.kv_dim()), F = size_t(c.ffn),
                V = size_t(c.vocab), HQ = size_t(c.hq), D = size_t(c.head_dim), n = size_t(cores ? cores : 1);
-  return (H                      // x_
+  // The batched-prefill set, T = prefill_chunk rows. This used to ignore its argument on the grounds that prefill ran one
+  // row whatever the chunk; it does not any more, and forgetting to grow these would have the plan promise a peak the
+  // allocator then exceeds -- on the 4B at the default chunk that is ~1.2 GB of half/float rows.
+  // The fp32 rows are counted in floats (the unit of the sum below); hh_ and xh_ are half and are added as bytes, so they
+  // are kept out of this term rather than scaled inside it -- mixing a /2 into an expression multiplied by sizeof(float)
+  // is how the first version of this came out 3.6x too small.
+  const size_t T = size_t(prefill_chunk > 0 ? prefill_chunk : 1);
+  const size_t batch_f32 = T * (H                     // xb_  fp32, the residual
+                                + size_t(c.qkv_dim())  // stgb_ fp32, q|k|v over T rows
+                                + Q + 2 * Q            // qrb_, qgb_ fp32
+                                + Q                    // aob_  fp32
+                                + 2 * F);              // gub_  fp32, gate and up over T rows
+  const size_t batch_half = T * (F + H);              // hh_ (F halves), xh_ (H halves)
+  const size_t batch = batch_f32 * sizeof(float) + batch_half * 2;
+  return batch + (H              // x_
           + size_t(c.qkv_dim())  // stg_  (q | k | v in one matvec's output)
           + 2 * KV               // kr_, vr_
           + Q + 2 * Q            // qr_, qg_
@@ -286,6 +299,7 @@ size_t spark_activation_bytes(const SparkConfig& c, int prefill_chunk, uint32_t 
           + HQ * n * D           // part_o_
           + HQ * n * 2           // part_ml_
           + V + V                // cand_v_, cand_i_ (int32, one float wide)
+          + V                    // lgb_ (the prefill head's logits, sized by the vocabulary)
           + 64                   // sprob_
           ) *
          sizeof(float);

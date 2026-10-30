@@ -4,6 +4,7 @@
 #pragma once
 #include "engine/chat.h"
 #include "engine/grammar.h"
+#include "engine/output_parser.h"
 #include "engine/prefix_cache.h"
 #include "engine/reasoning_memory.h"
 #include "hub/hub.h"
@@ -621,6 +622,11 @@ class Engine {
   ReasoningMemory reasoning_;  // remember_reasoning / restore_reasoning
   int think_open_ = -1, think_close_ = -1, tc_open_ = -1, tc_close_ = -1;
   TextTags text_tags_;        // the tags written as text (no such tokens; Nemotron Nano 9B v2)
+  // The markup between a tool call's tags, decided once at load from the template's own source rather than per model
+  // family. Spark's template writes <tool_call>NAME<arg_key>K</arg_key><arg_value>V</arg_value></tool_call>, which is
+  // GLM's markup, but the engine handed every model but Flint the Qwen XML parser -- so a Spark call parsed as no call
+  // at all and came back as raw text. Detecting it means a new template of either shape works without a code change.
+  CallFormat call_format_ = CallFormat::QwenXml;
   bool think_flags_ = false;  // the template switches thinking by "/think" / "/no_think" in a message (Nano 9B v2)
   bool think_ws_ = true;      // the whitespace before </think> stays in the reasoning (Nemotron-H, Dory)
   int nh_ngram_ = 0;          // a dense Nemotron-H model without a block drafter: prompt-lookup drafts per cycle

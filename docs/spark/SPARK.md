@@ -800,3 +800,119 @@ Specifically still unknown, and not to be asserted either way:
 - Any speed number for any of it.
 
 The PR stays "Not verified on a GPU", and the TODO's Mac checklist is the step that changes any of the above.
+
+## 14. Prefill: why it is slow, and the decision it forces
+
+Prefill ran one row at a time through the decode path. That is correct and it is not a bug — but it is at the
+bandwidth floor, and the floor itself is the problem.
+
+Every weight is re-streamed once per row, so a T-row prompt streams the whole model T times. For the 1.7B bf16
+(1.71 G params, 3.42 GB) at, say, 273 GB/s that is 12.5 ms per row:
+
+| prompt | row-at-a-time (the floor) | batched GEMM |
+|---|---|---|
+| 77 tok | 0.96 s | 0.013-0.053 s |
+| 512 tok | 6.4 s | 0.09-0.35 s |
+| 2048 tok | 25.6 s | 0.35-1.40 s |
+| 5000 tok | 62.6 s | 0.85-3.42 s |
+
+The server reported `prefill_ms: 831.7` for a 77-token prompt. That is the 0.96 s prediction. So the measurement and
+the model agree, which is the useful part: there is nothing to hunt down here, and no amount of tuning the row loop
+will beat the floor. The only fix is to stop streaming the weights once per row.
+
+**Nothing in that list needs a new kernel.** Everything was already in the repo, benchmarked:
+
+* `qrf_*` (`src/kernels/wfmt.metal`) — the format-generic prefill GEMM, and the bf16 tiles exist
+  (`qrf_f16_m32_n128_mf`, `qrf_f16_m16_n64`, `qrf_f16_m8_n64`). `Qwen35::enc_qrf` is the dispatch ladder to copy
+  verbatim: `M <= 8` -> `m8_n64`; `M < 64 || N <= 64` -> `m16_n64`; otherwise `m32_n128_mf`, with the M tiles along
+  grid x so the threadgroups running together share a weight tile through the cache (bf16 weights are 4x the bytes of
+  4-bit ones, which is why only the bf16 tile is built that way).
+* `rows_to_half` (`gdn.metal`) — norm + float->half in one pass, already shared by four models. `qrf` reads `half`.
+* `qattn_t_g4d2s8` (`src/kernels/tensor/qattn_t.metal`) — **G = 4, head_dim 256: Spark's exact geometry.** The M5 Max
+  numbers are in `qwen35.cpp`: 3.09 / 7.34 / 15.95 ms against 4096 / 8192 / 16384 keys vs `qattn_t_s8k16`'s
+  5.15 / 11.48 / 24.21 (1.52-1.67x), error 2.70 / 3.01 / 3.29e-4 against an fp64 reference. This is the find that
+  makes the attention side cheap: Qwen3.5-4B has 16 query and 4 KV heads at D 256, the same shape Spark has.
+* `spark_gelu_gu` stays. It is an elementwise pass over `T*ffn` — about 0.1% of a layer — so folding Spark's erf GELU
+  into a shared GEMM's epilogue would buy nothing and would put the shipping models' numerics at risk (D4).
+
+### The one genuine gap, and the decision
+
+`qattn_t` reads the cache as `kb + slot * D` for `k0 = 0 .. tgl`, and its causal limit is `p.pos0 + min(tk, T - 1)`.
+It has **no lower bound and no ring**. A full-attention layer is fine — its cache only appends, so slot == position.
+A sliding layer is a ring of 512 slots holding the last 512 keys *wherever they fell*, so by the time a prompt is
+longer than the window the kernel is reading the wrong slots entirely. On the 1.7B that is 21 of 28 layers.
+
+The fix is two numbers: the oldest live key, and the slot mapping `(oldest + r) & slot_mask`. Where they go is the
+decision:
+
+**R1 — grow the shared params.** `AttnPrefParams` already ends `... max_seq, scale`; append `uint wrapped, slot_mask`
+(or one packed field) so nothing before them moves. This is precisely what was done for the decode path in v0.2.28:
+`AttnDecParams` gained `wrapped`/`slot_mask` the same way, and linear-cache models pass `{0, 0}` and read bit-identically.
+Precedent, and the least new code. It does touch `attn.metal` and `tensor/qattn_t.metal` — kernels the shipping models
+run — so it is a real (if small) risk to them, and the D4 rule exists to stop exactly that.
+
+**R2 — a Spark-only `spark_attn_prefill`.** Nothing shared changes; D4 stays pure. The cost is a new kernel to
+write, benchmark and validate against an fp64 reference — and it would be the only part of Spark's prefill with no
+benchmark evidence behind it. I started writing one and stopped: it is a much worse bet than reusing a kernel that
+already has published numbers for this exact head geometry.
+
+Decision (taken): **R1** — the user chose it. The precedent was one release old, the change is two fields, and the
+alternative traded a known benefit for an unmeasured kernel.
+
+### R1, as landed
+`AttnPrefParams` (attn.metal) and its hand-kept mirror `QaParams` (tensor/qattn_t.metal) both gained
+`uint window; uint slot_mask;` **appended**, after `scale`. Appending is what keeps the change contained: a brace
+initialiser with six fields zero-fills the rest, so `clover.cpp`, `qwen35.cpp` and `qwen4_exp.cpp` are untouched and pass
+the linear `{0, 0}` — and with `slot_mask == 0` the slot is the position, with `window == 0` the first live key is 0 and
+the floor mask (`k0 < kstart`) is `k0 < 0`, which never fires. `tools/ring_prefill_test.cpp` pins that identity.
+
+Two things the change needed that were not obvious from outside the kernels:
+
+* **The tile loop had to start at the ring's first live tile**, not just mask from 0. Masking alone is correct but makes
+  a sliding layer's prefill proportional to the position rather than to the window: 200k tokens of history in a 512-slot
+  ring is 6,200 dead tiles. `it_begin = kstart / BK`, and for the split-K variants (`attn_prefill11gs`)
+  `it_begin = max(it_begin, kstart / BK)`, since a split otherwise picks dead tiles.
+* **`QaParams` is a mirror, not an include.** The tensor library is its own translation unit
+  (cmake/embed_kernels_tensor.cmake globs `src/kernels/tensor/*.metal` separately), so it cannot see `attn.metal`'s
+  struct. Appending a field to one and not the other would leave the tensor_ops prefill reading the wrong offsets
+  *silently*, on the only GPUs that run it. Two `static_assert`s in `kparams.h` now pin `sizeof(AttnPref) == 32` and
+  `offsetof(AttnPref, window) == 24`.
+
+**A vacuously-passing test, again.** `ring_prefill_test`'s first version had the reference compute slots through the same
+`slot_of` helper as the kernel side, so mutating `slot_of` to `return pos` broke both sides together and the comparison
+still passed. The reference now computes the slot as an explicit `p % window`. Both mutations (no floor mask, slot == pos)
+now fail: 7,099 and 6,304 cases.
+
+### The batched prefill itself
+`encode_prefill` now runs T rows per pass (`enc_attn_prefill` / `enc_mlp_prefill`), with `rows_to_half` + `qrf_proj`
+(Qwen35::enc_qrf's tile ladder, verbatim) and `attn_prefill11r` for the attention. `AttnPref fp` carries the ring:
+`{window, window - 1}` for a sliding layer, `{0, 0}` for a full one.
+
+Details that had to be right, each of which was wrong on the first attempt:
+
+* **The residual starts as the embeddings.** `enc_attn_prefill`'s out_proj *adds* into `xb_`, and so do gate/up and
+  down, so `enc_embed` must write `xb_` first and nothing may `add` into something stale.
+* **k/v staging cannot be the per-row `kr_`/`vr_`.** `spark_attn_prep` reads `[t][Hkv][D]` from buffers 1 and 2; the
+  decode path's buffers hold one row. They are sliced out of the fused projection's own T-row output instead.
+* **The gate is read while the packed q|gate is written.** One dispatch, two buffers: `gub_` in, `qgb_` out. In place
+  would race the gate reads of rows still to come.
+* **`spark_activation_bytes` had to start counting the chunk.** It ignored `prefill_chunk` deliberately ("one row
+  whatever the chunk"); batched prefill makes that false, and the old value under-reported ~150 MB on the 4B. It now
+  counts fp32 and half rows separately — folding a `/2` into an expression multiplied by `sizeof(float)` is how the first
+  version came out 3.6x too small. `spark_config_test` cross-checks the plan against `alloc_state` at four core counts
+  and four chunk sizes.
+* **A mid-pass snapshot becomes its own short pass**: rows `[0, snap_row)`, then `save`, then the rest. Two passes
+  instead of one, and only when a snapshot is requested.
+* **`encode_prefill` reserves `pos0 + T + 1`**, because a sampling pass writes the row after its last — the slot
+  requirement `encode_step` already encoded as `pos + 2`.
+
+### Also worth knowing before this is wired
+* `qattn_t` runs only on `apple_family() >= 9` (tensor_ops, gated by `qmt_on()`). An M1-M4 needs a fallback —
+  `attn_prefill11r` or the short-prefill split-K path — so whatever lands must keep a non-tensor_ops branch.
+* The GELU means the MLP cannot fuse gate|up into one GEMM the way Qwen35's `enc_qmm_gu` does: `enc_qmm_gu` fuses
+  silu *and* the gate>*up multiply inside the GEMM. Spark would run two `qrf` dispatches plus `spark_gelu_gu`. A
+  third dispatch per layer over an `ffn`-sized elementwise pass, which is negligible next to the GEMMs.
+* Struct-of-arrays detail: `x_` is `float`, `stg_`/`kr_`/`vr_`/`qr_`/`qg_`/`gate_`/`gu_`/`mh_` are per-row. Batched,
+  they all need `x T`, and `xh_`/`hh_` (`half`, `H x T`) are new. `spark_activation_bytes` must grow with
+  `prefill_chunk` — done: it counts the batched set (see "R1, as landed" above).
+  lands"), so this is a coupled change, not an optional one.

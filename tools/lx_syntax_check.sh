@@ -39,6 +39,7 @@ if [ ${#files[@]} -eq 0 ]; then
     "src/engine/engine_disk.cpp"  # the SSD prefix cache, where Spark's disk_format/disk_rows/disk_state are checked
     "tools/spark_config_test.cpp"
     "tools/ring_slot_test.cpp"
+    "tools/ring_prefill_test.cpp"
   )
 fi
 

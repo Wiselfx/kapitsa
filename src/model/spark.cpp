@@ -514,6 +514,22 @@ void Spark::alloc_state() {
   const uint32_t cores = gpu_cores();
   part_o_ = A(size_t(cfg_.hq) * cores * size_t(cfg_.head_dim) * sizeof(float), "spark_part_o");
   part_ml_ = A(size_t(cfg_.hq) * cores * 2 * sizeof(float), "spark_part_ml");
+  // The batched-prefill activation set, T = prefill_chunk rows wide. Sized here rather than at first use so the memory
+  // plan can account for it (spark_activation_bytes) and so a model that does not fit fails at load, not mid-prompt.
+  {
+    const size_t T = size_t(tmax_);
+    const size_t F = size_t(cfg_.ffn), Q = size_t(cfg_.q_dim()), HQ = size_t(cfg_.hq), H = size_t(cfg_.hidden);
+    xb_ = A(T * H * sizeof(float), "spark_xb");          // the fp32 residual over T rows
+    xh_ = A(T * H * 2, "spark_xh");                       // its normed half copy (the GEMMs' input)
+    hh_ = A(T * F * 2, "spark_hh");                       // gate*up as half (down_proj's input)
+    stgb_ = A(T * size_t(cfg_.qkv_dim()) * sizeof(float), "spark_stgb");
+    qrb_ = A(T * Q * sizeof(float), "spark_qrb");
+    qgb_ = A(T * 2 * Q * sizeof(float), "spark_qgb");
+    aob_ = A(T * Q * sizeof(float), "spark_aob");
+    gub_ = A(T * 2 * F * sizeof(float), "spark_gub");
+    lgb_ = A(size_t(cfg_.vocab) * sizeof(float), "spark_lgb");
+    (void)HQ;
+  }
   cand_v_ = A(size_t(cfg_.vocab) * sizeof(float), "spark_cand_v");
   cand_i_ = A(size_t(cfg_.vocab) * sizeof(int32_t), "spark_cand_i");
   sprob_ = A(64 * sizeof(float), "spark_sprob");
@@ -834,6 +850,146 @@ void Spark::enc_sample(Encoder& e, Seq& s, const Buffer& xrow, int out_index, co
 // passes
 // ---------------------------------------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------------------------------------
+// batched prefill (docs/spark/SPARK.md §14)
+// ---------------------------------------------------------------------------------------------------------------
+//
+// The decode path streams every weight once per row, which is optimal for one row and T times too expensive for a
+// prompt. These three pieces run T rows through one pass each instead:
+//   rows_to_half   a row's RMSNorm and its float->half conversion, in one pass (gdn.metal; four models already share it)
+//   qrf_*          the format-generic prefill GEMM (wfmt.metal), one weight stream per T rows instead of per row
+//   attn_prefill11r / qattn_t*   the batched causal attention the other models use, now ring-aware for the sliding layers
+// Nothing here is a new kernel: the GEMM ladder is Qwen35::enc_qrf's and the attention choice is
+// Qwen35::enc_attn_prefill's, so Spark's prefill moves on kernels that already have benchmark numbers and fp64 checks
+// behind them.
+
+void Spark::enc_rows_half(Encoder& e, const Buffer& x, const Tensor* norm, const Buffer& y, int T, int D) {
+  e.use(pipe("rows_to_half"));
+  kp::Rows p{uint32_t(D), norm ? 1u : 0u, cfg_.eps};
+  e.buf(0, x);
+  e.buf(1, norm ? norm->buf : x);
+  e.buf(2, y);
+  e.val(3, p);
+  e.dispatch(uint32_t(T), 1, 1, 256);
+}
+
+// One batched projection. The tile ladder is Qwen35::enc_qrf's exactly (qwen35.cpp:2545), which is the point: the bf16
+// instantiations that matter here are the ones that already exist and are already exercised
+// (qrf_f16_m32_n128_mf / qrf_f16_m16_n64 / qrf_f16_m8_n64), and the M-tiles-along-grid-x form is what keeps bf16's 4x
+// larger weights from being streamed once per M tile.
+void Spark::qrf_proj(Encoder& e, const SparkLinear& W, const Buffer& xh, const Buffer& y, int T, bool add) {
+  // bf16's large tile has a form that runs its M tiles along grid x (_mf), so the threadgroups executing together share a
+  // weight tile through the cache instead of each streaming the whole matrix -- bf16 weights are 4x the bytes of 4-bit
+  // ones, which is why only the bf16 tile is built that way. Qwen35 gates that on NI_QRF16_MF (default on, qwen35.cpp);
+  // Spark has no env surface of its own, so it takes the same default without a switch.
+  const bool mf = W.dense();
+  std::string n = "qrf_" + W.fmt();
+  uint32_t bm = 32, bn = 128, th = 128;
+  bool mfast = false;
+  if (T <= 8) {
+    n += "_m8_n64", bm = 8, bn = 64, th = 64;
+  } else if (T < 64 || W.N <= 64) {
+    n += "_m16_n64", bm = 16, bn = 64;
+  } else if (W.dense() && mf) {
+    n += "_m32_n128_mf", mfast = true;
+  } else {
+    n += "_m32_n128";
+  }
+  e.use(pipe(n));
+  kp::Qmm p{uint32_t(T), W.N, W.K, W.K, W.N, add ? 1u : 0u, uint32_t(W.gs), 0, 0};
+  e.buf(0, xh);
+  e.buf(1, W.w->buf);
+  e.buf(2, W.s->buf);
+  e.buf(3, W.b->buf);
+  e.buf(4, y);
+  e.val(5, p);
+  const uint32_t nt = (W.N + bn - 1) / bn, mt = (uint32_t(T) + bm - 1) / bm;
+  if (mfast) e.dispatch(mt, nt, 1, th);
+  else e.dispatch(nt, mt, 1, th);
+}
+
+// One layer's MLP over T rows. The GELU keeps Spark's own epilogue (exact erf, D4): enc_qmm_gu fuses silu *and* the
+// gate*up multiply inside the GEMM, which is not Spark's activation, and folding erf into it would recompile the hot
+// path of every shipping model. Two GEMMs plus an elementwise pass over T*ffn is ~0.1% of the layer.
+void Spark::enc_mlp_prefill(Encoder& e, const SparkLayer& L, int T) {
+  const int F = cfg_.ffn;
+  enc_rows_half(e, xb_, L.post_norm, xh_, T, cfg_.hidden);
+  qrf_proj(e, L.mg, xh_, gub_, T, false);  // gate -> gub_[0, F)
+  Buffer u = gub_.view(size_t(F) * sizeof(float), size_t(F) * sizeof(float));
+  qrf_proj(e, L.mu, xh_, u, T, false);    // up   -> gub_[F, 2F)
+  // gate*up stays per row: the epilogue reads both halves of the row and writes the fp32 product, then down_proj reads it
+  // as half (hh_), which is the same rounding Qwen35's swiglu_half -> qrf path has.
+  {
+    kp::SparkGu gp{uint32_t(F), uint32_t(F)};
+    e.use(pipe("spark_gelu_gu"));
+    e.buf(0, gub_);
+    e.buf(1, u);
+    e.buf(2, gub_);
+    e.val(3, gp);
+    e.dispatch((uint32_t(F) + 255u) / 256u, uint32_t(T), 1, 256);
+  }
+  enc_rows_half(e, gub_, nullptr, hh_, T, F);
+  qrf_proj(e, L.md, hh_, xb_, T, /*add=*/true);
+}
+
+// One layer's attention over T rows. The prologue is Spark's own (spark_attn_prep: RoPE, the q|gate packing, the cache
+// append) and is already batched over T; the attention itself is the shared kernel, whose params now carry the ring.
+void Spark::enc_attn_prefill(Encoder& e, Seq& s, int li, int pos0, int T) {
+  const SparkLayer& L = layers_[size_t(li)];
+  const uint32_t D = uint32_t(cfg_.head_dim), Hq = uint32_t(cfg_.hq), Hkv = uint32_t(cfg_.hkv);
+  const int qd = cfg_.q_dim(), kd = cfg_.kv_dim(), qkvd = cfg_.qkv_dim();
+  const bool ring = ring_layer(li);
+  // the fused q_k_v_proj (Q|K|V) and g_proj, over the shared normalized input
+  enc_rows_half(e, xb_, L.in_norm, xh_, T, cfg_.hidden);
+  qrf_proj(e, L.qkv, xh_, stgb_, T, false);
+  qrf_proj(e, L.gate, xh_, gub_, T, false);  // the per-head scalar gate (T x Hq), packed by spark_attn_prep below
+  // k/v staging over T rows: spark_attn_prep reads [t][Hkv][D] from buffers 1 and 2, so they cannot be the per-row kr_ /
+  // vr_ the decode path uses (those hold one row). Layer a view over the T-row staging of stgb_, past the q rows: the
+  // fused projection wrote q at [0, T*qd), k at [T*qd, T*(qd+kd)) and v after it, so both slices are already there.
+  const size_t row_f = size_t(sizeof(float));
+  Buffer kb = stgb_.view(size_t(T) * size_t(qd) * row_f, size_t(T) * size_t(kd) * row_f);
+  Buffer vb = stgb_.view(size_t(T) * size_t(qd + kd) * row_f, size_t(T) * size_t(kd) * row_f);
+  // spark_attn_prep: RoPE (per-layer rot/theta), the interleaved q|gate, and the cache append at the ring slot
+  {
+    const int rows_n = ring ? cfg_.window + 8 : s.cap;
+    kp::SparkPrep pp{uint32_t(T), Hq, Hkv, D, uint32_t(L.rot), uint32_t(pos0), uint32_t(rows_n), Hq, L.theta,
+                     ring ? uint32_t(cfg_.window - 1) : 0u};
+    e.use(pipe("spark_attn_prep"));
+    e.buf(0, stgb_);  // dense q at the front of the fused output
+    e.buf(1, kb);
+    e.buf(2, vb);
+    // buffer 3 is read (T x Hq gate scalars) while buffer 5 is written (the packed [T][Hq][2][D]), so they must be
+    // different buffers -- in one dispatch an in-place pack would race the gate reads of the rows still to come.
+    e.buf(3, gub_);
+    e.buf(4, qrb_);
+    e.buf(5, qgb_);
+    e.buf(6, s.kc[size_t(li)]);
+    e.buf(7, s.vc[size_t(li)]);
+    e.val(8, pp);
+    e.dispatch(Hq + 2 * Hkv, uint32_t(T), 1, D);
+  }
+  // The attention. Window/slot_mask are the ring (0 / 0 for a full-attention layer, which is also what every other
+  // model passes, so the shared kernel reads exactly as before for them).
+  {
+    const int rows_n = ring ? cfg_.window + 8 : s.cap;
+    kp::AttnPref fp{uint32_t(T), Hq, Hkv, uint32_t(pos0), uint32_t(rows_n), 1.0f / std::sqrt(float(cfg_.head_dim)),
+                    ring ? uint32_t(cfg_.window) : 0u, ring ? uint32_t(cfg_.window - 1) : 0u};
+    // attn_prefill11r: 32 queries of one query head per threadgroup, and "any G works" (Spark's is 4), which is why this
+    // kernel and not one of the G-specialised ones. Its output is fp32 [T][Hq][D].
+    e.use(pipe("attn_prefill11r"));
+    e.buf(0, qrb_);
+    e.buf(1, s.kc[size_t(li)]);
+    e.buf(2, s.vc[size_t(li)]);
+    e.buf(3, qgb_);
+    e.buf(4, aob_);
+    e.val(5, fp);
+    e.dispatch((uint32_t(T) + 31) / 32, Hq, 1, 256);
+  }
+  // out_proj, added into the fp32 residual
+  enc_rows_half(e, aob_, nullptr, xh_, T, qd);
+  qrf_proj(e, L.o, xh_, xb_, T, /*add=*/true);
+}
+
 void Spark::encode_step(Encoder& e, Seq& s, int pos, const SamplingParams& sp, uint32_t step, bool sample) {
   // `pos + 2`: this step reads position `pos` and, when it samples, writes the token at `pos + 1`, so the sequence needs
   // that slot to exist (tokens is int32 [limit + 8], but the KV caches must cover the row too). Qwen35's guard is the
@@ -854,26 +1010,36 @@ void Spark::encode_step(Encoder& e, Seq& s, int pos, const SamplingParams& sp, u
 void Spark::encode_prefill(Encoder& e, Seq& s, int pos0, int T, const SamplingParams& sp, uint32_t step, bool sample,
                            Checkpoint* snap, int snap_row) {
   if (snap && !(snap_row > 0 && snap_row < T)) fatal("prefill snapshot at row %d of %d", snap_row, T);
-  if (pos0 + T > s.limit) fatal("context full (%d + %d > %d)", pos0, T, s.limit);
-  if (!reserve(s, pos0 + T)) fatal("context full (%d)", s.limit);
-  // The first implementation runs a prompt one row at a time through the decode path: correct, and slow. The batched
-  // prefill kernels are the next change (docs/spark/TODO.md, P3); say so once per process rather than per pass.
-  static bool said = false;
-  if (!said) {
-    logi("Spark: prefill runs one row at a time through the decode path (batched prefill is not bound yet)");
-    said = true;
-  }
-  for (int t = 0; t < T; ++t) {
-    const int pos = pos0 + t;
-    const bool last = t == T - 1;
-    enc_embed(e, s.tok, pos, 1, x_);
-    for (int i = 0; i < cfg_.layers; ++i) enc_attn(e, s, i, pos), enc_mlp(e, layers_[size_t(i)]);
-    // The in-pass checkpoint: the state after the rows before `snap_row`. A row-at-a-time prefill takes it for free --
-    // the row's layers have already written the rings, so the save is queued behind them in this encoder, the same
-    // ordering the batched Qwen35 path gets from capturing mid-pass.
-    if (snap && t == snap_row - 1) save(e, s, *snap, pos + 1);
-    // the prompt's last row produces the token after it (pos + 1), as encode_step's does
-    if (last && sample) enc_sample(e, s, x_, pos + 1, sp, step);
+  // +1: a sampling pass writes the token at pos0 + T (the row after its last), the same slot requirement encode_step
+  // encodes as pos + 2. Without it the write lands one past the cache the reserve guaranteed.
+  if (pos0 + T + 1 > s.limit) fatal("context full (%d + %d > %d)", pos0, T, s.limit);
+  if (!reserve(s, pos0 + T + 1)) fatal("context full (%d)", s.limit);
+  // Batched: each weight is streamed once per pass instead of once per row. The former loop ran a row at a time through
+  // the decode path, which is correct but sits on the bandwidth floor -- 3.42 GB of bf16 weights x T, so ~0.96 s even for
+  // a 77-token prompt (measured 831.7 ms; docs/spark/SPARK.md §14).
+  //
+  // A snapshot in the middle of a pass is the one thing the batched form cannot do for free: the rows are processed
+  // together, so there is no encoder point after exactly snap_row rows. Qwen35 captures mid-pass; Spark does the simple
+  // thing -- the rows before snap_row go through as their own short pass, then the checkpoint, then the rest. Two passes
+  // instead of one, and only when a snapshot is asked for.
+  const int split = (snap && snap_row > 0 && snap_row < T) ? snap_row : -1;
+  auto pass = [&](int p0, int n, bool want_sample) {
+    if (n <= 0) return;
+    enc_embed(e, s.tok, p0, n, xb_);  // the residual starts as the embeddings; every later write into xb_ is `add`
+    for (int i = 0; i < cfg_.layers; ++i) enc_attn_prefill(e, s, i, p0, n), enc_mlp_prefill(e, layers_[size_t(i)], n);
+    if (want_sample) {
+      // the pass's last row produces the token after it (pos0 + n), as encode_step's does
+      enc_rows_half(e, xb_.view(size_t(n - 1) * size_t(cfg_.hidden) * sizeof(float), size_t(cfg_.hidden) * sizeof(float)),
+                    final_norm_, xh_, 1, cfg_.hidden);
+      enc_sample(e, s, xh_, p0 + n, sp, step);
+    }
+  };
+  if (split < 0) {
+    pass(pos0, T, sample);
+  } else {
+    pass(pos0, split, false);
+    save(e, s, *snap, pos0 + split);
+    pass(pos0 + split, T - split, sample);
   }
 }
 

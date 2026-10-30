@@ -126,6 +126,16 @@ class Spark : public Model {
   const Tensor* norm_copy(const Tensor* t, float offset);
   void enc_attn(Encoder& e, Seq& s, int li, int pos);
   void enc_mlp(Encoder& e, const SparkLayer& L);
+  // Batched prefill: T rows at once instead of one row through the decode path, so each weight is streamed once per
+  // prompt rather than once per token (docs/spark/SPARK.md §14). The projections use wfmt.metal's format-generic qrf
+  // GEMM tiles through qrf_proj; the attention uses the same attn_prefill11r / qattn_t family the other models do, now
+  // ring-aware (AttnPrefParams.window / slot_mask). Correct for any T; the decode path stays for single rows.
+  void enc_attn_prefill(Encoder& e, Seq& s, int li, int pos0, int T);
+  void enc_mlp_prefill(Encoder& e, const SparkLayer& L, int T);
+  // One projection over T rows: rows_to_half's output in, a GEMM, an optional residual add. `norm` folds an RMSNorm into
+  // the float->half pass (nullptr: x is already normed or needs none).
+  void enc_rows_half(Encoder& e, const Buffer& x, const Tensor* norm, const Buffer& y, int T, int D);
+  void qrf_proj(Encoder& e, const SparkLinear& W, const Buffer& xh, const Buffer& y, int T, bool add);
   void enc_embed(Encoder& e, const Buffer& tokens, int tok_off, int R, const Buffer& out);
   void enc_head(Encoder& e, const Buffer& x, const Buffer& out);
   void enc_sample(Encoder& e, Seq& s, const Buffer& xrow, int out_index, const SamplingParams& sp, uint32_t step);
@@ -149,6 +159,10 @@ class Spark : public Model {
 
   // activations, one row
   Buffer x_, stg_, kr_, vr_, qr_, qg_, ao_, gate_, gu_, mh_, logits_, part_o_, part_ml_, cand_v_, cand_i_, sprob_;
+  // activations, T rows: x_ is fp32 and the GEMMs read half, so the batched path keeps a half copy of the normed input
+  // (xh_, rows_to_half's output) and a half copy of the MLP's gate*up product (hh_), as Qwen35's enc_mlp_prefill does.
+  // xb_ is the fp32 residual over T rows; the per-row buffers above are what the decode path keeps using.
+  Buffer xb_, xh_, hh_, stgb_, qrb_, qgb_, aob_, gub_, lgb_;
 };
 
 }  // namespace ni

@@ -350,10 +350,21 @@ void check_plan_matches_alloc() {
   // alloc_state()'s buffers, summed as it allocates them. `plan` is the real function the engine calls, so this is a
   // genuine cross-check: an earlier version of this test re-implemented plan's formula, which meant it passed while the
   // formula was wrong (it multiplied by prefill_chunk and counted ffn twice).
-  auto alloc_bytes = [](const ni::SparkConfig& c, uint32_t cores) {
+  auto alloc_bytes = [](const ni::SparkConfig& c, uint32_t cores, int chunk) {
     const size_t H = size_t(c.hidden), Q = size_t(c.q_dim()), KV = size_t(c.kv_dim()), F = size_t(c.ffn),
                  V = size_t(c.vocab), HQ = size_t(c.hq), D = size_t(c.head_dim);
     size_t n = 0;
+    // the batched-prefill set (alloc_state), T = chunk rows
+    const size_t T = size_t(chunk > 0 ? chunk : 1);
+    n += T * H * sizeof(float);                        // xb_
+    n += T * size_t(c.qkv_dim()) * sizeof(float);      // stgb_
+    n += T * Q * sizeof(float);                        // qrb_
+    n += T * size_t(2 * Q) * sizeof(float);            // qgb_
+    n += T * Q * sizeof(float);                        // aob_
+    n += T * size_t(2 * F) * sizeof(float);            // gub_
+    n += T * F * 2;                                    // hh_ (half)
+    n += T * H * 2;                                    // xh_ (half)
+    n += V * sizeof(float);                            // lgb_
     n += H * sizeof(float);                        // x_
     n += size_t(c.qkv_dim()) * sizeof(float);      // stg_
     n += KV * sizeof(float) + KV * sizeof(float);  // kr_, vr_
@@ -374,14 +385,22 @@ void check_plan_matches_alloc() {
   for (const char* which : {"spark-x2.6-1.7b.config.json", "spark-x2.6-4b.config.json"}) {
     const ni::SparkConfig c = ni::spark_read_config(load(which));
     for (uint32_t cores : {8u, 20u, 32u, 40u}) {
-      const size_t plan = ni::spark_activation_bytes(c, 2048, cores), alloc = alloc_bytes(c, cores);
+      const size_t plan = ni::spark_activation_bytes(c, 2048, cores), alloc = alloc_bytes(c, cores, 2048);
       CHECK(plan == alloc, "%s: MemPlan::activations is %zu bytes but alloc_state allocates %zu (cores %u)", which,
             plan, alloc, cores);
     }
-    // and the chunk size must not change it while prefill is one row at a time
-    for (int chunk : {1, 512, 2048, 8192})
-      CHECK(ni::spark_activation_bytes(c, chunk, 32) == ni::spark_activation_bytes(c, 1, 32),
-            "%s: chunk %d changes the activation plan, but only one row is allocated", which, chunk);
+    // The chunk now sizes the batched-prefill buffers, so the plan must track it -- and must still be exact at each size.
+    // (This check used to assert the opposite: that the plan ignored the chunk, because prefill ran one row at a time.
+    // Batched prefill made that false, and a plan that kept ignoring the chunk would under-report by the whole batched
+    // set, ~150 MB on the 4B at the default 2048.)
+    size_t prev = 0;
+    for (int chunk : {1, 512, 2048, 8192}) {
+      const size_t plan = ni::spark_activation_bytes(c, chunk, 32);
+      CHECK(plan == alloc_bytes(c, 32, chunk), "%s: chunk %d: plan %zu != alloc %zu", which, chunk, plan,
+            alloc_bytes(c, 32, chunk));
+      CHECK(plan > prev, "%s: chunk %d does not grow the plan (%zu <= %zu)", which, chunk, plan, prev);
+      prev = plan;
+    }
   }
 }
 

@@ -76,8 +76,22 @@ def main():
     check(pre is not None, "Spark::encode_prefill found")
     if pre:
         calls = re.findall(r"enc_sample\([^;]*\);", pre.group(0))
+        check(len(calls) == 1, "Spark::encode_prefill has exactly one enc_sample call (found %d)" % len(calls))
+        # The invariant is NOT the literal "pos + 1" -- that was encode_prefill's spelling while it ran one row at a
+        # time. Batched, the pass starts at p0 and covers n rows, so the slot after the last row is p0 + n, which is the
+        # same position (pos0 + T) and the same requirement: the sample must NOT overwrite the row it just embedded, and
+        # must land one past it. Test the property, not the arithmetic's spelling -- matching the string made this check
+        # fail on a correct rewrite, and would have passed on an incorrect one that kept the words.
         for c in calls:
-            check("pos + 1" in c, "Spark::encode_prefill's last row samples into pos + 1: %s" % c.strip())
+            m = re.search(r"enc_sample\(e, s, \w+,\s*(.+?),\s*sp,", c)
+            arg = m.group(1).strip() if m else ""
+            check(arg not in ("pos", "p0", "pos0"),
+                  "Spark::encode_prefill samples past its last row, not into it: enc_sample arg is %r" % arg)
+            check(arg.endswith("+ n") or arg.endswith("+ 1"),
+                  "Spark::encode_prefill's sample slot is the row after the pass's last: enc_sample arg is %r" % arg)
+        # and the pass must embed exactly the rows it claims (n = the pass length), so `p0 + n` is the row after it
+        check("enc_embed(e, s.tok, p0, n," in pre.group(0),
+              "Spark::encode_prefill embeds n rows from p0, so p0 + n is the slot after the last embedded row")
 
     # the capacity guard must allow that extra slot. Matched on the guard statement itself: a bare "pos + 2" search
     # passes on the comment above it, which is how this check was vacuous the first time it was written.

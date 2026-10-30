@@ -60,8 +60,59 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
       overwritten. `encode_prefill` now honours `snap`/`snap_row` (it must, since `can_snapshot()` is true and the
       engine relies on it).
 - [ ] Ring-aware attention kernel (the blocker for any context longer than 512 tokens)
-- [ ] Batched prefill (`attn_prefill11r` + window; `qmms`/`qrf` GEMMs + the GELU fold). Until then prefill loops over
-      decode rows: correct, slow, and it logs that once.
+- [x] **Batched prefill** — `encode_prefill` runs T rows per pass: `rows_to_half` + `qrf_proj` (Qwen35::enc_qrf's tile
+      ladder) for the projections, `attn_prefill11r` for the attention, `spark_gelu_gu` kept for the exact-GELU epilogue.
+      A mid-pass snapshot runs as its own short pass. See SPARK.md §14, "The batched prefill itself".
+- [x] **Ring-aware prefill attention (R1)** — `AttnPrefParams` / `QaParams` gained `window`/`slot_mask` **appended**, so
+      the 6-field brace initialisers in `clover.cpp` / `qwen35.cpp` / `qwen4_exp.cpp` still compile and zero-fill them.
+      Two `static_assert`s in `kparams.h` pin the layout (32 bytes, `window` at 24) against the hand-kept mirror.
+      `tools/ring_prefill_test.cpp` checks the key set over 5 laps and the linear identity; both mutations of the ring
+      logic fail it. See SPARK.md §14, "R1, as landed".
+- [ ] **Ring-aware prefill attention is not verified on a GPU** — the test proves which keys are selected, not that the
+      Metal kernels compile or that the scores match. `metal-compile` in CI is the only check available off a Mac.
+
+### Batched prefill — the plan, and the measurements behind it
+
+**Measured cost model** (Spark-X2.6-1.7B bf16 = 1.71 G params = 3.42 GB; every weight is re-streamed once per row, so
+a T-row prompt streams 3.42 GB x T):
+
+| prompt | row-at-a-time (bandwidth floor) | batched GEMM (fp16 compute) |
+|---|---|---|
+| 77 tok | 0.96 s | 0.013-0.053 s |
+| 512 tok | 6.4 s | 0.09-0.35 s |
+| 2048 tok | 25.6 s | 0.35-1.40 s |
+| 5000 tok | 62.6 s | 0.85-3.42 s |
+
+The measured `prefill_ms: 831.7` for a 77-token prompt sits **on** the 0.96 s prediction, so the current path is not
+merely slow: it is at the bf16 bandwidth floor, which is the fastest a row-at-a-time loop can be. Nothing here is a
+bug to fix; it needs the batched form (19-30x).
+
+**Do not write new kernels.** The repo already ships and benchmarks every piece; the work is wiring, not authoring:
+
+1. **Projections** — `qrf_*` (`wfmt.metal`, the format-generic prefill GEMM). bf16 instantiations confirmed present:
+   `qrf_f16_m32_n128_mf`, `qrf_f16_m16_n64`, `qrf_f16_m8_n64`. Dispatch ladder copied from `Qwen35::enc_qrf`
+   (`M <= 8` -> m8_n64; `M < 64 || N <= 64` -> m16_n64; else m32_n128_mf with the M tiles along grid x).
+   Input must be `half`: `rows_to_half` (`gdn.metal`) does norm + float->half in one pass and 4 models already reuse it.
+2. **Attention** — `qattn_t_g4d2s8` (`src/kernels/tensor/qattn_t.metal`) is **Spark's exact geometry**: G = 4,
+   head_dim 256, benchmarked on an M5 Max at 3.09 / 7.34 / 15.95 ms against 4096 / 8192 / 16384 keys vs
+   `qattn_t_s8k16`'s 5.15 / 11.48 / 24.21 (1.52-1.67x), error 2.70-3.29e-4 against an fp64 reference. Only on
+   `apple_family() >= 9` (tensor_ops, `qmt_on()`); older Macs need a `qattn_t`-free fallback.
+3. **GELU fold** — keep `spark_gelu_gu` as-is (an elementwise pass over `T*ffn`, ~0.1% of the layer). No change to the
+   shipping GEMM's epilogue, so D4 holds.
+
+**The one real gap — ring addressing.** `qattn_t` reads `kb + slot*D` for `k0 = 0..tgl` with no lower bound, and its
+causal limit is `p.pos0 + min(tk, T-1)`. A sliding layer's ring holds only the last 512 keys anywhere it may have
+wrapped, so the kernel would need (a) the oldest live key and (b) slot = `(oldest + r) & slot_mask`. Full-attention
+layers (7 of 28 on the 1.7B, 9 of 36 on the 4B) need nothing. Two ways:
+
+* **R1 — add the two fields to the shared path.** `AttnPrefParams` already ends in `max_seq, scale`, so `uint wrapped,
+  slot_mask` (or one packed `ring`) appends without moving anything, exactly as `AttnDecParams` already grew them in
+  v0.2.28 for the decode path. Qwen35 passes `{0, 0}` and reads identically — precedent exists in this repo.
+  Touches: `attn.metal`, `tensor/qattn_t.metal`, `kparams.h`, every `AttnPref` caller. These are shipping kernels.
+* **R2 — a Spark-only `spark_attn_prefill`.** Nothing shared is touched (D4 pure). Cost: a new kernel to write,
+  benchmark and validate against fp64, and no benchmark evidence — it would be the only unproven piece.
+
+Estimated prefill after R1/R2: ~0.35-1.4 s for 2048 tokens instead of ~25 s.
 
 ## P4 — tests  ✅
 - [x] `tools/spark_config_test.cpp`: both configs' shapes/tables, 13 refusal cases, flat-RoPE form, layer fallback
