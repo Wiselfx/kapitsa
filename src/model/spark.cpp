@@ -399,14 +399,58 @@ void Spark::reset(Seq& s) {
 
 Checkpoint Spark::new_checkpoint() { return Checkpoint{}; }
 
+// A checkpoint holds copies of the sliding-window rings, as Dory's does: the full-attention layers append, so every
+// position up to `pos` is still in their cache and a truncation to a shorter sequence reads the same bytes, while a
+// ring with an older sequence in it has been overwritten and must be saved. Without this the engine could not cut a
+// prefill chunk at a turn boundary (it fatal'd with "Spark has no snapshot"), which is what a second message in a
+// conversation needs.
 void Spark::save(Encoder& e, const Seq& s, Checkpoint& c, int pos) {
-  (void)e, (void)s, (void)c, (void)pos;
-  fatal("Spark has no snapshot (can_snapshot is false)");
+  c.pos = -1;
+  if (c.rec.size() != size_t(2 * cfg_.layers)) c.rec.assign(size_t(2 * cfg_.layers), Buffer{});
+  for (int i = 0; i < cfg_.layers; ++i) {
+    if (!ring_layer(i)) {
+      // no ring: nothing to save, and anything left from an earlier save at another position goes
+      for (int kv = 0; kv < 2; ++kv) {
+        Buffer& dst = c.rec[2 * size_t(i) + size_t(kv)];
+        if (dst) Gpu::get().release(dst), dst = Buffer{};
+      }
+      continue;
+    }
+    for (int kv = 0; kv < 2; ++kv) {
+      const Buffer& src = kv ? s.vc[size_t(i)] : s.kc[size_t(i)];
+      Buffer& dst = c.rec[2 * size_t(i) + size_t(kv)];
+      if (!src) continue;
+      if (!dst) {
+        if (mem_budget_ && Gpu::get().allocated_bytes() + src.size > mem_budget_) return;  // no room: no checkpoint
+        dst = Gpu::get().alloc(src.size, "spark_ring_ckpt");
+      }
+      const uint32_t n = uint32_t(std::min(src.size, dst.size) / 16);
+      e.use(pipe("spark_copy4"));
+      e.buf(0, src);
+      e.buf(1, dst);
+      e.val(2, n);
+      e.dispatch((n + 255) / 256, 1, 1, 256);
+    }
+  }
+  c.pos = pos;
 }
 
 void Spark::restore(Encoder& e, Seq& s, const Checkpoint& c) {
-  (void)e, (void)s, (void)c;
-  fatal("Spark has no checkpoint (can_snapshot is false)");
+  // Only the rings: a full layer's cache still holds everything up to the checkpoint's position.
+  for (size_t i = 0; i < size_t(cfg_.layers) && 2 * i + 1 < c.rec.size(); ++i) {
+    if (!ring_layer(int(i))) continue;
+    for (int kv = 0; kv < 2; ++kv) {
+      const Buffer& src = c.rec[2 * i + size_t(kv)];
+      const Buffer& dst = kv ? s.vc[i] : s.kc[i];
+      if (!src || !dst) continue;
+      const uint32_t n = uint32_t(std::min(src.size, dst.size) / 16);
+      e.use(pipe("spark_copy4"));
+      e.buf(0, src);
+      e.buf(1, dst);
+      e.val(2, n);
+      e.dispatch((n + 255) / 256, 1, 1, 256);
+    }
+  }
 }
 
 std::string Spark::disk_format() const {
@@ -774,7 +818,7 @@ void Spark::encode_step(Encoder& e, Seq& s, int pos, const SamplingParams& sp, u
 
 void Spark::encode_prefill(Encoder& e, Seq& s, int pos0, int T, const SamplingParams& sp, uint32_t step, bool sample,
                            Checkpoint* snap, int snap_row) {
-  if (snap || snap_row) fatal("Spark has no snapshot");
+  if (snap && !(snap_row > 0 && snap_row < T)) fatal("prefill snapshot at row %d of %d", snap_row, T);
   if (pos0 + T > s.limit) fatal("context full (%d + %d > %d)", pos0, T, s.limit);
   if (!reserve(s, pos0 + T)) fatal("context full (%d)", s.limit);
   // The first implementation runs a prompt one row at a time through the decode path: correct, and slow. The batched
@@ -789,6 +833,10 @@ void Spark::encode_prefill(Encoder& e, Seq& s, int pos0, int T, const SamplingPa
     const bool last = t == T - 1;
     enc_embed(e, s.tok, pos, 1, x_);
     for (int i = 0; i < cfg_.layers; ++i) enc_attn(e, s, i, pos), enc_mlp(e, layers_[size_t(i)]);
+    // The in-pass checkpoint: the state after the rows before `snap_row`. A row-at-a-time prefill takes it for free --
+    // the row's layers have already written the rings, so the save is queued behind them in this encoder, the same
+    // ordering the batched Qwen35 path gets from capturing mid-pass.
+    if (snap && t == snap_row - 1) save(e, s, *snap, pos + 1);
     if (last && sample) enc_sample(e, s, x_, pos, sp, step);
   }
 }

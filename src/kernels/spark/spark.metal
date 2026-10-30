@@ -149,3 +149,11 @@ struct SparkPrepParams {
     kc[((h - p.Hq) * p.max_seq + slot) * p.D + tid] = half(y);
   }
 }
+
+// A cache's ring copied: the checkpoints of the sliding-window layers. Spark's own copy of dory_copy4 rather than a
+// dependency on the base library's (D4: this library is purely additive, and adding a model must not force a recompile
+// of kernels the shipping models run). grid: ceil(n / 256) x 256
+[[kernel]] void spark_copy4(const device uint4* src [[buffer(0)]], device uint4* dst [[buffer(1)]],
+                            constant uint& n [[buffer(2)]], uint i [[thread_position_in_grid]]) {
+  if (i < n) dst[i] = src[i];
+}

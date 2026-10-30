@@ -90,7 +90,9 @@ class Spark : public Model {
   void encode_prefill(Encoder& e, Seq& s, int pos0, int T, const SamplingParams& sp, uint32_t step, bool sample,
                       Checkpoint* snap = nullptr, int snap_row = 0) override;
   int prefill_chunk() const override { return tmax_; }
-  bool can_snapshot() const override { return false; }
+  // True now that save/restore copy the sliding-window rings (the full-attention caches append, so they need no copy).
+  // The engine reads this to cut a prefill chunk at a turn boundary inside the pass instead of splitting the chunk.
+  bool can_snapshot() const override { return true; }
   std::string disk_format() const override;
 
   // ---- tools ----

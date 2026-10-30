@@ -439,6 +439,38 @@ key. For a full layer the two are equal, so the expression stays `span`.
 
 **Not verified on a GPU**: CI compiles the Metal and runs the CPU slot test; nothing here has produced a token past 512.
 
+## 12e. A second message: the missing snapshot
+
+With the window fixed, the next thing a real conversation does failed:
+
+```
+Spark has no snapshot (can_snapshot is false)
+```
+
+`Spark::save`/`restore` were fatal stubs and `can_snapshot()` returned false, so the engine could not take a checkpoint
+at a turn boundary. The first message got through (nothing needed a checkpoint); the second needed the state after the
+first turn, and there wasn't one. The stubs were honest -- they never silently did nothing -- but they made the model
+single-turn, which is not a model that can be tested.
+
+The implementation is Dory's, and it is small because of one observation: **only the rings need saving.** A
+full-attention layer's cache only appends, so every position up to the checkpoint is still in it and truncating to a
+shorter sequence reads the same bytes. A ring, by contrast, has been overwritten by the time you want to go back. So
+`save` copies exactly the sliding layers' caches (`spark_copy4`, in Spark's own kernel library rather than borrowing
+`dory_copy4` -- D4), `restore` copies them back, and `can_snapshot()` is now true.
+
+That last part is not cosmetic: the engine's `in_pass` flag reads it, and with `can_snapshot()` true the engine stops
+cutting prefill chunks short at a boundary and instead asks `encode_prefill` to snapshot mid-chunk. Having returned
+true, `encode_prefill` must honour `snap`/`snap_row` or the checkpoint is silently never taken -- so it does, and
+because prefill is still one row at a time that is one `save` queued behind the row's layers in the same encoder. This
+is the one place where the slow row-at-a-time prefill makes something *easier* than the batched path.
+
+`copy_prefix` is left at the base class's `false`: a second conversation sharing a system prompt re-reads it rather
+than copying another slot's caches. Correct, slower, and not on the path that was failing.
+
+**Not verified on a GPU**: the checks are that `save`/`restore` touch only ring layers, that a declined save leaves
+`pos = -1` (so it is not mistaken for one), and that the existing CPU tests still pass. No multi-turn conversation has
+actually been run here.
+
 ## 13. QA pass (2026-10-29) — what it found, and what it cost
 
 **Ten defects, in four batches.** They are recorded in the order found, because the order is the interesting part: each

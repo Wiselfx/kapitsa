@@ -1,3 +1,7 @@
+- [x] **Snapshots** (`save`/`restore`/`can_snapshot`). Copies only the sliding-window rings, as Dory does: a full
+      layer's cache only appends, so truncation reads the same bytes, while a ring must be saved before it is
+      overwritten. `encode_prefill` now honours `snap`/`snap_row` (it must, since `can_snapshot()` is true and the
+      engine relies on it).
 # Spark port — live checklist
 
 Update this file as work lands. `[x]` done, `[~]` in progress, `[ ]` not started, `[!]` blocked.
