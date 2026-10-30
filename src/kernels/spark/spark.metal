@@ -88,6 +88,7 @@ struct SparkPrepParams {
   uint32_t max_seq;  // slots per kv head in the cache
   uint32_t g_ld;   // floats between rows of the per-head gate scalars
   float theta;     // RoPE theta for this layer (5e6 full / 1e4 sliding)
+  uint32_t slot_mask;  // 0 for a full-attention layer, else window - 1: the ring slot of position p is p & slot_mask
 };
 
 [[kernel]] void spark_attn_prep(const device float* q_in [[buffer(0)]], const device float* k_in [[buffer(1)]],
@@ -102,10 +103,16 @@ struct SparkPrepParams {
   if (tid >= p.D) return;
   const uint pos = p.pos + t;
 
+  // The slot a position occupies. A full-attention layer appends (slot == position, its cache grows with the
+  // conversation); a sliding layer is a ring of `window` slots, so position p lives in p % window == p & (window - 1).
+  // Getting this wrong is not a slow path: writing absolute positions into a 520-slot ring runs off the end of the
+  // buffer at position 520 and corrupts whatever follows it.
+  const uint slot = p.slot_mask ? (pos & p.slot_mask) : pos;
+
   // value heads: plain copy into the cache
   if (h >= p.Hq + p.Hkv) {
     const uint hv = h - p.Hq - p.Hkv;
-    vc[(hv * p.max_seq + pos) * p.D + tid] = half(v_in[(t * p.Hkv + hv) * p.D + tid]);
+    vc[(hv * p.max_seq + slot) * p.D + tid] = half(v_in[(t * p.Hkv + hv) * p.D + tid]);
     return;
   }
 
@@ -139,6 +146,6 @@ struct SparkPrepParams {
     qg_out[o + tid] = y;
     qg_out[o + p.D + tid] = g_in[size_t(t) * p.g_ld + h];
   } else {
-    kc[((h - p.Hq) * p.max_seq + pos) * p.D + tid] = half(y);
+    kc[((h - p.Hq) * p.max_seq + slot) * p.D + tid] = half(y);
   }
 }

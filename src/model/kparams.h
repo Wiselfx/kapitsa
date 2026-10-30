@@ -86,6 +86,7 @@ struct SparkGu {
 struct SparkPrep {  // spark_attn_prep: RoPE + the q|gate packing + the cache append
   uint32_t T, Hq, Hkv, D, rot, pos, max_seq, g_ld;
   float theta;
+  uint32_t slot_mask;  // 0 for a full-attention layer, else window - 1 (ring slot = position & slot_mask)
 };
 
 struct AttnPref {

@@ -487,6 +487,24 @@ respect `mem_budget_`, which it also ignored), reusing the base library's `kv_re
 `Qwen35::grow_kv` uses. Note the parameter packing: `kv_regrow` takes `(positions, src cap, dst cap)` in 16-byte words,
 and my first attempt passed `(old, target, hkv)`, which would have copied the wrong strides.
 
+### Defect 11 (would have corrupted memory): the ring caches were written at absolute positions
+
+`spark_attn_prep` stored k and v at `pos` — the absolute token position — into a cache `cache_rows()` sized
+`window + 8` = 520 slots for a sliding layer. Past position 519 that writes outside the buffer. The wrapped-window
+*fatal* I had written only fires on the **read** side and only `if (ring && lo > 0)`, so at positions 512..519 the model
+would have written past the end while reading the plain range — a corruption bug that the "we refuse what we do not
+implement" message did not actually cover.
+
+Fixed: `SparkPrepParams.slot_mask` (0 for a full layer, else `window - 1`) and the prologue stores at
+`pos & slot_mask`. Full-attention layers append, so their slot is still the position.
+
+The read side still refuses a wrapped window (`lo > 0`), and the refusal now names the three ways to implement it and
+says why one should be chosen after the Mac pass: every option changes the indexing of `attn_decode_partial`, which is
+a kernel six other models depend on and which nothing on this machine can test. I started writing the copy-based
+version, found that `kv_copy_prefix`'s kernel cannot express a rotation of the ring (it copies from slot 0 and has no
+source offset, so it would have written garbage), and reverted rather than ship an untested rotation of a shared
+kernel's contract.
+
 ### Still unverified, and honestly so
 
 Everything in §6 that needs a GPU. The QA pass raised confidence in the *host-side* logic — config, kernel names,
