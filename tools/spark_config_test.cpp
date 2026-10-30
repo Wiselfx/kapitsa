@@ -5,6 +5,10 @@
 // drift apart; the test reads them from there rather than restating them (a restated copy is a second source of truth).
 #include "model/spark_config.h"
 
+// generated at build time from src/kernels/{qmv,wfmt}.metal (tools/spark_kernel_names.py): every matvec kernel the
+// sources instantiate. Included so the sweep below checks Spark::matvec_pipe against the real set.
+#include "spark_kernel_names.h"
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -275,22 +279,25 @@ void check_norm_layout_rule() {
 
 // Every matvec kernel name Spark's selection rule can emit must exist in the kernel sources. This is checked here, on
 // the CPU, because the alternative is finding out at run time as a "no such pipeline" on a Mac -- which is exactly how
-// two defects in this port were found. The list below is transcribed from qmv.metal's NI_QMV2/NI_QMV3 instantiations
-// and wfmt.metal's NI_WF_DECODE macro over NI_WF_NO8/NI_WF_ALL; the rule mirrors Spark::matvec_pipe, and if either
-// side changes without the other, this test fails.
+// two defects in this port were found.
+//
+// The first version of this test hand-typed the kernel list and got it wrong twice in ways that made it useless:
+// it claimed `qmvg_f16g64_*`, but wfmt.metal's bf16 suffix is `_f16` (SparkLinear::fmt returns "f16"), so it never
+// checked the format a bf16 checkpoint actually uses -- and it claimed `qmvg_f8g64_*` decode kernels, which are not
+// instantiated at all (the decode group is NI_WF_NO8; 8-bit takes its own qmv2_b8/qmv3_b8 path). A test built from
+// memory of the sources is not a check of the sources, so the list is now generated from them at build time
+// (cmake/spark_kernel_names.cmake writes spark_kernel_names.h).
 void check_matvec_names_exist() {
   std::set<std::string> have;
-  for (int r : {1, 2, 4}) {
-    have.insert("qmv2_b4_g64_r" + std::to_string(r));
-    have.insert("qmv2_b4_g64_r" + std::to_string(r) + "_add");
-    have.insert("qmv2_b4_g64_r" + std::to_string(r) + "_norm");
-    have.insert("qmv2_b8_g64_r" + std::to_string(r) + "_norm");
+  for (const char* n = ni::kSparkMatvecNames; *n;) {
+    const char* e = n;
+    while (*e && *e != '\n') ++e;
+    if (e != n) have.insert(std::string(n, size_t(e - n)));
+    n = *e ? e + 1 : e;
   }
-  for (const char* n : {"qmv3_b4_r2", "qmv3_b4_r4", "qmv3_b4_r2_add", "qmv3_b4_r2_norm", "qmv3_b4_r4_norm",
-                        "qmv3_b8_r2", "qmv3_b8_r2_add", "qmv3_b8_r2_norm"})
-    have.insert(n);
-  for (const char* f : {"f16g64", "f8g64", "f6g64", "f5g64", "f3g64", "f4g32"})
-    for (const char* r : {"r2", "r2_add", "r2_norm", "r4", "r4_norm"}) have.insert(std::string("qmvg_") + f + "_" + r);
+  CHECK(have.count("qmvg_f16_r2") == 1, "the generated kernel list is readable (bf16 is qmvg_f16_r2, not f16g64)");
+  CHECK(have.count("qmv2_b4_g64_r2") == 1, "the generated kernel list has qmv2_b4_g64_r2");
+  CHECK(have.count("qmv2_b4_g64_r2_add_norm") == 0, "no _add_norm instantiation is generated");
 
   // Spark::matvec_pipe's rule, transcribed. Note it never emits _add_norm: no such instantiation exists anywhere.
   auto pick = [](int bits, int K, int N, bool norm, bool add) {
@@ -307,7 +314,10 @@ void check_matvec_names_exist() {
         name = K > 4096 ? "qmv3_b8_r2" : "qmv2_b8_g64_r" + rows4;
       }
     } else {
-      name = "qmvg_f" + std::to_string(bits) + "g64_r" + (add ? std::string("2") : rows4);
+      // SparkLinear::fmt(): bf16 is "f16" (wfmt.metal's own suffix), not "f16g64". The first version of this sweep
+      // used f16g64, so it never checked the format a bf16 checkpoint actually uses.
+      const std::string fmt = bits == 16 ? "f16" : "f" + std::to_string(bits) + "g64";
+      name = "qmvg_" + fmt + "_r" + (add ? std::string("2") : rows4);
     }
     return name + suffix;
   };
@@ -330,6 +340,51 @@ void check_matvec_names_exist() {
   CHECK(pick(4, 2560, 2560, true, true) == "INVALID", "_add_norm must be refused: no kernel has both");
 }
 
+// MemPlan::activations must equal what alloc_state() actually allocates. It was `prefill_chunk` rows of one row's
+// activations, which reserved ~310 MB on the 4B that nothing ever allocates; the number reaches the engine's fit
+// checks and doctor, so it made the model look larger than it is and shrank the context a fit allows. A wrong number
+// here is not cosmetic in either direction: too high refuses contexts that would fit, too low agrees to one the model
+// cannot allocate. Kept as a test rather than a comment because the two expressions live in different functions and
+// drifted once already.
+void check_plan_matches_alloc() {
+  // alloc_state()'s buffers, summed as it allocates them. `plan` is the real function the engine calls, so this is a
+  // genuine cross-check: an earlier version of this test re-implemented plan's formula, which meant it passed while the
+  // formula was wrong (it multiplied by prefill_chunk and counted ffn twice).
+  auto alloc_bytes = [](const ni::SparkConfig& c, uint32_t cores) {
+    const size_t H = size_t(c.hidden), Q = size_t(c.q_dim()), KV = size_t(c.kv_dim()), F = size_t(c.ffn),
+                 V = size_t(c.vocab), HQ = size_t(c.hq), D = size_t(c.head_dim);
+    size_t n = 0;
+    n += H * sizeof(float);                        // x_
+    n += size_t(c.qkv_dim()) * sizeof(float);      // stg_
+    n += KV * sizeof(float) + KV * sizeof(float);  // kr_, vr_
+    n += Q * sizeof(float);                        // qr_
+    n += size_t(2 * c.q_dim()) * sizeof(float);    // qg_
+    n += Q * sizeof(float);                        // ao_
+    n += size_t(c.hq) * sizeof(float);             // gate_
+    n += size_t(c.ffn) * sizeof(float) * 2;        // gu_
+    n += F * sizeof(float);                        // mh_
+    n += V * sizeof(float);                        // logits_
+    n += HQ * size_t(cores) * D * sizeof(float);   // part_o_
+    n += HQ * size_t(cores) * 2 * sizeof(float);   // part_ml_
+    n += V * sizeof(float);                        // cand_v_
+    n += V * sizeof(int32_t);                      // cand_i_
+    n += 64 * sizeof(float);                       // sprob_
+    return n;
+  };
+  for (const char* which : {"spark-x2.6-1.7b.config.json", "spark-x2.6-4b.config.json"}) {
+    const ni::SparkConfig c = ni::spark_read_config(load(which));
+    for (uint32_t cores : {8u, 20u, 32u, 40u}) {
+      const size_t plan = ni::spark_activation_bytes(c, 2048, cores), alloc = alloc_bytes(c, cores);
+      CHECK(plan == alloc, "%s: MemPlan::activations is %zu bytes but alloc_state allocates %zu (cores %u)", which,
+            plan, alloc, cores);
+    }
+    // and the chunk size must not change it while prefill is one row at a time
+    for (int chunk : {1, 512, 2048, 8192})
+      CHECK(ni::spark_activation_bytes(c, chunk, 32) == ni::spark_activation_bytes(c, 1, 32),
+            "%s: chunk %d changes the activation plan, but only one row is allocated", which, chunk);
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -340,6 +395,7 @@ int main() {
   check_flat_rope();
   check_gelu_is_exact_not_tanh();
   check_norm_layout_rule();
+  check_plan_matches_alloc();
   check_matvec_names_exist();
   if (g_fail) {
     fprintf(stderr, "%d check(s) failed\n", g_fail);

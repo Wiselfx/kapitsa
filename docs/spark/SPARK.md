@@ -528,6 +528,45 @@ silently stores nothing", which is why the guard is a check and not a comment.
 SSD cache for Spark. The user runs with `--disk-cache 0`, which is why this never surfaced on their machine -- the
 default is `auto`, so anyone else would have hit it.
 
+## 12g. Audit: the load path, against the other models (four more defects)
+
+A full trace of Spark's load path against Qwen35/Dory/Flint found four more, and three of them were in things I had
+already declared verified.
+
+**1. `owned_` was a `std::vector`, and its element addresses are handed out.** `Spark::norm_copy` converts HF's
+zero-centred norms to `1 + w` and returns `&owned_.back()`. On the 4B that is 73 calls; every `push_back` may
+reallocate, so every pointer the loader still holds (`L.in_norm`, `L.post_norm`, `final_norm_`) dangles and the model
+reads freed storage. Qwen35's identical function keeps `std::deque<Tensor> owned_` -- pointer-stable -- and this file
+copied the pattern and changed the container. That difference reads as a style choice and is the whole bug. The tell was
+in the sibling implementation the whole time; I had compared the *logic* of `bf16_copy` and not the storage.
+
+**2. `MemPlan::activations` was wrong twice.** It multiplied one row's activations by `prefill_chunk`, reserving
+~310 MB on the 4B that nothing allocates (prefill runs a row at a time), and the per-row formula did not match
+`alloc_state` even then (ffn counted twice, `part_o_`/`part_ml_` missing). The number feeds the engine's fit checks and
+`doctor`, so Spark looked much larger than it is. Now `spark_activation_bytes` in the CPU-only config module, called by
+both `plan()` and the test.
+
+**3. Two buffers were allocated and never read**: `xh_` (a bf16 copy of the residual, which the `_norm` matvec forms
+make unnecessary -- they normalize in-kernel) and `qo_` ("spare q scratch (prefill rows)", a leftover of a design that
+no longer exists). 30 KB, but two comments describing behaviour that does not happen.
+
+**4. My own matvec-name test was checking the wrong names.** It hand-typed the kernel set and got it wrong twice:
+it used `f16g64` for bf16 (wfmt.metal's suffix is `_f16`; `SparkLinear::fmt` returns `"f16"`), so the format a *bf16
+checkpoint* actually uses was never checked at all, and it claimed `qmvg_f8g64_*` decode kernels that are never
+instantiated (decode is the `NI_WF_NO8` group; 8-bit takes the `qmv2_b8`/`qmv3_b8` path). The real kernel set is now
+generated from the Metal sources (`tools/spark_kernel_names.py`, wired into CMake) and the sweep checks
+`matvec_pipe` against it. Verified it fails when a kernel is removed from the generated list.
+
+**What the audit found sound**, having actually traced it rather than assumed it: `matvec_pipe` emits only names that
+exist (44 decode kernels, swept over every (bits, K, N, mode) combination the two models can produce); the fused
+q|k|v path's 16-byte alignment assert; `check_shapes`; the `zero_centred` decision and its ≤64K guard; `reserve`
+copying via `kv_regrow` and never growing a ring; `reserve` being called once per chunk rather than per row; the
+`gpu_cores()` sizing of both the split buffers and the chunk count.
+
+The pattern in all four: every one was a place where I had written something *similar to* an existing model's code
+and the difference -- a container type, a chunk multiplier, a kernel-name list -- was where the bug lived. Reading the
+sibling implementation for agreement, not just for the idea, is what found them.
+
 ## 13. QA pass (2026-10-29) — what it found, and what it cost
 
 **Ten defects, in four batches.** They are recorded in the order found, because the order is the interesting part: each

@@ -493,7 +493,6 @@ void Spark::alloc_state() {
   auto A = [](size_t bytes, const char* why) { return Gpu::get().alloc(bytes, why); };
   const size_t H = size_t(cfg_.hidden), Q = size_t(cfg_.q_dim()), KV = size_t(cfg_.kv_dim());
   x_ = A(H * sizeof(float), "spark_x");
-  xh_ = A(H * sizeof(uint16_t), "spark_xh");
   // Four distinct buffers, because each step's output is another step's input and none of them can overlap:
   //   stg_  the fused q_k_v_proj matvec's three row slices: q at +0, k at +q_dim, v at +q_dim + kv_dim (qkv_dim)
   //   qr_   the roped dense q, [Hq][D], what attn_decode_partial multiplies
@@ -503,7 +502,6 @@ void Spark::alloc_state() {
   stg_ = A(size_t(cfg_.qkv_dim()) * sizeof(float), "spark_stg");
   kr_ = A(KV * sizeof(float), "spark_kr");
   vr_ = A(KV * sizeof(float), "spark_vr");
-  qo_ = A(Q * sizeof(float), "spark_qo");  // spare q scratch (prefill rows)
   qr_ = A(Q * sizeof(float), "spark_qr");
   qg_ = A(size_t(2 * cfg_.q_dim()) * sizeof(float), "spark_qg");
   ao_ = A(Q * sizeof(float), "spark_ao");
@@ -886,7 +884,14 @@ MemPlan Spark::plan(const std::string& path, int prefill_chunk) {
   m.formats = c.formats();
   m.kv_per_pos = spark_kv_per_pos(c);
   m.slot_state = spark_ring_bytes(c);
-  m.activations = size_t(std::max(1, prefill_chunk)) * size_t(c.hidden + c.ffn + c.qkv_dim()) * sizeof(float) * 2;
+  // One row's activations, and exactly alloc_state()'s buffers. Two errors lived here, both fixed:
+  //   - it multiplied one row by `prefill_chunk`, reserving ~310 MB on the 4B that nothing allocates. The number
+  //     reaches the engine's fit checks and doctor's report, so Spark looked far larger than it is;
+  //   - the formula then did not match alloc_state even for one row (it counted ffn twice, missed part_o_/part_ml_).
+  // The arithmetic now lives in spark_activation_bytes, which alloc_state-independent test code calls directly; a test
+  // that re-implements a formula cannot catch a bug in it, which is how the first version of this check passed while
+  // the number was wrong.
+  m.activations = spark_activation_bytes(c, prefill_chunk, std::max<uint32_t>(1, gpu_cores()));
   return m;
 }
 

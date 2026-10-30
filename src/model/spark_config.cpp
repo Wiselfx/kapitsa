@@ -271,4 +271,24 @@ size_t spark_ring_bytes(const SparkConfig& c) {
   return size_t(c.n_swa()) * size_t(c.hkv) * size_t(c.window) * size_t(c.head_dim) * 2 * sizeof(uint16_t);
 }
 
+size_t spark_activation_bytes(const SparkConfig& c, int prefill_chunk, uint32_t cores) {
+  (void)prefill_chunk;  // see the header: one row whatever the chunk, until batched prefill lands
+  const size_t H = size_t(c.hidden), Q = size_t(c.q_dim()), KV = size_t(c.kv_dim()), F = size_t(c.ffn),
+               V = size_t(c.vocab), HQ = size_t(c.hq), D = size_t(c.head_dim), n = size_t(cores ? cores : 1);
+  return (H                      // x_
+          + size_t(c.qkv_dim())  // stg_  (q | k | v in one matvec's output)
+          + 2 * KV               // kr_, vr_
+          + Q + 2 * Q            // qr_, qg_
+          + Q                    // ao_
+          + HQ                   // gate_
+          + 2 * F + F            // gu_ (gate and up), mh_
+          + V                    // logits_
+          + HQ * n * D           // part_o_
+          + HQ * n * 2           // part_ml_
+          + V + V                // cand_v_, cand_i_ (int32, one float wide)
+          + 64                   // sprob_
+          ) *
+         sizeof(float);
+}
+
 }  // namespace ni

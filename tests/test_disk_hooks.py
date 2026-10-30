@@ -113,5 +113,27 @@ def main():
     return 0
 
 
+def check_pointer_stable_ownership():
+    """A model that returns &owned_.back() must not keep owned_ in a std::vector.
+
+    Spark's norm_copy handed out &owned_.back() for every norm it converted (73 of them on the 4B) while owned_ was a
+    std::vector<Tensor>: each push could reallocate, and every pointer the loader was still holding -- L.in_norm,
+    L.post_norm, final_norm_ -- dangled. Qwen35 keeps the same data in a std::deque, which is pointer-stable; the port
+    copied the pattern and changed the container. Nothing crashed, so this is a static check.
+    """
+    spark_cpp = (SRC / "spark.cpp").read_text()
+    if "&owned_.back()" not in spark_cpp:
+        check(True, "spark.cpp no longer hands out &owned_.back(), so this check does not apply")
+        return
+    text = (SRC / "spark.h").read_text()
+    check(re.search(r"std::vector<Tensor>\s+owned_;", text) is None,
+          "spark.h: owned_ is not a std::vector (norm_copy returns &owned_.back())")
+    check(re.search(r"std::deque<Tensor>\s+owned_;", text) is not None,
+          "spark.h: owned_ is a std::deque, whose element addresses stay put")
+
+
+check_pointer_stable_ownership()
+
+
 if __name__ == "__main__":
     sys.exit(main())

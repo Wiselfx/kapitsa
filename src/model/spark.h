@@ -24,6 +24,7 @@
 
 #include <memory>
 #include <string>
+#include <deque>
 #include <vector>
 
 namespace ni {
@@ -135,14 +136,19 @@ class Spark : public Model {
   std::vector<SparkLayer> layers_;
   // RMSNorm tensors rewritten as 1 + w when the checkpoint stores Hugging Face's zero-centred layout (see hf_norms).
   std::vector<Buffer> owned_bufs_;
-  std::vector<Tensor> owned_;
+  // A deque, not a vector: norm_copy returns &owned_.back(), so the element's address must stay put while later calls
+  // append. With std::vector every push may reallocate and every pointer already handed out (L.in_norm, L.post_norm,
+  // final_norm_ -- 73 of them on the 4B) dangles, and the loader keeps reading freed storage. Qwen35 uses a deque for
+  // exactly this reason (qwen35.h); this file copied the pattern and changed the container, which is the kind of
+  // difference that reads as a style choice and is not one.
+  std::deque<Tensor> owned_;
   SparkLinear embed_, head_;
   const Tensor* final_norm_ = nullptr;  // bf16 1.0 x head_dim, handed to attn_prep as the absent q/k norm
   int tmax_ = 2048;
   size_t mem_budget_ = 0;
 
   // activations, one row
-  Buffer x_, xh_, stg_, kr_, vr_, qo_, qr_, qg_, ao_, gate_, gu_, mh_, logits_, part_o_, part_ml_, cand_v_, cand_i_, sprob_;
+  Buffer x_, stg_, kr_, vr_, qr_, qg_, ao_, gate_, gu_, mh_, logits_, part_o_, part_ml_, cand_v_, cand_i_, sprob_;
 };
 
 }  // namespace ni

@@ -74,4 +74,12 @@ std::string spark_refusal(const nlohmann::json& config, const std::string& what)
 size_t spark_kv_per_pos(const SparkConfig& c);
 size_t spark_ring_bytes(const SparkConfig& c);
 
+// The bytes Spark::alloc_state allocates for one row's activations, which is what MemPlan::activations must report.
+// Here rather than in spark.cpp because it must be checkable without a GPU or a checkpoint: the plan's number reaches
+// the engine's fit checks and doctor, and it was wrong in both directions before (x `prefill_chunk` on one side, and a
+// formula that did not match alloc_state on the other). `cores` is Gpu::core_count() (the split buffers' count).
+// `prefill_chunk` is taken but does not yet change the answer: prefill runs a row at a time, so one row is allocated
+// whatever the chunk. It is a parameter so that batched prefill changes this function and not its callers.
+size_t spark_activation_bytes(const SparkConfig& c, int prefill_chunk, uint32_t cores);
+
 }  // namespace ni

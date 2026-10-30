@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "")
 project(nace_infer LANGUAGES C CXX OBJCXX)
 
-set(KAPITSA_VERSION "0.2.30")
+set(KAPITSA_VERSION "0.2.31")
 if(NOT DEFINED KAPITSA_GIT)  # packaging/release/build.sh passes the commit it exported
   execute_process(COMMAND git -C ${CMAKE_SOURCE_DIR} rev-parse --short HEAD OUTPUT_VARIABLE KAPITSA_GIT
                   OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
@@ -115,6 +115,17 @@ target_link_libraries(naceinfer PUBLIC "-framework Metal" "-framework Foundation
   "-framework SystemConfiguration")  # src/cluster: this Mac's computer name, the kind of each network link
 target_compile_definitions(naceinfer PRIVATE KAPITSA_VERSION="${KAPITSA_VERSION}")
 
+# The matvec kernel names the sources instantiate, generated so spark_config_test sweeps Spark::matvec_pipe against the
+# real set instead of a hand-typed one (which was wrong for bf16 and claimed 8-bit qmvg kernels that do not exist).
+set(SPARK_KERNEL_NAMES ${CMAKE_BINARY_DIR}/generated/spark_kernel_names.h)
+add_custom_command(OUTPUT ${SPARK_KERNEL_NAMES}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/generated
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/spark_kernel_names.py ${CMAKE_SOURCE_DIR}/src/kernels ${SPARK_KERNEL_NAMES}
+  DEPENDS ${CMAKE_SOURCE_DIR}/src/kernels/qmv.metal ${CMAKE_SOURCE_DIR}/src/kernels/wfmt.metal
+          ${CMAKE_SOURCE_DIR}/tools/spark_kernel_names.py
+  COMMENT "spark kernel names from the Metal sources")
+add_custom_target(spark_kernel_names DEPENDS ${SPARK_KERNEL_NAMES})
+
 file(GLOB NI_TOOLS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/tools/*.cpp ${CMAKE_SOURCE_DIR}/tools/*.mm)
 # a library the Python converters build and load themselves (ctypes), not a command
 list(FILTER NI_TOOLS EXCLUDE REGEX ".*/tools/(mlx_quant|execution_session_test|http_stream_test|splash_protocol_test|splash_runtime_test|splash_discover_test|splash_plan_test)\\.cpp$")
@@ -123,6 +134,11 @@ foreach(t ${NI_TOOLS})
   add_executable(${name} ${t})
   target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR}/src)
   target_link_libraries(${name} PRIVATE naceinfer)
+  if(name STREQUAL "spark_config_test")
+    # the generated kernel-name list it sweeps matvec_pipe against
+    add_dependencies(${name} spark_kernel_names)
+    target_include_directories(${name} PRIVATE ${CMAKE_BINARY_DIR}/generated)
+  endif()
   # (KAPITSA_GIT: the commit a dump or measurement says it was built from, as `kapitsa --version` does)
   target_compile_definitions(${name} PRIVATE KAPITSA_VERSION="${KAPITSA_VERSION}" KAPITSA_GIT="${KAPITSA_GIT}")
 endforeach()

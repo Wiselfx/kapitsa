@@ -45,7 +45,9 @@ fi
 fail=0
 for f in "${files[@]}"; do
   [ -f "$root/$f" ] || { echo "missing: $f"; fail=1; continue; }
-  if out=$(g++ -std=c++20 -fsyntax-only -Isrc -Ithird_party -I"$shim" -include lx_stat.h \
+  # spark_config_test includes the generated kernel-name list (tools/spark_kernel_names.py); generate it first
+  mkdir -p "$shim/gen" && python3 "$root/tools/spark_kernel_names.py" "$root/src/kernels" "$shim/gen/spark_kernel_names.h" >/dev/null 2>&1
+  if out=$(g++ -std=c++20 -fsyntax-only -Isrc -Ithird_party -I"$shim" -I"$shim/gen" -include lx_stat.h \
              -D'__builtin_available(a,b)=1' "$f" 2>&1); then
     printf 'ok    %s\n' "$f"
   else
