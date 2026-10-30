@@ -1490,7 +1490,8 @@ void Qwen4Exp::enc_attn4(Encoder& e, Seq& s, int li, const Layer& L, const Qwen4
   uint32_t chunk = std::max<uint32_t>(64, (Lk + cores - 1) / cores);
   chunk = (chunk + 15) / 16 * 16;
   const uint32_t nch = (Lk + chunk - 1) / chunk;
-  kp::AttnDec dp{uint32_t(cfg_.hq), uint32_t(cfg_.hkv), Lk, chunk, uint32_t(s.cap), 1.0f / std::sqrt(float(cfg_.head_dim)), nch};
+  kp::AttnDec dp{uint32_t(cfg_.hq), uint32_t(cfg_.hkv), Lk, chunk, uint32_t(s.cap), 1.0f / std::sqrt(float(cfg_.head_dim)), nch,
+                 /*wrapped=*/0, /*slot_mask=*/0};
   e.use(pipe("attn_decode_partial"));
   e.buf(0, qo_); e.buf(1, s.kc[size_t(li)]); e.buf(2, s.vc[size_t(li)]); e.buf(3, part_o_); e.buf(4, part_ml_);
   e.val(5, dp);

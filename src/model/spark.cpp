@@ -691,23 +691,19 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
   uint32_t chunk = std::max<uint32_t>(64, (span + cores - 1) / cores);
   chunk = (chunk + 15) / 16 * 16;
   const uint32_t nch = (span + chunk - 1) / chunk;
-  // attn_decode_partial addresses the cache from slot 0 (`kbase + t0*kHD`, t0 in [0, p.L)), so the keys it reads must
-  // be contiguous in slot order. That holds while a sliding layer's ring has not wrapped (pos < window: slot == pos,
-  // so the live keys are slots [0, pos+1)). Past that the window wraps and the ring holds exactly the right keys in the
-  // wrong order, which this kernel cannot express -- so stop, rather than attend over the wrong keys.
+  // Once a sliding layer's ring has wrapped, the live keys sit at (pos+1-lo) & (window-1) onwards, wrapping around: not
+  // contiguous from slot 0 any more. attn_decode_partial reads such a cache `wrapped` slots further round (see
+  // AttnDecParams), which is the same sum over the same keys in ring order -- attention is a weighted sum, so the
+  // order comes from the softmax weights, not the slots. The write side stores at `pos & (window-1)`
+  // (spark_attn_prep's slot_mask), so the ring holds exactly the window's keys already; nothing to move or copy.
   //
-  // The write side already stores at `pos & (window-1)` (spark_attn_prep's slot_mask), so the ring's *contents* are
-  // correct; what is missing is a read that can start at an arbitrary slot. The options, for whoever picks this up:
-  //   - a ring-aware attention kernel (a `start` in AttnDecParams and `t0 = (start + i) & mask` in the tile loads);
-  //   - a compaction step that keeps the live window in slots [0, window) (a shift of up to window positions per token);
-  //   - a double-buffered ring with the linearised window in a second region, which needs a per-token stride change.
-  // Picking one of these is a change to a verified kernel's indexing, so it wants the Mac pass first.
-  if (ring && lo > 0)
-    fatal("Spark: context reached %d tokens, past the %d-token sliding window, whose wrapped key range needs the "
-          "ring-aware attention read (docs/spark/SPARK.md section 6); positions below the window are fine",
-          pos + 1, cfg_.window);
-  kp::AttnDec dp{uint32_t(cfg_.hq), uint32_t(cfg_.hkv), hi, chunk, uint32_t(rows_n),
-                 1.0f / std::sqrt(float(cfg_.head_dim)), nch};
+  // Two things this depends on, both true of Spark's configs and checked there: window is a power of two (512, so
+  // the ring is slot_mask+1 slots and `&` is the modulus), and window is a multiple of the kernel's kTile (16), so a
+  // tile crosses the seam at most once.
+  const uint32_t wrapped = lo > 0 ? (lo & (uint32_t(cfg_.window) - 1)) : 0u;
+  // L is the number of live keys: span, which is hi for a full layer (and for a sliding one before it wraps).
+  kp::AttnDec dp{uint32_t(cfg_.hq), uint32_t(cfg_.hkv), span, chunk, uint32_t(rows_n),
+                 1.0f / std::sqrt(float(cfg_.head_dim)), nch, wrapped, ring ? uint32_t(cfg_.window - 1) : 0u};
   e.use(pipe("attn_decode_partial"));
   e.buf(0, qr_);
   e.buf(1, s.kc[size_t(li)]);

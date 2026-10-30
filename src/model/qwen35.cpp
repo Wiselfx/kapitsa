@@ -2321,7 +2321,7 @@ void Qwen35::enc_attn(Encoder& e, Seq& s, int li, const Layer& L, int pos) {
   chunk = (chunk + 15) / 16 * 16;
   uint32_t nch = (Lk + chunk - 1) / chunk;
   kp::AttnDec dp{uint32_t(cfg_.hq), uint32_t(cfg_.hkv), Lk, chunk, uint32_t(s.cap),
-                 1.0f / std::sqrt(float(cfg_.head_dim)), nch};
+                 1.0f / std::sqrt(float(cfg_.head_dim)), nch, /*wrapped=*/0, /*slot_mask=*/0};
   e.use(part);
   e.buf(0, qo_); e.buf(1, s.kc[li]); e.buf(2, s.vc[li]); e.buf(3, part_o_); e.buf(4, part_ml_);
   e.val(5, dp);

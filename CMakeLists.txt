@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "")
 project(nace_infer LANGUAGES C CXX OBJCXX)
 
-set(KAPITSA_VERSION "0.2.27")
+set(KAPITSA_VERSION "0.2.28")
 if(NOT DEFINED KAPITSA_GIT)  # packaging/release/build.sh passes the commit it exported
   execute_process(COMMAND git -C ${CMAKE_SOURCE_DIR} rev-parse --short HEAD OUTPUT_VARIABLE KAPITSA_GIT
                   OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
@@ -145,6 +145,10 @@ set_tests_properties(load_error_test PROPERTIES TIMEOUT 30)
 # the third_party include path and naceinfer), so only the ctest entry is declared here.
 add_test(NAME minja_template_test COMMAND minja_template_test ${CMAKE_SOURCE_DIR}/tests/fixtures/spark/chat_template.jinja)
 set_tests_properties(minja_template_test PROPERTIES TIMEOUT 30)
+# The ring-slot arithmetic of the sliding-window attention read (no GPU, no model): the host's `wrapped` must equal the
+# write side's slot, or the model attends over the wrong keys without failing.
+add_test(NAME ring_slot_test COMMAND ring_slot_test)
+set_tests_properties(ring_slot_test PROPERTIES TIMEOUT 30)
 add_test(NAME execution_session_test COMMAND execution_session_test)
 set_tests_properties(execution_session_test PROPERTIES TIMEOUT 30)
 

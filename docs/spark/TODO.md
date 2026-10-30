@@ -39,8 +39,13 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 - [x] Per-head sigmoid gate: one scalar broadcast over the head's 256 dims
 - [x] KV: 512-slot rings for sliding layers, full cache for full layers (`reserve` never grows a ring)
 - [x] Decode path end to end
-- [!] **Wrapped sliding window**: `enc_attn` runs the plain key range while `pos < window`, then stops with a clear
-      fatal. Needs a ring-aware attention kernel (offset the cache to the window's first slot, handle wrap).
+- [x] **Wrapped sliding window.** `attn_decode_partial` gained a cyclic read (`AttnDecParams::wrapped`/`slot_mask`),
+      so a sliding layer attends over its ring past 512 tokens. The insight that made it small: attention is a
+      *weighted sum over a set* of keys, so reading the ring in ring order is the same softmax as reading it linearly
+      -- a change of rotation, not a reordering. No compaction pass, no second buffer, no kernel-side sort: the tile
+      load just starts at the oldest live key and wraps. Depends on window being a power of two and a multiple of
+      kTile (both true; `tools/ring_slot_test.cpp` checks them). Linear-cache models pass `{0, 0}` and read exactly as
+      before.
 - [ ] Ring-aware attention kernel (the blocker for any context longer than 512 tokens)
 - [ ] Batched prefill (`attn_prefill11r` + window; `qmms`/`qrf` GEMMs + the GELU fold). Until then prefill loops over
       decode rows: correct, slow, and it logs that once.

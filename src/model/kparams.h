@@ -48,6 +48,9 @@ struct AttnDec {
   uint32_t Hq, Hkv, L, chunk, max_seq;
   float scale;
   uint32_t nchunks;
+  // Ring read (Spark's sliding layers): the slot the first live key sits at, and max_seq-1 (a power of two) or 0 to
+  // read the cache linearly. Field order must match AttnDecParams in src/kernels/attn.metal.
+  uint32_t wrapped, slot_mask;
 };
 
 struct Topk {

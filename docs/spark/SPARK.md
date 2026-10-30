@@ -221,7 +221,8 @@ their dependencies allow. Treat every local build claim as best-effort and state
   see §6.
 - **Known gaps (P3 remainder), all stated in code comments and `TODO.md`:**
   - A **wrapped sliding window** is not implemented: `enc_attn` runs the plain range while `pos < window` and stops
-    with a clear fatal once the window wraps. Needs the ring-aware attention kernel.
+    past the window with a cyclic read (`wrapped`/`slot_mask`: the tile loads start at the oldest live key and wrap,
+    which is the same weighted sum over the same keys -- see §12d).
   - Prefill is correct-but-slow (decode path per row); the batched path is not bound.
   - `encode_logits_rows` works but is slow for the same reason.
   - No drafter (by design, D6); prompt-lookup only.
@@ -236,7 +237,7 @@ their dependencies allow. Treat every local build claim as best-effort and state
 - **What "green CI" does NOT mean**, and the PR says so: the kernels' arithmetic, the ring cache, the interleaved
   q|gate layout, and every speed number are still unverified. `metal-compile` explicitly cannot see wrong arithmetic,
   races or the 32 KB threadgroup budget; `build-and-test` never loads a model.
-- Next, in order: ring-aware attention (the wrapped-window fatal), then batched prefill + GELU fold in the GEMM tile,
+- Next, in order: batched prefill + GELU fold in the GEMM tile,
   then the Mac verification pass (a short generation and, if it works, the `logit_dump` output check).
 
 **2026-10-29 — delivery.**
@@ -395,6 +396,48 @@ Two things this changed about the repo's own assumptions, both corrected:
 
 This is the general lesson from the whole port, again: the failure was in an assumption I never checked (that the
 template engine could run the template), not in the code I wrote.
+
+## 12d. Past 512 tokens: the wrapped window
+
+The next request failed at 513 tokens (prompt + reply), on the deferred blocker:
+
+```
+Spark: context reached 513 tokens, past the 512-token sliding window, whose wrapped key range needs the
+ring-aware attention read (docs/spark/SPARK.md section 6); positions below the window are fine
+```
+
+That was honest but useless: a 512-token window is smaller than most real prompts, so the model could not hold a
+conversation at all. `docs/spark/TODO.md` had three designs pencilled in (a kernel that can start at an arbitrary slot,
+a per-token compaction pass, a double buffer). The first is what landed, and it is much smaller than I expected because
+I had been thinking about it wrong.
+
+**The key realisation.** I had been treating the wrapped window as a *reordering* problem -- the ring holds the right
+keys in the "wrong" order, so something must reorder them. But attention is a weighted sum over a *set* of keys:
+
+    out = Σ_t softmax(q·k_t) v_t
+
+The order comes from the softmax weights, not from the slots. Reading the ring in ring order gives bit-for-bit the same
+sum as reading it linearly; it is a change of rotation in the iteration, not a permutation of the result. So the kernel
+needs no sort, no compaction, no second buffer -- only to start its tile loads at the oldest live key and wrap the
+index. That is `AttnDecParams::wrapped` plus `slot_mask` (`(wrapped + t) & slot_mask`), ~15 lines in
+`src/kernels/attn.metal`, and it applies to the existing kernel rather than replacing it. Every other model passes
+`{0, 0}` and takes the same linear path as before.
+
+**What it depends on**, now checked by `tools/ring_slot_test.cpp` instead of asserted in a comment:
+- the ring length (window = 512) is a power of two, so `& (window-1)` is the modulus;
+- window is a multiple of the kernel's `kTile` (16), so a tile crosses the seam at most once and can be loaded as two
+  contiguous runs (the whole tail first, then the head);
+- the host's `wrapped` equals the write side's slot for the same position -- an off-by-one here would attend over the
+  wrong keys and produce *plausible nonsense*, which no smoke test would catch. The test compares the two formulas over
+  four windows of positions and checks each live key is read exactly once.
+
+One thing I got wrong on the way, in my own test: `read_slot(512, 511) == 512 & slot_mask` parses as
+`(a == 512) & slot_mask`, so it compared a bool against an int and "failed" against correct code. Parenthesised.
+
+`L` also had to become the *live* span rather than `pos+1`: passing 513 with a 520-slot ring would have read a phantom
+key. For a full layer the two are equal, so the expression stays `span`.
+
+**Not verified on a GPU**: CI compiles the Metal and runs the CPU slot test; nothing here has produced a token past 512.
 
 ## 13. QA pass (2026-10-29) — what it found, and what it cost
 

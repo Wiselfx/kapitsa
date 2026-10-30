@@ -79,7 +79,18 @@ struct AttnDecParams {
   uint max_seq;
   float scale;
   uint nchunks;
+  // Cyclic read, for a sliding window held in a ring: `wrapped` is the slot of the oldest live key (the keys occupy
+  // slots [wrapped, wrapped+L) modulo the ring length), and `slot_mask` is the ring length minus one (a power of two)
+  // or 0 for the linear layout every other model uses. Attention is a weighted sum over the keys, so reading a ring in
+  // ring order gives the same softmax as reading it linearly: the order comes from the scores, not from the slots.
+  uint wrapped;
+  uint slot_mask;
 };
+
+// The cache slot of the t-th live key counting from the oldest. With slot_mask == 0 this is t itself.
+inline uint attn_slot(const constant AttnDecParams& p, uint t) {
+  return p.slot_mask ? ((p.wrapped + t) & p.slot_mask) : t;
+}
 
 constant constexpr uint kTile = 16;
 constant constexpr uint kHD = 256;
@@ -111,9 +122,25 @@ constant constexpr uint kHD = 256;
   for (uint t0 = start; t0 < end; t0 += kTile) {
     uint n = min(kTile, end - t0);
     // cooperative load: n*256 halfs each for K and V, as half4
-    for (uint i = tid; i < n * kHD / 4; i += ntg) {
-      ((threadgroup half4*)ktile)[i] = ((const device half4*)(kbase + t0 * kHD))[i];
-      ((threadgroup half4*)vtile)[i] = ((const device half4*)(vbase + t0 * kHD))[i];
+    if (p.slot_mask == 0) {
+      for (uint i = tid; i < n * kHD / 4; i += ntg) {
+        ((threadgroup half4*)ktile)[i] = ((const device half4*)(kbase + t0 * kHD))[i];
+        ((threadgroup half4*)vtile)[i] = ((const device half4*)(vbase + t0 * kHD))[i];
+      }
+    } else {
+      // A wrapped tile. The ring is a power of two (p.slot_mask + 1) tiles long and a tile is kTile rows, so a tile
+      // crosses the seam at most once: rows [t0, kTile) are read from two contiguous runs, the whole tail first.
+      const uint s0 = attn_slot(p, t0);
+      const uint rows_to_end = (p.slot_mask + 1u) - s0;  // tiles from s0 to the end of the ring
+      const uint head = rows_to_end < n ? rows_to_end : n;
+      for (uint i = tid; i < head * kHD / 4; i += ntg) {
+        ((threadgroup half4*)ktile)[i] = ((const device half4*)(kbase + s0 * kHD))[i];
+        ((threadgroup half4*)vtile)[i] = ((const device half4*)(vbase + s0 * kHD))[i];
+      }
+      for (uint i = tid; i < (n - head) * kHD / 4; i += ntg) {
+        ((threadgroup half4*)(ktile + head * kHD))[i] = ((const device half4*)kbase)[i];
+        ((threadgroup half4*)(vtile + head * kHD))[i] = ((const device half4*)vbase)[i];
+      }
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
     if (sg < G) {
