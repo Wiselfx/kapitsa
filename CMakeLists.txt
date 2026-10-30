@@ -140,6 +140,12 @@ add_test(NAME spark_config_test COMMAND spark_config_test)
 set_tests_properties(spark_config_test PROPERTIES TIMEOUT 30
   ENVIRONMENT "SPARK_CONFIG_DIR=${CMAKE_SOURCE_DIR}/docs/spark/configs")
 set_tests_properties(load_error_test PROPERTIES TIMEOUT 30)
+# The chat-template engine (third_party/minja) needs no model and no GPU; it reads Spark's published template from the
+# source tree, so it is told where it is.
+add_executable(minja_template_test tools/minja_template_test.cpp)
+target_include_directories(minja_template_test PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
+add_test(NAME minja_template_test COMMAND minja_template_test ${CMAKE_SOURCE_DIR}/tests/fixtures/spark/chat_template.jinja)
+set_tests_properties(minja_template_test PROPERTIES TIMEOUT 30)
 add_test(NAME execution_session_test COMMAND execution_session_test)
 set_tests_properties(execution_session_test PROPERTIES TIMEOUT 30)
 

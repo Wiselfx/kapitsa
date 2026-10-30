@@ -2727,8 +2727,67 @@ inline std::shared_ptr<Context> Context::builtins() {
   globals.set("raise_exception", simple_function("raise_exception", { "message" }, [](const std::shared_ptr<Context> &, Value & args) -> Value {
     throw std::runtime_error(args.at("message").get<std::string>());
   }));
-  globals.set("tojson", simple_function("tojson", { "value", "indent" }, [](const std::shared_ptr<Context> &, Value & args) {
-    return Value(args.at("value").dump(args.get<int64_t>("indent", -1), /* to_json= */ true));
+  // tojson, with Jinja's compact form. Hugging Face chat templates for recent models pass separators=(',', ':') to
+  // emit `{"a":1}` rather than `{"a": 1}`; json.dumps' default is (', ', ': '). This used to accept only (value,
+  // indent), so such a template either raised "Unknown argument separators" or -- had the keyword been quietly
+  // dropped -- produced spacing the model was not trained on.
+  //
+  // Serialized here rather than through Value::dump, which hard-codes ", " and ": ". Same JSON escaping as dump() with
+  // to_json: strings are quoted and escaped, booleans/numbers are literals, and object key order is kept (these are
+  // ordered maps, so the tool schema comes out in the order the template's caller wrote it).
+  globals.set("tojson", Value::callable([](const std::shared_ptr<Context> &, ArgumentsValue & args) -> Value {
+    Value value = args.args.size() > 0 ? args.args[0] : args.get_named("value");
+    const int64_t indent = args.args.size() > 1
+                               ? args.args[1].get<int64_t>()
+                               : (args.has_named("indent") ? args.get_named("indent").get<int64_t>() : -1);
+    // Python's separators: a 2-tuple (item_sep, key_sep); a single value sets both. Default (', ', ': ').
+    std::string item_sep = ", ", key_sep = ": ";
+    if (args.has_named("separators")) {
+      const Value v = args.get_named("separators");
+      if (v.is_string()) {
+        item_sep = key_sep = v.get<std::string>();
+      } else if (v.is_array() && v.size() >= 1) {
+        item_sep = v.at(size_t(0)).get<std::string>();
+        key_sep = v.size() > 1 ? v.at(size_t(1)).get<std::string>() : item_sep;
+      }
+    }
+    std::function<void(std::ostringstream &, const Value &, int)> emit =
+        [&](std::ostringstream & out, const Value & v, int level) {
+          auto nl = [&](int lv) {
+            if (indent > 0) { out << '\n'; for (int i = 0, n = lv * int(indent); i < n; ++i) out << ' '; }
+          };
+          if (v.is_null()) { out << "null"; }
+          else if (v.is_array()) {
+            out << "[";
+            for (size_t i = 0; i < v.size(); ++i) {
+              if (i) { out << item_sep; }
+              nl(level + 1);
+              emit(out, v.at(i), level + 1);
+            }
+            nl(level);
+            out << "]";
+          } else if (v.is_object()) {
+            out << "{";
+            auto keys = const_cast<Value &>(v).keys();
+            for (size_t i = 0; i < keys.size(); ++i) {
+              if (i) { out << item_sep; }
+              nl(level + 1);
+              out << json(keys[i].get<std::string>()).dump() << key_sep;
+              emit(out, v.at(keys[i]), level + 1);
+            }
+            nl(level);
+            out << "}";
+          } else if (v.is_string()) {
+            out << json(v.get<std::string>()).dump();
+          } else if (v.is_boolean()) {
+            out << (v.get<bool>() ? "true" : "false");
+          } else {
+            out << v.dump();  // integers/floats print as themselves
+          }
+        };
+    std::ostringstream out;
+    emit(out, value, 0);
+    return Value(out.str());
   }));
   globals.set("items", simple_function("items", { "object" }, [](const std::shared_ptr<Context> &, Value & args) {
     auto items = Value::array();

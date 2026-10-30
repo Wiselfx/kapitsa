@@ -364,6 +364,38 @@ Two things that will bite the next person, both found by checking rather than as
 - **`kapitsa doctor` takes `--model M` or `--models-dir DIR`, not a positional folder.** The earlier TODO and PR text
   said `kapitsa doctor ~/models/spark-4b`, which would have been a usage error on the user's first command.
 
+## 12c. The first real request: a chat-template bug outside Spark's own code
+
+The model loaded on a Mac (the load path works, including the fused-qkv slicing and the norm conversion), and then the
+request failed before any inference:
+
+```
+400: chat template: Unknown argument separators for function tojson at row 51, column 66
+```
+
+Spark's published template renders tool schemas with `tojson(separators=(',', ':'))`. Kapitsa's template engine is
+`third_party/minja`, whose `tojson` builtin accepted only `(value, indent)`, so it raised on the keyword. Nothing to do
+with the model code — but it meant **no request carrying tools could reach the model at all**, and the template calls
+that filter unconditionally whenever `tools` is non-empty.
+
+Fixed in `third_party/minja/minja.hpp`: `tojson` now takes Jinja's `separators` (a 2-tuple, or one value for both),
+matching Python's `json.dumps`, and serializes rather than post-processing text. That last part matters — my first
+attempt rendered with `Value::dump` and then rewrote `", "`/`": "` into the requested separators, which corrupted the
+JSON (`{"name",:"get_weather""description",:...}`) because it also rewrote the separators *inside* string values. The
+fix is to emit directly, which is what the code now does.
+
+Two things this changed about the repo's own assumptions, both corrected:
+
+- `src/engine/engine.cpp` said "minja (third_party, **not edited**)". It is edited now; the comment says what and why.
+  `ensure_ascii` is still not accepted, so Flint's source rewrite stays.
+- minja had no test. `tools/minja_template_test.cpp` pins the filter (compact, default spacing, single-argument,
+  indent, string contents untouched, JSON `true`/`null`) and renders **Spark's published template** both with and
+  without tools. Verified it fails against the unpatched header — with exactly the error from the Mac — and passes
+  after. Wired into CI and `ctest`.
+
+This is the general lesson from the whole port, again: the failure was in an assumption I never checked (that the
+template engine could run the template), not in the code I wrote.
+
 ## 13. QA pass (2026-10-29) — what it found, and what it cost
 
 **Ten defects, in four batches.** They are recorded in the order found, because the order is the interesting part: each

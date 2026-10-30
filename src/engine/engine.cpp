@@ -2024,10 +2024,17 @@ std::string Engine::render(const ChatRequest& r, bool add_generation_prompt) con
   return render_chat(*tmpl_, r, add_generation_prompt, images, flint_ != nullptr);
 }
 
-// Flint's chat template is written for Jinja2, and minja (third_party, not edited) differs from it in three places the
-// template uses: no replace filter (strings have the replace method), "\x00" read as the text "x00" (the template's
-// removal of NUL characters would delete that text from every message instead; dropped), and no ensure_ascii keyword
-// on tojson (whose output keeps non-ASCII text as ensure_ascii=False does). The source rewritten for minja.
+// Flint's chat template is written for Jinja2, and minja differs from it in places the template uses: no replace
+// filter (strings have the replace method), "\x00" read as the text "x00" (the template's removal of NUL characters
+// would delete that text from every message instead; dropped), and -- until the tojson change below -- no
+// ensure_ascii keyword on tojson (whose output keeps non-ASCII text as ensure_ascii=False does). The source rewritten
+// for minja.
+//
+// minja itself is no longer untouched: tojson gained Jinja's `separators` argument (third_party/minja/minja.hpp,
+// "tojson, with Jinja's compact form"). Recent Hugging Face templates -- Spark-X2.6's among them -- call
+// `tojson(separators=(',', ':'))` for tool schemas, and the old builtin rejected the keyword outright with "Unknown
+// argument separators", so every such request failed before reaching the model. Fixing it there, once, is better than
+// rewriting each template's source; `ensure_ascii` still is not accepted, hence the rewrite above.
 std::string flint_template(std::string src) {
   auto replace_all = [&](const std::string& a, const std::string& b) {
     for (size_t at = 0; (at = src.find(a, at)) != std::string::npos; at += b.size()) src.replace(at, a.size(), b);
