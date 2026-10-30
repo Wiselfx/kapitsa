@@ -320,15 +320,55 @@ std::unique_ptr<Seq> Spark::new_seq(int limit, int initial) {
 
 bool Spark::reserve(Seq& s, int need) {
   if (need <= s.cap) return true;
-  const int cap = std::min(std::max(need, s.cap * 2), s.limit);
-  if (cap < need) return false;
+  if (need > s.limit) return false;
+  // Only the full-attention layers have growing caches; the sliding ones are fixed rings (`ring_layer`).
+  const size_t per = size_t(cfg_.hkv) * size_t(cfg_.head_dim) * 2 * sizeof(uint16_t);
+  auto round_up = [](int v, int m) { return (v + m - 1) / m * m; };
+  auto fits = [&](int c) {
+    // Final size; a copy holds both the old and the new buffers for a moment (at most 256 MB, and at most the old cache).
+    const size_t copy = std::min(size_t(256) << 20, size_t(s.cap) * per);
+    return !mem_budget_ || Gpu::get().allocated_bytes() + size_t(c - s.cap) * per + copy <= mem_budget_;
+  };
+  // A quarter more than needed, so a conversation filling up does not reallocate at every step.
+  int target = std::min(s.limit, round_up(std::max(need, s.cap + s.cap / 4), 1024));
+  if (!fits(target)) target = std::min(s.limit, round_up(need, 256));
+  if (!fits(target)) return false;
+
+  // The existing positions must be preserved. Dropping them silently loses the prompt mid-generation (the earlier
+  // version allocated fresh buffers and copied nothing; nothing else re-reads those slots, so it produced a model that
+  // had "forgotten" everything before the reallocation without any error). kv_regrow is the base library's kernel for
+  // exactly this, and Qwen35::grow_kv is the pattern: allocate, copy, commit, release.
+  Gpu& g = Gpu::get();
+  const int old = s.cap;
+  std::vector<std::pair<Buffer*, const char*>> bufs;
   for (int i = 0; i < cfg_.layers; ++i) {
-    if (ring_layer(i)) continue;  // rings never grow
-    const size_t bytes = size_t(cap) * size_t(cfg_.hkv) * size_t(cfg_.head_dim) * sizeof(uint16_t);
-    s.kc[size_t(i)] = Gpu::get().alloc(bytes, "spark_kc");
-    s.vc[size_t(i)] = Gpu::get().alloc(bytes, "spark_vc");
+    if (ring_layer(i)) continue;
+    bufs.push_back({&s.kc[size_t(i)], "spark_kc"});
+    bufs.push_back({&s.vc[size_t(i)], "spark_kv"});
   }
-  s.cap = cap;
+  const size_t nb = size_t(target) * per;
+  std::vector<Buffer> olds;
+  std::unique_ptr<Encoder> e;
+  for (auto& [b, why] : bufs) {
+    Buffer nbuf = g.alloc(nb, why);
+    if (old > 0 && *b) {
+      if (!e) e = g.begin();
+      const uint32_t n16 = uint32_t(cfg_.head_dim) * 2 / 16;  // 16-byte words per position
+      // kv_regrow: p = (positions to copy in 16-byte words, source cap in words, destination cap in words), and the
+      // grid is y = Hkv. Compare qwen35's enc_kv_regrow, which packs it the same way.
+      const uint32_t p[4] = {uint32_t(old) * n16, uint32_t(old) * n16, uint32_t(target) * n16, 0};
+      e->use(pipe("kv_regrow"));
+      e->buf(0, *b);
+      e->buf(1, nbuf);
+      e->bytes(2, p, sizeof p);
+      e->dispatch((p[0] + 255) / 256, uint32_t(cfg_.hkv), 1, 256);
+    }
+    olds.push_back(*b);
+    *b = nbuf;
+  }
+  if (e) e->commit_and_wait();
+  for (auto& b : olds) g.release(b);
+  s.cap = target;
   return true;
 }
 

@@ -466,6 +466,15 @@ roles were named (the code had one buffer serving three purposes under a comment
 this was a one-line fix; it is listed because it is the same root cause as defects 2/3 — a rule expressed in several
 places at once.
 
+### Defect 10 (silent, loses the prompt): `reserve` threw the KV cache away when it grew
+
+`reserve` allocated fresh cache buffers when the context outgrew them and **copied nothing**. Every position before the
+reallocation became uninitialised memory, and nothing errors — the model simply "forgets". It would trigger on the first
+prompt longer than the initial capacity, and again on every growth. Rewritten to allocate, copy, commit, release (and to
+respect `mem_budget_`, which it also ignored), reusing the base library's `kv_regrow` kernel — the same one
+`Qwen35::grow_kv` uses. Note the parameter packing: `kv_regrow` takes `(positions, src cap, dst cap)` in 16-byte words,
+and my first attempt passed `(old, target, hkv)`, which would have copied the wrong strides.
+
 ### Still unverified, and honestly so
 
 Everything in §6 that needs a GPU. The QA pass raised confidence in the *host-side* logic (config, names, layouts,
