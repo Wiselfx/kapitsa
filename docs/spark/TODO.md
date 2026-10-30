@@ -22,7 +22,7 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 - [x] Tied embeddings; refuse a stray `lm_head`
 - [x] Per-tensor mixed quant (MLX affine 3/4/5/6/8 g64, 4 g32, bf16) from `config.json`'s `quantization`
 - [x] HF-vs-MLX RMSNorm decided from the values (`zero_centred`)
-- [ ] **Verify with a real checkpoint** (needs a Mac; `kapitsa doctor <dir>` then a short generation)
+- [ ] **Verify with a real checkpoint** (needs a Mac; `kapitsa doctor --models-dir <dir>` then a short generation)
 
 ## P2 — GELU  ✅
 - [x] Own kernel library `src/kernels/spark/` (decision: additive, do **not** touch shipping MLP kernels, SPARK.md §10)
@@ -67,30 +67,52 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 - [x] `pr-size` red by design and explained in the PR body (no reviewer on a fork to grant the override)
 - [ ] **Your Mac pass**: build, load a checkpoint, generate, compare against `transformers`
 
-### The Mac commands for the verification pass (also in the PR body)
-```bash
-# 1. build
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j"$(sysctl -n hw.ncpu)" --target kapitsa api_test logit_dump
-ctest --test-dir build -R spark_config_test --output-on-failure
+### The Mac commands for the verification pass
 
-# 2. fetch a pack (the 4B first: it is the better-tuned shape and has pre-quantized MLX packs)
+**Easiest: download the prebuilt release** (`.github/workflows/release.yml`, tag `v0.2.25`). No compiler needed.
+
+```bash
+# 1. download, check, place on PATH
+curl -fsSLO https://github.com/Wiselfx/kapitsa/releases/download/v0.2.25/kapitsa-0.2.25-darwin-arm64.tar.gz
+curl -fsSLO https://github.com/Wiselfx/kapitsa/releases/download/v0.2.25/kapitsa-0.2.25-darwin-arm64.tar.gz.sha256
+shasum -a 256 -c kapitsa-0.2.25-darwin-arm64.tar.gz.sha256
+tar xzf kapitsa-0.2.25-darwin-arm64.tar.gz
+xattr -d com.apple.quarantine kapitsa-0.2.25-darwin-arm64/kapitsa   # ad hoc signed, not notarized
+sudo cp kapitsa-0.2.25-darwin-arm64/kapitsa /usr/local/bin/
+
+# 2. fetch a pack (the 4B first: better-tuned shape, pre-quantized MLX packs, no conversion)
 #    mlx-community/Spark-X2.6-4B-OptiQ-4bit is 3.04 GB, per-tensor mixed 4/8-bit group 64
 huggingface-cli download mlx-community/Spark-X2.6-4B-OptiQ-4bit --local-dir ~/models/spark-4b
 
 # 3. does it load and plan?
-build/kapitsa doctor ~/models/spark-4b
+kapitsa doctor --models-dir ~/models
 
-# 4. does it speak?  (short, greedy, no drafter)
-build/kapitsa run --model ~/models/spark-4b --prompt "What is the capital of Anhui Province?" --max-tokens 32
-#    expect something coherent; the window wraps at 512 tokens, and past that the encode path stops with a clear
-#    "ring-aware attention kernel" fatal rather than producing wrong tokens — that is the known gap, not a crash.
+# 4. does it speak? (no one-shot command: serve, then ask the API)
+kapitsa serve --model ~/models/spark-4b
+#    in another terminal:
+curl http://127.0.0.1:8000/v1/chat/completions -H 'Content-Type: application/json' \
+  -d '{"model": "spark", "max_tokens": 32, "messages": [{"role": "user", "content": "What is the capital of Anhui Province?"}]}'
+#    expect something coherent. The server's terminal is the useful part: it prints the detected model and the plan.
+#    Past 512 tokens of context the encode path stops with a clear "ring-aware attention read" fatal rather than
+#    producing wrong tokens — the known gap, not a crash.
+```
 
-# 5. if 4 works, the reference comparison
+**Or build from source** (same behaviour, needs the Command Line Tools and CMake 3.24+):
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(sysctl -n hw.ncpu)" --target kapitsa logit_dump
+ctest --test-dir build -R spark_config_test --output-on-failure
+```
+
+**Then, if step 4 works**, the reference comparison (this is what turns "it speaks" into "it computes the right thing"):
+
+```bash
 MTL_SHADER_VALIDATION=1 MTL_DEBUG_LAYER=1 \
   build/logit_dump --model ~/models/spark-4b --prompt-file bench/prompts/prose.txt --out /tmp/spark-dump
 #    and transformers' own logits for the same prompt (transformers==4.57.1, per the model card) via
 #    tools/logit_compare.py -- see CONTRIBUTING.md "Output check". Nothing there is claimed until it runs.
+```
 
 ## Open questions for the user
 - [ ] Push to fork `main`, or a `spark-port` branch with a PR against fork `main`?

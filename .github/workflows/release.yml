@@ -1,0 +1,149 @@
+# A tag vX.Y.Z (X.Y.Z = KAPITSA_VERSION in CMakeLists.txt) builds the release binary with packaging/release/build.sh and
+# publishes it on this repository's GitHub release.
+#
+# This is the fork's release workflow (Wiselfx/kapitsa), used to hand a buildable binary to someone who wants to try the
+# Spark-X2.6 backend on a Mac. It is deliberately narrower than upstream's:
+#   - it publishes to the repository it runs in (github.repository), so it never touches nace-ai/kapitsa;
+#   - it does NOT update a Homebrew tap. Upstream's version pushes the formula to nace-ai/homebrew-tap and fails the run
+#     when the TAP_GITHUB_TOKEN secret is missing; pushing upstream's tap from a fork would be wrong, and a fork has no
+#     tap to push to. Homebrew is therefore not an install path for these builds — install.sh from the tarball is.
+#   - signing and notarization are optional and simply absent here (no MACOS_CERTIFICATE / NOTARY_KEY secrets), so the
+#     binaries are ad hoc signed by build.sh. macOS will therefore warn on first run; see the release notes.
+# The application label is ai.nace.*, unchanged, so `kapitsa update` still recognises the install kind; it checks
+# github.com/nace-ai/kapitsa unless KAPITSA_UPDATE_URL is set, which these notes tell the user to do.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      SIGN: ${{ secrets.MACOS_CERTIFICATE != '' }}
+      NOTARIZE: ${{ secrets.NOTARY_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Use the newest Xcode
+        run: |
+          xcode=$(printf '%s\n' /Applications/Xcode_*.app | grep -v -i -E 'beta|rc' | sort -V | tail -1) || true
+          if [ -d "$xcode" ]; then sudo xcode-select -s "$xcode"; fi
+          xcodebuild -version
+
+      - name: Signing keychain
+        if: env.SIGN == 'true'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          keychain="$RUNNER_TEMP/kapitsa.keychain-db"
+          password=$(uuidgen)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          rm "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          identity=$(security find-identity -v -p codesigning "$keychain" | awk -F '"' '/Developer ID Application/ {print $2; exit}')
+          [ -n "$identity" ] || { echo "MACOS_CERTIFICATE holds no Developer ID Application identity"; exit 1; }
+          echo "KAPITSA_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          echo "KAPITSA_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          if [ "$NOTARIZE" = true ]; then
+            printf '%s\n' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
+            xcrun notarytool store-credentials kapitsa-notary --key "$RUNNER_TEMP/notary.p8" \
+              --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" --keychain "$keychain"
+            rm "$RUNNER_TEMP/notary.p8"
+            echo "KAPITSA_NOTARY_PROFILE=kapitsa-notary" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build
+        run: |
+          packaging/release/build.sh "${GITHUB_REF_NAME#v}"
+          ./install.sh --from-file "build/release/kapitsa-${GITHUB_REF_NAME#v}-darwin-arm64.tar.gz" --prefix "$RUNNER_TEMP/bin"
+          test -x "$RUNNER_TEMP/bin/kapitsa" && test -x "$RUNNER_TEMP/bin/kapitsa-systemone"
+          # The tarball's own checks, from a clean install: the version prints, and the Spark backend is in this binary.
+          "$RUNNER_TEMP/bin/kapitsa" --version
+          "$RUNNER_TEMP/bin/kapitsa" doctor --help > /dev/null
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v=${GITHUB_REF_NAME#v}
+          pre=()
+          case "$v" in *-*) pre=(--prerelease) ;; esac
+          repo="$GITHUB_REPOSITORY"
+          tar="build/release/kapitsa-$v-darwin-arm64.tar.gz"
+          sha=$(cut -d ' ' -f 1 "$tar.sha256")
+          {
+            echo "Kapitsa \`$v\` for Apple silicon Macs (arm64, macOS 14 or later), built from \`${GITHUB_SHA:0:7}\`."
+            echo
+            echo "**Adds the Spark-X2.6 family** (XHToken's \`spark2_5\`: Spark-X2.6-1.7B and -4B). Not verified on a GPU:"
+            echo "no kernel of this backend has run on a Mac yet. The release is published so that it can be."
+            echo
+            echo '```sh'
+            echo "curl -fsSLO https://github.com/$repo/releases/download/$GITHUB_REF_NAME/kapitsa-$v-darwin-arm64.tar.gz"
+            echo "curl -fsSLO https://github.com/$repo/releases/download/$GITHUB_REF_NAME/kapitsa-$v-darwin-arm64.tar.gz.sha256"
+            echo "shasum -a 256 -c kapitsa-$v-darwin-arm64.tar.gz.sha256   # expect $sha"
+            echo "tar xzf kapitsa-$v-darwin-arm64.tar.gz"
+            echo "sudo cp kapitsa-$v-darwin-arm64/kapitsa /usr/local/bin/   # or any folder on your PATH"
+            echo '```'
+            echo
+            echo "Or, from a clone of this fork: \`./install.sh --from-file <the tarball>\`."
+            echo
+            echo "These binaries are **ad hoc signed, not notarized** (the fork has no Developer ID certificate). macOS"
+            echo "quarantines a downloaded binary, so the first run needs one of:"
+            echo
+            echo '```sh'
+            echo "xattr -d com.apple.quarantine kapitsa"
+            echo '```'
+            echo
+            echo "or System Settings > Privacy & Security > \"Open Anyway\". Gatekeeper's warning is expected here and is"
+            echo "not a fault in the build."
+            echo
+            echo "### What to run"
+            echo
+            echo "Kapitsa has no one-shot generation command: \`kapitsa serve\` starts the server, and a request goes to"
+            echo "its OpenAI-compatible API."
+            echo
+            echo '```sh'
+            echo "huggingface-cli download mlx-community/Spark-X2.6-4B-OptiQ-4bit --local-dir ~/models/spark-4b"
+            echo "kapitsa doctor --models-dir ~/models    # Spark-X2.6-4B should be listed, and fit"
+            echo "kapitsa serve --model ~/models/spark-4b"
+            echo "# then, in another terminal:"
+            echo "curl http://127.0.0.1:8000/v1/chat/completions -H 'Content-Type: application/json' \\"
+            echo "  -d '{\"model\": \"spark\", \"max_tokens\": 32, \"messages\": [{\"role\": \"user\", \"content\": \"What is the capital of Anhui Province?\"}]}'"
+            echo '```'
+            echo
+            echo "Watching the server's terminal is the useful part: it prints the model it detected, the layer split it"
+            echo "planned, and any refusal it made. A \`Spark\` line means the new backend loaded."
+            echo
+            echo "Known limits in this build, all of which fail loudly rather than producing wrong tokens:"
+            echo
+            echo "- a context longer than the 512-token sliding window is refused at position 512 (the wrapped key range"
+            echo "  needs a ring-aware attention read that is not implemented);"
+            echo "- prefill runs one row at a time — correct, and slow; batched prefill is not bound yet;"
+            echo "- no drafter (Spark ships none), so prompt-lookup only."
+            echo
+            echo "\`kapitsa update\` in this build looks at \`nace-ai/kapitsa\` unless \`KAPITSA_UPDATE_URL\` points elsewhere:"
+            echo
+            echo '```sh'
+            echo "export KAPITSA_UPDATE_URL=https://api.github.com/repos/$repo/releases/latest"
+            echo '```'
+            echo
+            echo "Plan, decisions and the state log: \`docs/spark/SPARK.md\` (in this tag)."
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Kapitsa $v" --notes-file "$RUNNER_TEMP/notes.md" \
+            "${pre[@]}" "$tar" "$tar.sha256"
+          echo "Published $GITHUB_REF_NAME with $(basename "$tar") (sha256 $sha)."

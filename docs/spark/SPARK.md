@@ -344,6 +344,26 @@ risks "fixing" something that is already correct. The current state of the branc
 3. Run `bash tools/lx_syntax_check.sh` and the config test before changing anything, so you know the baseline is green.
 4. Do not claim anything about Metal, speed or output equality. The PR says "Not verified on a GPU" because it is.
 
+## 12b. Handing the build to a Mac (the release)
+
+The user cannot verify anything until there is a binary, and this box cannot build one. So the fork publishes one:
+`.github/workflows/release.yml` builds on `macos-15` via `packaging/release/build.sh` and attaches the tarball to a GitHub
+release. Push a tag whose name matches `KAPITSA_VERSION` in `CMakeLists.txt` (currently `0.2.25`, so `v0.2.25`);
+`build.sh` refuses a mismatch.
+
+**The workflow is deliberately not upstream's.** Upstream's release job pushes the formula to `nace-ai/homebrew-tap` and
+*fails* when `TAP_GITHUB_TOKEN` is missing. A fork must not push upstream's tap, and this fork has no tap, so that step is
+gone: **Homebrew is not an install path for these builds**, `install.sh --from-file` and the tarball are. Signing and
+notarization are optional and absent (no secrets), so the binaries are ad hoc signed — the notes tell the user to clear
+the quarantine attribute, and explain why Gatekeeper complains.
+
+Two things that will bite the next person, both found by checking rather than assuming:
+
+- **There is no `kapitsa run`.** Kapitsa has no one-shot generation command; `kapitsa serve` plus a
+  `/v1/chat/completions` request is the way, so that is what the release notes give.
+- **`kapitsa doctor` takes `--model M` or `--models-dir DIR`, not a positional folder.** The earlier TODO and PR text
+  said `kapitsa doctor ~/models/spark-4b`, which would have been a usage error on the user's first command.
+
 ## 13. QA pass (2026-10-29) — what it found, and what it cost
 
 **Ten defects, in four batches.** They are recorded in the order found, because the order is the interesting part: each
