@@ -362,6 +362,15 @@ void Engine::disk_start() {
     logi("SSD prefix cache: off: not available for this model's states yet (the Qwen3.5-family models and Dory are)");
     return;
   }
+  // A format is a promise that the hooks describe the state, and the engine trusts it: with a format but no hooks every
+  // layout hashes as empty, a restore matches, and the conversation continues from an uninitialised cache. Checked
+  // once here, before anything is stored, rather than trusting the class to have kept the promise.
+  if (!model_->disk_hooks_live(*slots_[0].seq)) {
+    logi("SSD prefix cache: off: this model reports a state format (\"%s\") but its disk_rows/disk_state describe "
+         "nothing, so a restore would hand back an empty cache",
+         fmt.c_str());
+    return;
+  }
   // one refused-version entry per slot (the store's write-behind skips a slot only while its own entry says so, #467)
   std::unique_ptr<Disk, DiskFree> d(new Disk(size_t(slots_.size())));
   d->quota = quota;

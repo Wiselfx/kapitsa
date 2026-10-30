@@ -1,7 +1,3 @@
-- [x] **Snapshots** (`save`/`restore`/`can_snapshot`). Copies only the sliding-window rings, as Dory does: a full
-      layer's cache only appends, so truncation reads the same bytes, while a ring must be saved before it is
-      overwritten. `encode_prefill` now honours `snap`/`snap_row` (it must, since `can_snapshot()` is true and the
-      engine relies on it).
 # Spark port — live checklist
 
 Update this file as work lands. `[x]` done, `[~]` in progress, `[ ]` not started, `[!]` blocked.
@@ -30,7 +26,11 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 
 ## P2 — GELU  ✅
 - [x] Own kernel library `src/kernels/spark/` (decision: additive, do **not** touch shipping MLP kernels, SPARK.md §10)
-- [x] `spark_gelu_gu` — PyTorch's tanh-approximation gelu, gate*up fold
+- [x] `spark_gelu_gu` — **exact** gelu (`x * Phi(x)`, erf form), gate*up fold, not the tanh approximation:
+      `hidden_act: "gelu"` is ACT2FN's `GELUActivation` (`nn.functional.gelu(approximate='none')`), and
+      `gelu_pytorch_tanh` is a *separate* ACT2CLS key Spark does not ask for. This checklist said "tanh" until QA
+      pass 1 caught it, so the code and the docs disagreed — see SPARK.md §13 defect 1. Metal has no erf, so
+      spark_erf is A&S 7.1.26 (max error ~1.4e-7)
 - [x] Existing models' kernel libraries byte-identical (nothing in them changed)
 
 ## P3 — attention  [~]
@@ -50,6 +50,15 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
       load just starts at the oldest live key and wraps. Depends on window being a power of two and a multiple of
       kTile (both true; `tools/ring_slot_test.cpp` checks them). Linear-cache models pass `{0, 0}` and read exactly as
       before.
+- [x] **SSD prefix cache hooks.** `disk_format()` was returning a format while `disk_rows`/`disk_state` were the base
+      class's no-ops, so the cache enabled itself, stored states that hashed as empty, and `disk_restore` matched them
+      and reported success -- a conversation continuing from an uninitialised cache. Implemented the hooks (linear
+      caches as rows, rings whole, as Dory does) and added `Model::disk_hooks_live` + `tests/test_disk_hooks.py` so no
+      model can advertise a format it cannot describe.
+- [x] **Snapshots** (`save`/`restore`/`can_snapshot`). Copies only the sliding-window rings, as Dory does: a full
+      layer's cache only appends, so truncation reads the same bytes, while a ring must be saved before it is
+      overwritten. `encode_prefill` now honours `snap`/`snap_row` (it must, since `can_snapshot()` is true and the
+      engine relies on it).
 - [ ] Ring-aware attention kernel (the blocker for any context longer than 512 tokens)
 - [ ] Batched prefill (`attn_prefill11r` + window; `qmms`/`qrf` GEMMs + the GELU fold). Until then prefill loops over
       decode rows: correct, slow, and it logs that once.

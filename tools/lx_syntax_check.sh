@@ -10,6 +10,13 @@ root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 shim="${TMPDIR:-/tmp}/lxshim"
 mkdir -p "$shim/sys"
 # macOS-only headers a Linux g++ lacks. Local scratch only: this file is not used by CI or by any real build.
+# struct stat's st_mtimespec (macOS) in place of st_mtim (Linux): same value, different name in the C library's header.
+cat > "$shim/lx_stat.h" <<'EOF'
+#pragma once
+#include <sys/stat.h>
+// macOS spells the nanosecond field st_mtimespec; define the name rather than the struct, so <sys/stat.h> still applies
+#define st_mtimespec st_mtim
+EOF
 cat > "$shim/sys/sysctl.h" <<'EOF'
 #pragma once
 #include <cstddef>
@@ -29,14 +36,16 @@ if [ ${#files[@]} -eq 0 ]; then
     "src/model/spark_config.cpp"
     "src/model/spark.cpp"
     "src/engine/engine.cpp"
+    "src/engine/engine_disk.cpp"  # the SSD prefix cache, where Spark's disk_format/disk_rows/disk_state are checked
     "tools/spark_config_test.cpp"
+    "tools/ring_slot_test.cpp"
   )
 fi
 
 fail=0
 for f in "${files[@]}"; do
   [ -f "$root/$f" ] || { echo "missing: $f"; fail=1; continue; }
-  if out=$(g++ -std=c++20 -fsyntax-only -Isrc -Ithird_party -I"$shim" \
+  if out=$(g++ -std=c++20 -fsyntax-only -Isrc -Ithird_party -I"$shim" -include lx_stat.h \
              -D'__builtin_available(a,b)=1' "$f" 2>&1); then
     printf 'ok    %s\n' "$f"
   else

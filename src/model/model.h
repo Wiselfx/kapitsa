@@ -196,7 +196,13 @@ class Model {
 
   // ---- SSD prefix cache (src/engine/engine_disk.cpp) ----
   // What this model's states are (layers, heads, formats), for the cache's namespace; "" when its states are not cached
-  // on the SSD
+  // on the SSD.
+  //
+  // Non-empty is a promise that disk_rows/disk_state describe the state, and the engine takes it at face value: with a
+  // format but no hooks, the two return nothing, every layout hashes as empty, and disk_restore matches, restores
+  // nothing and reports success -- a conversation then continues from an uninitialised cache instead of failing. So a
+  // model that returns a format *must* override both; disk_cache_consistent() below is the runtime check that catches
+  // it, and tests/test_disk_hooks.py the static one.
   virtual std::string disk_format() const { return ""; }
   // s's attention caches in a fixed order (mtp: the MTP head's too)
   virtual void disk_rows(const Seq& s, bool mtp, std::vector<KvRows>& out) const { (void)s, (void)mtp, (void)out; }
@@ -204,6 +210,16 @@ class Model {
   // of checkpoint c of s: the same order and sizes for both
   virtual void disk_state(const Seq& s, const Checkpoint* c, std::vector<Buffer>& out) const {
     (void)s, (void)c, (void)out;
+  }
+  // Whether this model's hooks describe anything at all for `s`. The engine calls it with a sequence that holds
+  // positions before it stores a state: a model with a disk_format() but no hooks answers false, and the cache is
+  // turned off with a log line naming the model instead of storing empty states that restore as garbage.
+  bool disk_hooks_live(const Seq& s) const {
+    std::vector<KvRows> rows;
+    std::vector<Buffer> state;
+    disk_rows(s, false, rows);
+    disk_state(s, nullptr, state);
+    return !rows.empty() || !state.empty();
   }
 
   // ---- images ----

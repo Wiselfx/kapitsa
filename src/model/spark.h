@@ -94,6 +94,13 @@ class Spark : public Model {
   // The engine reads this to cut a prefill chunk at a turn boundary inside the pass instead of splitting the chunk.
   bool can_snapshot() const override { return true; }
   std::string disk_format() const override;
+  // SSD prefix cache. Spark has both kinds of cache, so it needs both hooks: the full-attention layers are linear (row
+  // i is position i) and go as rows; the sliding layers are rings -- a ring holds the last `window` keys wherever they
+  // are in the conversation, so a position does not index it -- and go whole, as state. Dory's split is the same, and
+  // the base class's both default to doing nothing, which is why leaving them out made the cache claim to work while
+  // writing no bytes (see docs/spark/SPARK.md 12f).
+  void disk_rows(const Seq& s, bool mtp, std::vector<KvRows>& out) const override;
+  void disk_state(const Seq& s, const Checkpoint* c, std::vector<Buffer>& out) const override;
 
   // ---- tools ----
   float* logits() { return logits_.as<float>(); }

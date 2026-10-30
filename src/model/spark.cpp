@@ -460,6 +460,29 @@ std::string Spark::disk_format() const {
   return b;
 }
 
+// The full-attention caches as rows: they are linear, so position p is row p, and their stride is s.cap.
+void Spark::disk_rows(const Seq& s, bool mtp, std::vector<KvRows>& out) const {
+  (void)mtp;  // Spark has no MTP head
+  for (int i = 0; i < cfg_.layers; ++i) {
+    if (ring_layer(i)) continue;
+    for (const Buffer* b : {&s.kc[size_t(i)], &s.vc[size_t(i)]})
+      out.push_back({*b, cfg_.hkv, size_t(cfg_.head_dim) * 2});
+  }
+}
+
+// The sliding-window rings, whole, in cache order: k then v per layer, the same order and sizes for a checkpoint as
+// for the live state (so a stored state is found again at the position it was saved at).
+void Spark::disk_state(const Seq& s, const Checkpoint* c, std::vector<Buffer>& out) const {
+  for (int i = 0; i < cfg_.layers; ++i) {
+    if (!ring_layer(i)) continue;
+    for (size_t kv = 0; kv < 2; ++kv) {
+      const size_t idx = 2 * size_t(i) + kv;
+      out.push_back(!c ? (kv ? s.vc[size_t(i)] : s.kc[size_t(i)])
+                       : idx < c->rec.size() ? c->rec[idx] : Buffer{});
+    }
+  }
+}
+
 std::string Spark::formats_summary() const { return cfg_.formats(); }
 
 // ---------------------------------------------------------------------------------------------------------------

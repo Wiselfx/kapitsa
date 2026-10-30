@@ -219,12 +219,18 @@ their dependencies allow. Treat every local build claim as best-effort and state
   version handed it the dense `q_k_v_proj` output. Fixed with `spark_pack_qg`, which assembles the interleaved layout
   from the dense q and the broadcast per-head scalar. This is exactly the class of mistake only a GPU run confirms —
   see §6.
+- **Closed since the first version** (each has a section below and a `TODO.md` entry):
+  - A **wrapped sliding window** now works: `attn_decode_partial` reads the ring cyclically (`wrapped`/`slot_mask`, the
+    tile loads start at the oldest live key and wrap -- the same weighted sum over the same keys), so a conversation
+    is no longer capped at 512 tokens (§12d).
+  - **Snapshots** (`save`/`restore`, `can_snapshot`) now work: only the rings are copied, so the engine can checkpoint
+    at a turn boundary and a conversation can have a second turn (§12e).
 - **Known gaps (P3 remainder), all stated in code comments and `TODO.md`:**
-  - A **wrapped sliding window** is not implemented: `enc_attn` runs the plain range while `pos < window` and stops
-    past the window with a cyclic read (`wrapped`/`slot_mask`: the tile loads start at the oldest live key and wrap,
-    which is the same weighted sum over the same keys -- see §12d).
-  - Prefill is correct-but-slow (decode path per row); the batched path is not bound.
+  - Prefill is correct-but-slow (decode path per row); the batched path is not bound. This is the main cost left.
   - `encode_logits_rows` works but is slow for the same reason.
+  - No `copy_prefix` override: a second conversation sharing a system prompt re-reads it rather than copying another
+    slot's caches. Correct, slower, off the failing path.
+  - Gate and up projections are two dispatches, not one (D4; see `TODO.md` for why it was rejected).
   - No drafter (by design, D6); prompt-lookup only.
 - **CI, first green run (PR #1, commit 4a14d22 → 4c8e9f1):**
   - `lint` success, `docs-links` success, `pr-size-script` success.
@@ -332,12 +338,17 @@ run for real. Both are wrapped by the same commands recorded in the PR body.
 fixed and six properties that were verified against primary sources; re-deriving those from scratch burns context and
 risks "fixing" something that is already correct. The current state of the branch is:
 
-- **Host-side logic: reviewed, and it had four defects, now fixed.** Config parsing, kernel-name construction, the
-  fused-qkv byte-offset slicing and the GELU choice are covered by `tools/spark_config_test.cpp` (runs in CI) or by
-  explicit asserts.
-- **Kernel arithmetic: entirely unverified.** No GPU has run any of it. Do not describe it as working.
-- **Two known functional gaps**, both fatal-with-a-clear-message rather than silently wrong: a sliding window that
-  wraps past 512 tokens, and no batched prefill (correct but slow). See §6.
+- **Host-side logic: reviewed, four defects found and fixed.** Config parsing, kernel-name construction, the
+  fused-qkv byte-offset slicing and the GELU choice are covered by `tools/spark_config_test.cpp` (runs in CI).
+- **The model now loads, templates, and produces tokens on a Mac** — that is the user's report, not a measurement:
+  `v0.2.25` loaded and `/v1/chat/completions` returned a 400 from the chat template (§12c); after that the model ran
+  and reached 513 tokens (§12d); then a second turn needed checkpoints (§12e).
+- **Kernel arithmetic: only partly verified.** Nothing here has measured logits against `transformers`, so "it runs"
+  is not "it computes the right thing". Do not describe it as correct. The ring read and the checkpoint copies in
+  particular have never produced a token.
+- **Functional state:** the wrapped sliding window works (§12d) and snapshots work (§12e), so a multi-turn
+  conversation is no longer structurally impossible. What remains is **speed**: prefill is one row at a time (§6,
+  `TODO.md`). No batched prefill, no drafter.
 
 
 1. Read §2 (constraints), §4 (decisions D1–D7), then the last §9 entry.
@@ -349,7 +360,7 @@ risks "fixing" something that is already correct. The current state of the branc
 
 The user cannot verify anything until there is a binary, and this box cannot build one. So the fork publishes one:
 `.github/workflows/release.yml` builds on `macos-15` via `packaging/release/build.sh` and attaches the tarball to a GitHub
-release. Push a tag whose name matches `KAPITSA_VERSION` in `CMakeLists.txt` (currently `0.2.25`, so `v0.2.25`);
+release. Push a tag whose name matches `KAPITSA_VERSION` in `CMakeLists.txt` (currently `0.2.29`, so `v0.2.29`);
 `build.sh` refuses a mismatch.
 
 **The workflow is deliberately not upstream's.** Upstream's release job pushes the formula to `nace-ai/homebrew-tap` and
@@ -470,6 +481,52 @@ than copying another slot's caches. Correct, slower, and not on the path that wa
 **Not verified on a GPU**: the checks are that `save`/`restore` touch only ring layers, that a declined save leaves
 `pos = -1` (so it is not mistaken for one), and that the existing CPU tests still pass. No multi-turn conversation has
 actually been run here.
+
+## 12f. The SSD cache that claimed to work
+
+Found by asking "where is this checked?" rather than by a failing request -- the user asked how snapshots ought to be
+implemented and where that contract lives, and reading `src/model/model.h` for the answer turned up a second, worse bug
+in the same area.
+
+`Model` describes a state to the SSD prefix cache through three virtuals: `disk_format()` (non-empty enables it),
+`disk_rows` (the linear attention caches) and `disk_state` (the state kept whole -- its comment names "Dory: its
+sliding-window caches"). Both hooks default to doing nothing. Spark implemented `disk_format` from the first commit and
+neither hook, and the consequence is not a degraded cache but a **silently wrong one**:
+
+- `Engine::disk_cache_supported()` is literally `!disk_format().empty()` (`engine.cpp:630`), and the server defaults
+  `--disk-cache` to `"auto"` (`main.cpp:948`), so Spark *enabled* the cache.
+- `disk_rows` returned nothing, so `dc::kv_layout` hashed an empty list and no KV block was ever written; `disk_state`
+  likewise, so `StMeta` hashed 0 and no state was written.
+- `disk_restore` compared those zero layouts, matched, restored nothing, and **returned true** -- then logged "read N
+  tokens of a stored conversation into slot N" and set `start = N`.
+
+So a second conversation would have continued from an uninitialised cache and produced plausible nonsense, with a
+success message. Worse than the ring fatal, which at least stopped.
+
+**The fix is the hooks, not a disabled feature**, because Spark has exactly the split Dory already solves: its
+full-attention caches are linear (position p is row p) and go in `disk_rows`; its sliding layers are rings, whose
+positions do not index them, so they go whole in `disk_state` (k then v, the same order and sizes for a checkpoint as
+for the live state). Verified line-by-line against `Dory::disk_rows`/`disk_state`, which have the same shape.
+
+**And a guard, because the class of bug is bigger than Spark.** A model that advertises a format it cannot describe
+should not be able to reach the engine at all:
+
+- `Model::disk_hooks_live(seq)` asks the hooks what they describe; `Engine::disk_start` refuses to enable the cache when
+  the answer is nothing, and says which model and why. Defence in depth for a case the static check cannot see (a
+  plugin, a split model).
+- `tests/test_disk_hooks.py` resolves `disk_format` *and* both hooks **through the class hierarchy** and fails if any
+  model ends up with a format but the base class's no-ops. Its first version reported five false positives (Clover,
+  DSpark and LiliCorr inherit their hooks from Qwen35/NhDrafter; NemotronH overrides none of the three) -- inheritance
+  was the thing I had to get right, and getting it wrong would have made the test useless rather than wrong. Verified
+  it fails when Spark's two hook declarations are removed and passes when they are back.
+
+The lesson worth keeping: `disk_format` returning a string is a *promise*, and I made it three commits before doing
+anything that could keep it. Nothing in the build, the tests or a smoke run distinguishes "cache works" from "cache
+silently stores nothing", which is why the guard is a check and not a comment.
+
+**Not verified on a GPU**: the hooks compile and the static tests pass; no state has been written to and read from an
+SSD cache for Spark. The user runs with `--disk-cache 0`, which is why this never surfaced on their machine -- the
+default is `auto`, so anyone else would have hit it.
 
 ## 13. QA pass (2026-10-29) — what it found, and what it cost
 
