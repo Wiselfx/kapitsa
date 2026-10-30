@@ -71,9 +71,26 @@ jobs:
           packaging/release/build.sh "${GITHUB_REF_NAME#v}"
           ./install.sh --from-file "build/release/kapitsa-${GITHUB_REF_NAME#v}-darwin-arm64.tar.gz" --prefix "$RUNNER_TEMP/bin"
           test -x "$RUNNER_TEMP/bin/kapitsa" && test -x "$RUNNER_TEMP/bin/kapitsa-systemone"
-          # The tarball's own checks, from a clean install: the version prints, and the Spark backend is in this binary.
+          # The version prints.
           "$RUNNER_TEMP/bin/kapitsa" --version
-          "$RUNNER_TEMP/bin/kapitsa" doctor --help > /dev/null
+          # And the Spark backend is really in this binary, not merely in the source tree it was built from. Both
+          # markers are string literals compiled in: the embedded Metal source carries the kernel names, and the
+          # config parser carries the model_type it accepts. A binary built from a tree without the Spark port -- the
+          # wrong checkout, a stale cache -- fails here instead of shipping as a release.
+          # (substring match, not whole-line: the embedded Metal source is one raw string literal, so `strings` emits it
+          # as a single enormous line and -x would never match)
+          marks=$(strings -a "$RUNNER_TEMP/bin/kapitsa")
+          for marker in spark_attn_prep spark_gelu_gu spark2_5; do
+            if ! printf '%s' "$marks" | grep -q -- "$marker"; then
+              echo "::error::the built binary does not contain '$marker': the Spark backend is missing from this release"
+              exit 1
+            fi
+          done
+          echo "Spark backend present in the built binary (spark_attn_prep, spark_gelu_gu, spark2_5)."
+          # doctor's usage goes to stderr and exits 2 when there is no terminal, so accept either exit; what is being
+          # checked is that the command runs and prints its usage at all.
+          "$RUNNER_TEMP/bin/kapitsa" doctor --help 2>&1 | grep -q "usage: kapitsa doctor" || {
+            echo "::error::kapitsa doctor does not print its usage"; exit 1; }
 
       - name: GitHub release
         env:
