@@ -11,11 +11,18 @@
 # pull_request_target.
 name: CI
 
+# Pull requests, and by hand. A push to this fork's main does not start a run (no PRs are opened on your own fork, and
+# a full macOS build plus the CPU tests on every push costs minutes of a shared runner for work that is already
+# committed). Start one from the Actions tab ("Run workflow", workflow_dispatch) when a change wants CI without a
+# release.
+#
+# Note what this means: a push to main is NOT checked by CI. The release workflow (.github/workflows/release.yml)
+# builds on macos-15 but runs no tests. So run this workflow by hand after pushing, or the only thing standing between
+# a commit and a published binary is the local checks (`tools/lx_syntax_check.sh` and the Python static tests).
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
