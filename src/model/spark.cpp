@@ -831,10 +831,20 @@ void Spark::enc_sample(Encoder& e, Seq& s, const Buffer& xrow, int out_index, co
 // ---------------------------------------------------------------------------------------------------------------
 
 void Spark::encode_step(Encoder& e, Seq& s, int pos, const SamplingParams& sp, uint32_t step, bool sample) {
-  if (pos + 1 > s.cap && !reserve(s, pos + 1)) fatal("context full (%d)", s.cap);
+  // `pos + 2`: this step reads position `pos` and, when it samples, writes the token at `pos + 1`, so the sequence needs
+  // that slot to exist (tokens is int32 [limit + 8], but the KV caches must cover the row too). Qwen35's guard is the
+  // same comparison (qwen35.cpp:2419).
+  if (pos + 2 > s.cap && !reserve(s, pos + 2)) fatal("context full (%d)", s.cap);
   enc_embed(e, s.tok, pos, 1, x_);
   for (int i = 0; i < cfg_.layers; ++i) enc_attn(e, s, i, pos), enc_mlp(e, layers_[size_t(i)]);
-  if (sample) enc_sample(e, s, x_, pos, sp, step);
+  // The sampled token goes to pos + 1, not pos: a step at `pos` reads the token at `pos` and produces the one after it,
+  // which is what the next pass embeds and what the engine reads back as s.tokens()[pos + 1]. Writing at `pos`
+  // overwrote the token just embedded -- so the engine read that token back as the model's output and the next step
+  // re-embedded a slot nothing had written. The symptom was perfectly repetitive output (the same token forever),
+  // because after the first step the input never changed again. Qwen35::encode_step does the same pos + 1
+  // (qwen35.cpp:2439); this is the difference that mattered and the reason the model appeared to "work" and then
+  // emit only BOS.
+  if (sample) enc_sample(e, s, x_, pos + 1, sp, step);
 }
 
 void Spark::encode_prefill(Encoder& e, Seq& s, int pos0, int T, const SamplingParams& sp, uint32_t step, bool sample,
@@ -858,7 +868,8 @@ void Spark::encode_prefill(Encoder& e, Seq& s, int pos0, int T, const SamplingPa
     // the row's layers have already written the rings, so the save is queued behind them in this encoder, the same
     // ordering the batched Qwen35 path gets from capturing mid-pass.
     if (snap && t == snap_row - 1) save(e, s, *snap, pos + 1);
-    if (last && sample) enc_sample(e, s, x_, pos, sp, step);
+    // the prompt's last row produces the token after it (pos + 1), as encode_step's does
+    if (last && sample) enc_sample(e, s, x_, pos + 1, sp, step);
   }
 }
 

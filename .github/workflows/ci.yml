@@ -64,6 +64,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: python3 tests/test_disk_hooks.py
+      - name: Spark's sampling offset
+        # encode_step must write its token at pos + 1 (sample_stage2 writes tokens[out_index]); writing at pos made the
+        # model repeat one token forever. Static because no CI job runs a GPU.
+        run: python3 tests/test_spark_sampling_offset.py
 
   build-and-test:
     # Changes that can affect the build or the tests only (the filter below). Not a required check, so a skipped run never blocks a docs-only PR.

@@ -567,6 +567,38 @@ The pattern in all four: every one was a place where I had written something *si
 and the difference -- a container type, a chunk multiplier, a kernel-name list -- was where the bug lived. Reading the
 sibling implementation for agreement, not just for the idea, is what found them.
 
+## 12h. "This is all I see": the sampled token went to the wrong slot
+
+With the window and the snapshots fixed, the model finally replied -- the same token, over and over:
+
+```
+<｜start▁of▁sentence｜><｜start▁of▁sentence｜><｜start▁of▁sentence｜>...
+```
+
+A perfectly repetitive output is a very specific symptom: it means the *input* stopped changing. The cause was one
+line. `Spark::encode_step` called `enc_sample(..., pos, ...)`, and `sample_stage2` does `tokens[p.out_index] = chosen`,
+so each step wrote its token over the token it had just embedded. The engine then reads `s.tokens()[pos]` to get the
+model's output and got back the *prompt's own* token, and the next step embedded a slot nothing had written. After
+step one, the input was constant, so the output was constant.
+
+Qwen35 does `enc_sample(e, s, x_, pos + 1, sp, step)` (qwen35.cpp:2439). This is the one character where the two
+implementations differed, and it is why the port looked like it worked: the prefill produced a plausible first token,
+and everything after it was frozen.
+
+The capacity guard had to widen with it -- `pos + 2` rather than `pos + 1`, or the sampled slot may not exist.
+
+`tests/test_spark_sampling_offset.py` pins all of it statically, because no test here runs a GPU: it checks that
+`sample_stage2` writes `tokens[out_index]`, that Qwen35 uses `pos + 1`, that both of Spark's sampling call sites do
+too, and that the guard matches. Verified the test fails on the pre-fix code. Its guard check was **vacuous when first
+written** ("pos + 2" also appears in the comment above the line), so it now matches the `if (...)` statement itself;
+a test that passes on prose is not a test.
+
+**What this says about the rest of the audit.** I traced the load path and the kernels twice and never looked at the
+one line that connects them to the engine's expectations, because "the model runs and emits tokens" read as working. The
+lesson from §12c–§12g repeated: the bug is in the seam between my code and somebody else's assumption, and the seam is
+exactly where a diff against the sibling implementation is cheapest. Both of the last two defects -- this and the
+`std::vector` in §12g -- were a single token of difference from Qwen35.
+
 ## 13. QA pass (2026-10-29) — what it found, and what it cost
 
 **Ten defects, in four batches.** They are recorded in the order found, because the order is the interesting part: each
