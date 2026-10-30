@@ -346,6 +346,18 @@ risks "fixing" something that is already correct. The current state of the branc
 
 ## 13. QA pass (2026-10-29) — what it found, and what it cost
 
+**Ten defects, in four batches.** They are recorded in the order found, because the order is the interesting part: each
+batch was found by checking the thing the previous batch had taught me to distrust. Batch 1 was the activation and the
+kernel names; batch 2 was the attention prologue and the norm conversion; batch 3 was the matvec rule, exhaustively;
+batch 4 was the KV cache. Nothing was found by re-running a check — every one came from reading a kernel's actual
+contract against what the host code assumed it was.
+
+Six of the ten share one root cause: **a rule expressed in more than one place**. The matvec kernel choice was
+copy-pasted four times; the buffer that should have been named `stg_` was called `qo_` and described as scratch. Where
+that pattern appeared, a defect followed. The fixes are structural (one function, one test that checks it against the
+kernel sources, buffer names that say what they hold), not just corrections.
+
+
 A review of the port against **primary sources** (the pinned `transformers==4.57.1` wheel, the official PyTorch docs,
 and this repo's own kernels), not against my recollection. Four real defects, three of which would have produced wrong
 numbers or a crash on the first Mac run. Recorded here because the pattern matters more than the individual bugs.
@@ -477,6 +489,18 @@ and my first attempt passed `(old, target, hkv)`, which would have copied the wr
 
 ### Still unverified, and honestly so
 
-Everything in §6 that needs a GPU. The QA pass raised confidence in the *host-side* logic (config, names, layouts,
-activation choice) and caught four defects; it says nothing about whether the kernels compute the right answer. The PR
-stays "Not verified on a GPU".
+Everything in §6 that needs a GPU. The QA pass raised confidence in the *host-side* logic — config, kernel names,
+buffer layouts, the activation choice, the norm conversion, the cache growth — and caught ten defects in it. It says
+nothing whatsoever about whether the kernels compute the right answer: no GPU has executed a single one of them.
+
+Specifically still unknown, and not to be asserted either way:
+
+- Whether `spark_attn_prep`'s RoPE matches the reference numerically (the convention is verified by reading, the
+  arithmetic is not).
+- Whether the ring caches wrap correctly for contexts past 512 tokens — that path **does not exist yet** and stops with
+  a fatal (see §6).
+- Whether the interleaved q|gate layout is what `attn_decode_reduce` actually indexes at run time.
+- Whether the GELU fold and the `_norm`-fused matvecs produce the same values as `transformers` on the same weights.
+- Any speed number for any of it.
+
+The PR stays "Not verified on a GPU", and the TODO's Mac checklist is the step that changes any of the above.
