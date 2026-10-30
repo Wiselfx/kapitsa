@@ -98,6 +98,8 @@ jobs:
         run: |
           set -euo pipefail
           v=${GITHUB_REF_NAME#v}
+          # macOS ships bash 3.2, where "${pre[@]}" on an empty array is an unbound-variable error under `set -u`
+          # (bash 4.4+ treats it as empty). So expand it as ${pre[@]+"${pre[@]}"}, which is empty-safe on both.
           pre=()
           case "$v" in *-*) pre=(--prerelease) ;; esac
           repo="$GITHUB_REPOSITORY"
@@ -162,5 +164,5 @@ jobs:
             echo "Plan, decisions and the state log: \`docs/spark/SPARK.md\` (in this tag)."
           } > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" --verify-tag --title "Kapitsa $v" --notes-file "$RUNNER_TEMP/notes.md" \
-            "${pre[@]}" "$tar" "$tar.sha256"
+            ${pre[@]+"${pre[@]}"} "$tar" "$tar.sha256"
           echo "Published $GITHUB_REF_NAME with $(basename "$tar") (sha256 $sha)."
