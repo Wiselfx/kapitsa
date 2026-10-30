@@ -67,6 +67,37 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 - [x] `pr-size` red by design and explained in the PR body (no reviewer on a fork to grant the override)
 - [ ] **Your Mac pass**: build, load a checkpoint, generate, compare against `transformers`
 
+## Performance: what was taken from upstream, and what was not
+
+Reviewed against upstream's dense decode path (`Qwen35::enc_attn` / `enc_mlp` / `enc_qmv_multi`) before the first Mac
+run, rather than after, so the baseline is measured on the final code.
+
+**Done:**
+- [x] **Split-K over the measured core count.** `cores` was a literal 32 where upstream uses `gpu_cores()`
+      (`qwen35.cpp`). 1.6x too many chunks on a 20-core M4 Pro, too few on a 40-core M4 Max. The attention split
+      buffers (`part_o_`, `part_ml_`) were sized from that same literal, so they now use the same count — sizing them
+      from 32 while chunking over 40 cores would have written past the end.
+- [x] **q | k | v in one dispatch.** They are three row ranges of one fused matrix sharing one normalized input, which
+      is exactly upstream's `qmv2_multi` / `qmv3_multi` case (`Qwen35::enc_qmv_multi`). 3 dispatches → 1, and the
+      RMSNorm is computed once instead of three times. Falls back to the three row-sliced matvecs when the format is
+      not 4/8-bit group 64 or K exceeds the untiled variant's 4096.
+- Net: 12 → 11 dispatches per decoder layer on decode (336 → 308 per token for the 1.7B, 432 → 396 for the 4B).
+
+**Not done, deliberately — with the reason:**
+- [ ] **Gate+up as one dispatch.** Upstream's `mlp_gate_up` takes two matrices in one kernel; Spark issues two matvecs.
+      I tried to fix this by deferring the GELU closure by one layer so two pairs could close together, and found it
+      **cannot work**: `down_proj` consumes the closed row immediately, so `mh_` must be complete by the end of the
+      layer. The remaining option is to modify `mlp_gate_up_impl` (index the second matrix at `row0 - N0` and run
+      Spark's erf GELU instead of silu), which splits the kernel on a template flag — precisely what D4 rejected
+      because it recompiles the hot path of every existing model. It needs a deliberate decision, not a drive-by.
+- [ ] **Batched prefill** (the big one at long context; today prefill loops the decode path).
+- [ ] **A ring-aware attention read** (the 512-token wall).
+
+**Withdrawn claim:** I earlier reported that `attn_decode_partial` could produce NaN from `num/den` on a chunk with no
+valid keys. It cannot: `nchunks` is derived from `L`, so every chunk has `start < p.L` and therefore `n >= 1`, so `m`
+and `l` are always written. The padding does mean a chunk's `n` is rounded up to the 16-position tile — waste once the
+chunk is smaller than the tile, which the core-count fix reduces. No NaN.
+
 ### The Mac commands for the verification pass
 
 **Easiest: download the prebuilt release** (`.github/workflows/release.yml`, tag `v0.2.25`). No compiler needed.

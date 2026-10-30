@@ -105,6 +105,13 @@ bool zero_centred(const Tensor& t) {
   return neg > 0 && sum / double(n) < 0.5;
 }
 
+// GPU cores (Gpu::core_count; NI_GPU_CORES overrides), read once. The dispatch heuristics here mirror upstream's
+// (qwen35.cpp:gpu_cores) so a 20-core M4 Pro and a 40-core M4 Max split the same work the same way.
+uint32_t gpu_cores() {
+  static const uint32_t n = uint32_t(std::max(1, Gpu::get().core_count()));
+  return n;
+}
+
 // A pipeline by name, cached. Spark's own kernels live in the "spark" extra library (src/kernels/spark/), compiled on
 // first use like Dory's and the tensor library.
 Pipeline pipe(const std::string& n) {
@@ -437,7 +444,9 @@ void Spark::alloc_state() {
   gu_ = A(size_t(cfg_.ffn) * sizeof(float) * 2, "spark_gu");
   mh_ = A(size_t(cfg_.ffn) * sizeof(float), "spark_mh");
   logits_ = A(size_t(cfg_.vocab) * sizeof(float), "spark_logits");
-  const uint32_t cores = 32;
+  // Indexed by chunk, and enc_attn's nchunks is bounded by this same count (it sizes a chunk to at least span/cores),
+  // so the buffers must be sized by the number that splits the work -- not a literal 32 beside a dynamic core count.
+  const uint32_t cores = gpu_cores();
   part_o_ = A(size_t(cfg_.hq) * cores * size_t(cfg_.head_dim) * sizeof(float), "spark_part_o");
   part_ml_ = A(size_t(cfg_.hq) * cores * 2 * sizeof(float), "spark_part_ml");
   cand_v_ = A(size_t(cfg_.vocab) * sizeof(float), "spark_cand_v");
@@ -568,8 +577,11 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
   const uint32_t D = uint32_t(cfg_.head_dim), G = uint32_t(cfg_.group());
   const int qd = cfg_.q_dim(), kd = cfg_.kv_dim();
 
-  // q | k | v out of the fused matrix: three row ranges, each folding the layer's input norm. The row offsets are
-  // exact byte offsets into the packed weights (a row of w is K*bits/8 bytes, of the scales K/gs*2).
+  // q | k | v out of the fused q_k_v_proj: three row ranges of ONE matrix, sharing one normalized input. Upstream fuses
+  // exactly this case into a multi-segment matvec (qmv.metal's qmv2_multi / qmv3_multi, used by Qwen35::enc_qmv_multi
+  // for q/k/v), which computes the RMSNorm once and issues one dispatch instead of three. Same here; when the geometry
+  // is outside what those kernels cover (a format they do not have, an N past their four segments) it falls back to
+  // three ordinary matvecs, which is what this did before.
   auto rows = [&](const Buffer& y, int n, int row0) {
     const Matvec m = matvec_pipe(L.qkv, /*norm=*/true, /*add=*/false);
     const uint32_t r = m.rows, nsg = m.nsg;
@@ -594,11 +606,42 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
     e.buf(7, L.in_norm->buf);
     e.dispatch((uint32_t(n) + r * nsg - 1) / (r * nsg), 1, 1, 32 * nsg);
   };
-  // The three slices land in their own buffers: spark_attn_prep below reads a *partner* lane to rotate, and writes the
-  // interleaved [Hq][2][D] q|gate the reduce reads, so neither q nor k can be rotated in place.
-  rows(stg_, qd, 0);
-  rows(kr_, kd, qd);
-  rows(vr_, kd, qd + kd);
+  // The multi-segment kernels address the whole matrix (segment i owns tg.x in [tg_begin[i], tg_begin[i+1])), so unlike
+  // the row-sliced path above they need no byte-offset views: buffers 0..2 take q_k_v_proj in full.
+  const bool multi = (L.qkv.q4() || L.qkv.q8()) && L.qkv.K <= 4096;
+  if (multi) {
+    constexpr uint32_t rows_per = 2, nsg = 8;
+    kp::QmvMulti2 p{};
+    p.K = L.qkv.K;
+    p.nseg = 3;
+    p.eps = cfg_.eps;
+    p.norm = 1;
+    p.write_xn = 0;  // the normalized row is not wanted as a separate buffer (attn_prep re-derives it)
+    const uint32_t segs[3] = {uint32_t(qd), uint32_t(kd), uint32_t(kd)};
+    const Buffer* ys[3] = {&stg_, &kr_, &vr_};
+    uint32_t tg = 0;
+    for (int i = 0; i < 3; ++i) {
+      p.N[i] = segs[i];
+      p.bits[i] = uint32_t(L.qkv.bits);
+      p.tg_begin[i] = tg;
+      tg += (segs[i] + rows_per * nsg - 1) / (rows_per * nsg);
+      e.buf(i * 4 + 0, L.qkv.w->buf);
+      e.buf(i * 4 + 1, L.qkv.s->buf);
+      e.buf(i * 4 + 2, L.qkv.b->buf);
+      e.buf(i * 4 + 3, *ys[i]);
+    }
+    p.tg_begin[3] = tg;
+    e.use(pipe(L.qkv.K > 4096 ? "qmv3_multi_r2" : "qmv2_multi_r2"));
+    e.buf(16, x_);
+    e.val(17, p);
+    e.buf(18, L.in_norm->buf);
+    e.buf(19, stg_);
+    e.dispatch(tg, 1, 1, 32 * nsg);
+  } else {
+    rows(stg_, qd, 0);
+    rows(kr_, kd, qd);
+    rows(vr_, kd, qd + kd);
+  }
   // the per-head gate rows, which share the same normalized input
   {
     const Matvec m = matvec_pipe(L.gate, /*norm=*/true, /*add=*/false);
@@ -642,7 +685,9 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
   const uint32_t lo = ring && pos + 1 > cfg_.window ? uint32_t(pos + 1 - cfg_.window) : 0u;
   const uint32_t hi = uint32_t(pos + 1);
   const uint32_t span = hi - lo;
-  const uint32_t cores = 32;
+  // Split-K: about one chunk per GPU core, chunks of at least 64 positions (as qwen35.cpp:enc_attn does). A fixed 32
+  // over-split a 20-core M4 Pro by 1.6x and would under-split a 40-core M4 Max.
+  const uint32_t cores = gpu_cores();
   uint32_t chunk = std::max<uint32_t>(64, (span + cores - 1) / cores);
   chunk = (chunk + 15) / 16 * 16;
   const uint32_t nch = (span + chunk - 1) / chunk;
