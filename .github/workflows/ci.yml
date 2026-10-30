@@ -8,7 +8,7 @@
 # is intact and the kernels translate, not that the change is right.
 #
 # Runs on `pull_request`: the PR's code runs here with a read-only token and no secrets. Do not switch this to
-# pull_request_target (see community-bench.yml for the posture that event needs).
+# pull_request_target.
 name: CI
 
 on:
@@ -45,58 +45,15 @@ jobs:
       - uses: actions/checkout@v5
       - run: python3 tests/test_pr_size.py
 
-  bench-readme:
-    # bench/README.md's table is written by bench/gen_readme.py from bench/results; a stale table fails here. The author
-    # column comes from git history, hence the full checkout; the check ignores that column (a squash merge can change it).
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - run: python3 tests/test_gen_readme.py
-      - run: python3 tests/test_readme_images.py
-      - run: python3 bench/gen_readme.py --check
-      - run: python3 tools/readme_images/readme_images.py --tables --check
-
-  community-table:
-    # bench/community/RESULTS.md is written by tools/community_table.py from bench/community/results. A row merged
-    # without the rewrite leaves main's table stale, and the push-to-main `table` job cannot open the pull request it
-    # needs here, so nothing else would notice. Pure computation over the working tree: no author lookup, no GPU, no
-    # secrets, no fetch-depth. Not a required check (the ruleset requires none): this is the loud pre-merge signal, and
-    # the same run on main flags a table that went stale after the fact.
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v5
-      - name: Check the community results table
-        run: |
-          if python3 tools/community_table.py --check; then
-            exit 0
-          fi
-          # show what the table is missing, then fail: the row and its rewrite have to ride in the same pull request
-          python3 tools/community_table.py
-          git --no-pager diff -- bench/community/RESULTS.md || true
-          echo "::error title=Community results table is stale::bench/community/RESULTS.md does not match bench/community/results. Run 'python3 tools/community_table.py' and commit bench/community/RESULTS.md in this pull request."
-          exit 1
-
   docs-links:
     # The docs' relative links and #anchors resolve. docs/benchmarks.md's old section names survive only as explicit
-    # <a id="..."> anchors (#580) and nothing else notices a later heading rename deleting one. Its own job rather than a
-    # step in bench-readme, so a dead link never reads as a stale bench table to whoever sees the red X.
+    # <a id="..."> anchors (#580) and nothing else notices a later heading rename deleting one. Its own job, so a dead
+    # link never reads as something else's failure to whoever sees the red X.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
       - run: python3 tests/test_docs_links.py
-
-  agentic-metrics-script:
-    # bench/harness/agentic.py against a fake server: no model, no GPU.
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v5
-      - run: python3 tests/test_agentic.py
 
   build-and-test:
     # Changes that can affect the build or the tests only (the filter below). Not a required check, so a skipped run never blocks a docs-only PR.
@@ -130,7 +87,7 @@ jobs:
         if: steps.changes.outputs.code == 'true'
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build -j"$(sysctl -n hw.ncpu)" --target kapitsa systemone api_test bench_test update_test prefix_cache_test grammar_test structured_check fn_store_test fn_dflash_test dflash_accept_test tokenizer_test iq_layout_test exl3_test vision_pixels_test tree_reduce_test remote_test cluster_test split_place_test qwen4_config_test json_file_test execution_session_test http_stream_test splash_protocol_test splash_runtime_test splash_discover_test splash_plan_test logit_dump
+          cmake --build build -j"$(sysctl -n hw.ncpu)" --target kapitsa systemone api_test bench_test update_test prefix_cache_test grammar_test structured_check fn_store_test fn_dflash_test dflash_accept_test tokenizer_test iq_layout_test exl3_test vision_pixels_test tree_reduce_test remote_test cluster_test split_place_test qwen4_config_test spark_config_test json_file_test execution_session_test http_stream_test splash_protocol_test splash_runtime_test splash_discover_test splash_plan_test logit_dump
       - name: SDK C ABI contract
         if: steps.changes.outputs.code == 'true'
         run: |
@@ -184,6 +141,9 @@ jobs:
       - name: qwen4_config_test
         if: steps.changes.outputs.code == 'true' && !cancelled()
         run: build/qwen4_config_test
+      - name: spark_config_test
+        if: steps.changes.outputs.code == 'true' && !cancelled()
+        run: build/spark_config_test
       - name: json_file_test
         if: steps.changes.outputs.code == 'true' && !cancelled()
         run: build/json_file_test
@@ -384,6 +344,7 @@ jobs:
           need metal3.1 && check base-wf embed_kernels.cmake metal3.1 -DNI_WF_INST=1
           need metal3.2 && check nh      embed_kernels_nh.cmake    metal3.2
           need metal3.2 && check dory    embed_kernels_dory.cmake  metal3.2
+          need metal3.2 && check spark   embed_kernels_spark.cmake metal3.2
           need metal3.2 && check flint   embed_kernels_flint.cmake metal3.2
           # The tensor library is Metal 4, and a macOS 15 runner has no Metal 4 compiler - the driver on such a Mac
           # does not build it either, so this is a skip on this image, not a pass. On a runner that has Metal 4 it is

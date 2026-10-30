@@ -78,6 +78,17 @@ struct QmmLd {
   uint32_t w_ld, s_ld;
 };
 
+// Spark (src/kernels/spark/spark.metal)
+struct SparkGu {
+  uint32_t n, ld;
+};
+
+struct SparkPrep {  // spark_attn_prep: RoPE + the q|gate packing + the cache append
+  uint32_t T, Hq, Hkv, D, rot, pos, max_seq, g_ld;
+  float theta;
+  uint32_t slot_mask;  // 0 for a full-attention layer, else window - 1 (ring slot = position & slot_mask)
+};
+
 struct AttnPref {
   uint32_t T, Hq, Hkv, pos0, max_seq;
   float scale;
