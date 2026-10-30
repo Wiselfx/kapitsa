@@ -270,8 +270,14 @@ void Spark::load(int chunk) {
 }
 
 void Spark::check_shapes() const {
+  // Both published models are head_dim 256 with G = Hq/Hkv = 4 (1.7B 8/2, 4B 16/4), and the shared decode kernels are
+  // written for that shape: kHD is a compile-time 256, and attn_decode_partial puts one of the G query heads in each of
+  // its four simdgroups. A future variant with a different head dim or group count needs its own attention kernel, so
+  // refuse it clearly here instead of computing something wrong.
   if (cfg_.head_dim != 256) fatal("head_dim %d: the attention kernels take 256", cfg_.head_dim);
-  if (cfg_.group() != 4) fatal("%d query heads per KV head: written for 4", cfg_.group());
+  if (cfg_.group() != 4)
+    fatal("%d query heads per KV head (Hq %d / Hkv %d): the decode kernel is written for 4", cfg_.group(), cfg_.hq,
+          cfg_.hkv);
   for (int i = 0; i < cfg_.layers; ++i) {
     const SparkLayer& L = layers_[size_t(i)];
     if (L.qkv.N != uint32_t(cfg_.qkv_dim()) || L.qkv.K != uint32_t(cfg_.hidden))
