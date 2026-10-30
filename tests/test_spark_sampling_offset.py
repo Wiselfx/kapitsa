@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A decode step at position `pos` must write its sampled token at `pos + 1`.
+"""Two conventions no CPU test here would otherwise catch: where a sampled token goes, and what down_proj reads.
 
 This is the bug that made Spark reply with one token repeated forever. Spark::encode_step called
 `enc_sample(..., pos, ...)`, which is `tokens[out_index] = chosen` (sample.metal) -- so each step overwrote the token it
@@ -22,6 +22,29 @@ def check(ok, what):
     print(("ok   " if ok else "FAIL ") + what)
     if not ok:
         fails.append(what)
+
+
+
+def check_mlp_inputs():
+    """gate/up read x_ (and normalize it); down_proj must read the gate*up activation, not the residual.
+
+    Spark::enc_mlp's inner matvec lambda hard-coded buffer 3 to x_ for all three projections, so down_proj multiplied
+    the residual and the GELU output was never used -- every layer's MLP degenerated to a linear map with no activation.
+    The result was fluent-looking nonsense (garbled tokens in several scripts), not a crash, so nothing caught it.
+    """
+    spark = (ROOT / "src/model/spark.cpp").read_text()
+    body = re.search(r"void Spark::enc_mlp\(.*?\n\}", spark, re.S)
+    check(body is not None, "Spark::enc_mlp found")
+    if not body:
+        return
+    b = body.group(0)
+    calls = re.findall(r"matvec\((L\.m[gud]),\s*([A-Za-z0-9_]+),", b)
+    check(len(calls) == 3, "enc_mlp issues three matvecs (found %d: %s)" % (len(calls), calls))
+    inputs = dict(calls)
+    check(inputs.get("L.mg") == "x_", "gate_proj reads x_ (got %s)" % inputs.get("L.mg"))
+    check(inputs.get("L.mu") == "x_", "up_proj reads x_ (got %s)" % inputs.get("L.mu"))
+    check(inputs.get("L.md") == "mh_", "down_proj reads mh_, the gate*up activation (got %s)" % inputs.get("L.md"))
+    check("mh_" in b, "the GELU's output buffer (mh_) is written")
 
 
 def main():
@@ -62,6 +85,8 @@ def main():
         guard = re.search(r"if \(pos \+ (\d) > s\.cap", body.group(0))
         check(guard is not None and guard.group(1) == "2",
               "Spark::encode_step's capacity guard allows the pos + 1 slot it writes (if (pos + 2 > s.cap))")
+
+    check_mlp_inputs()
 
     print()
     if fails:

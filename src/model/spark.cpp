@@ -602,7 +602,11 @@ void Spark::enc_head(Encoder& e, const Buffer& x, const Buffer& out) {
 void Spark::enc_mlp(Encoder& e, const SparkLayer& L) {
   // gate and up with the post-attention norm folded in (the norm is folded into the matvec, not applied separately),
   // exact-GELU(gate) * up folded by Spark's own epilogue, then down added into x_ as the residual.
-  auto matvec = [&](const SparkLinear& W, const Buffer& y, const Tensor* norm, const Buffer* resid) {
+  // `in` is the matvec's input row: x_ for gate/up (which normalize it on the fly), mh_ for down_proj (the GELU's
+  // output). It was hard-coded to x_ for all three, so down_proj multiplied the *residual* instead of the activation --
+  // every layer's MLP was then a linear map of x with no gate or activation in it at all, which produces fluent-looking
+  // nonsense.
+  auto matvec = [&](const SparkLinear& W, const Buffer& in, const Buffer& y, const Tensor* norm, const Buffer* resid) {
     const Matvec m = matvec_pipe(W, norm != nullptr, resid != nullptr);
     const uint32_t rows = m.rows, nsg = m.nsg;
     e.use(m.p);
@@ -610,7 +614,7 @@ void Spark::enc_mlp(Encoder& e, const SparkLayer& L) {
     e.buf(0, W.w->buf);
     e.buf(1, W.s->buf);
     e.buf(2, W.b->buf);
-    e.buf(3, x_);
+    e.buf(3, in);
     e.buf(4, y);
     e.val(5, p);
     // The _norm variants of qmv2/qmv3/qmvg take the RMSNorm weight in buffer 7 and normalize x on the fly
@@ -623,8 +627,8 @@ void Spark::enc_mlp(Encoder& e, const SparkLayer& L) {
   };
 
   Buffer g = gu_, u = gu_.view(size_t(cfg_.ffn) * sizeof(float), size_t(cfg_.ffn) * sizeof(float));
-  matvec(L.mg, g, L.post_norm, nullptr);
-  matvec(L.mu, u, L.post_norm, nullptr);
+  matvec(L.mg, x_, g, L.post_norm, nullptr);
+  matvec(L.mu, x_, u, L.post_norm, nullptr);
   {
     kp::SparkGu gp{uint32_t(cfg_.ffn), uint32_t(cfg_.ffn)};
     e.use(pipe("spark_gelu_gu"));
@@ -634,7 +638,7 @@ void Spark::enc_mlp(Encoder& e, const SparkLayer& L) {
     e.val(3, gp);
     e.dispatch((uint32_t(cfg_.ffn) + 255) / 256, 1, 1, 256);
   }
-  matvec(L.md, x_, nullptr, &x_);
+  matvec(L.md, mh_, x_, nullptr, &x_);  // down_proj(act * up), added into the residual
 }
 
 void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {

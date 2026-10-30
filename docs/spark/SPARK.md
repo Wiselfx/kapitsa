@@ -599,6 +599,29 @@ lesson from §12c–§12g repeated: the bug is in the seam between my code and s
 exactly where a diff against the sibling implementation is cheapest. Both of the last two defects -- this and the
 `std::vector` in §12g -- were a single token of difference from Qwen35.
 
+## 12i. Garbled output: down_proj multiplied the residual
+
+After the sampling fix the model produced varied but meaningless text -- fluent-looking token soup in a mix of scripts,
+reproducible, the same for a given prompt. Varied output ruled out the previous bug and pointed at the arithmetic.
+
+The cause was in `enc_mlp`. Its inner `matvec` lambda took `(W, y, norm, resid)` and bound buffer 3 to `x_`
+unconditionally; buffer 3 is the matvec's *input row*. That is right for gate_proj and up_proj, which read the residual
+and normalize it on the fly, and wrong for down_proj, which must read `mh_` -- the `gelu(gate) * up` output. So every
+layer computed `down_proj(x)` instead of `down_proj(act * up)`: **the entire MLP had no activation in it and did not
+depend on gate or up at all.** A linear map per layer, applied to the residual.
+
+The lambda's signature is what hid it: three call sites, four parameters, and the buffer that differed was the one not
+in the parameter list. `matvec` now takes the input explicitly (`matvec(L.mg, x_, g, ...)`, `matvec(L.md, mh_, x_, ...)`),
+so the call site states what it reads.
+
+`tests/test_spark_sampling_offset.py` (renamed in spirit: it now guards conventions rather than just the offset) checks
+that gate and up read `x_` and down reads `mh_`, and fails if down goes back to `x_`.
+
+**The pattern, one more time.** §12g, §12h and §12i were all the same failure: a line that resembles the sibling
+implementation closely enough to pass review, differing in exactly the thing that matters -- a container type, `pos`
+versus `pos + 1`, and here a buffer that was implicit. Nothing in a CPU test can see any of them; all three were found
+only because the model's actual output was nonsense on a Mac.
+
 ## 13. QA pass (2026-10-29) — what it found, and what it cost
 
 **Ten defects, in four batches.** They are recorded in the order found, because the order is the interesting part: each
