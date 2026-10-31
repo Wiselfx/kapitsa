@@ -1156,3 +1156,34 @@ Order of work: the regrow-stride fix above (correctness), then the 4-bit weight 
 q8_0 KV (memory and the long-context slope). Speculative decoding is fourth: Spark has no MTP head, so it needs a
 separate 1.7B drafter or prompt-lookup, and at 42k both paths still read the same KV unless the draft is verified in a
 batch.
+
+## 20. 4-bit 1.7B endpoint: chunk 2048 vs 4096
+
+`v0.2.37-test1`, the 1.7B 4-bit pack (`mlx_model` on the test Mac), one slot, greedy, `max_tokens` 160. Same prompts
+and the same access-code needle as §18. Decode is `(wall - prefill_ms) / completion_tokens`.
+
+| prompt tokens | chunk | prefill ms | prefill tok/s | decode tok/s |
+|---:|---:|---:|---:|---:|
+| 4,355 | 2048 | 2,890 | 1,509 | 134.3 |
+| 4,355 | 4096 | 2,780 | 1,564 | 132.1 |
+| 19,675 | 2048 | 14,960 | 1,315 | 111.9 |
+| 19,675 | 4096 | 14,760 | 1,333 | 109.4 |
+| 40,951 | 2048 | 37,670 | 1,087 | 89.8 |
+| 40,951 | 4096 | 37,640 | 1,088 | 89.6 |
+| 68,185 | 2048 | 78,270 | 871 | 68.8 |
+| 68,185 | 4096 | 77,510 | 880 | 71.6 |
+
+Chunk 4096 is within noise of 2048 (largest difference +3.6% at 4.3k, +1% at 68k). That is the expected result for a
+dense model: a wider chunk does not reduce the projection FLOPs or the weight bytes, it only removes repeated attention
+over the prefix (the §18 estimate: ~8% of the causal pair count at T = 25k). The extra activation and ring memory is not
+worth it; keep 2048. The prefill lever is the 4-bit GEMM/dequant path, not the chunk.
+
+The 4-bit pack is a decode win, not a prefill win. Against §18's bf16 numbers the decode is ~1.6-1.8x (134 vs 74 tok/s
+short, 90 vs 56 at ~42k), while prefill is lower at comparable lengths (1,315 vs 1,661 at ~20k; 1,087 vs 1,313 at
+~42k). Those runs are not a controlled A/B (different builds and sessions), but there is no sign that 4-bit weights
+speed up the GEMM-bound prefill, and the dequant work is a plausible cost.
+
+The 68k needle (code at the start of a 68,185-token prompt) was recalled. Multi-turn runs crossing the initial
+1024-token cache allocation (1,329 and 8,633 prompt tokens, with the first turn's code retained) also recalled it; the
+second turn's prefill reused the prefix (~0.49 s for the 1.3k case, 5.36 s for the 8.6k case) rather than re-reading the
+first turn. That exercises the fixed regrow path on the GPU, not only the host-side test.
