@@ -170,7 +170,7 @@ static int moe_qmr() {
 // simdgroup qrm kernels. On where the tensor units are usable (the M5 family on macOS 26, the same condition as the
 // dense NI_QMT path) and the model keeps the 35B's shapes (below): 4K prefill 2,135 -> 1,574 ms and 16K 10,810 ->
 // 8,570 ms on the M5 Pro. `NI_MOE_QTM=0` keeps the qrm path; every other Mac defaults to qrm.
-static bool qmt_on();
+// qmt_on is declared in qwen35.h: Spark shares the same gate rather than keeping a second reading of it.
 // NI_QMT6 (read once; default on where the dense NI_QMT path is): the 6-bit group-64 dense weights' prefill GEMMs
 // at M >= 64 on tensor_ops (qmt6_m64_n64, qmt.metal's tile with qrf_f6g64's exact weight decode) instead of
 // qrf_f6g64_m32_n128.

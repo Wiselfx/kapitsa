@@ -35,6 +35,7 @@ if [ ${#files[@]} -eq 0 ]; then
   files=(
     "src/model/spark_config.cpp"
     "src/model/spark.cpp"
+    "src/model/qwen35.cpp"  # shares qmt_on/qmm_on with Spark; a conflicting static here is a real build break
     "src/engine/engine.cpp"
     "src/engine/engine_disk.cpp"  # the SSD prefix cache, where Spark's disk_format/disk_rows/disk_state are checked
     "tools/spark_config_test.cpp"
