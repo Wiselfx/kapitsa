@@ -37,9 +37,11 @@ modulo rule when absent — mirror that fallback).
 
 - Full layers only: 1.7B **14,336 B/position**, 4B **36,864 B/position**. At 1M positions that is 14 GB / 36 GB, so a
   long context still needs the full layers capped, but it is far cheaper than an all-full model.
-- Sliding layers need only a **512-slot ring each**: 1.7B **22.0 MB** total, 4B **56.6 MB** total — fixed, independent
-  of context length. A naive implementation that gives sliding layers a `cap`-sized cache throws away the whole
-  advantage of the architecture.
+- Sliding layers need only a **window + prefill-chunk ring each** (4096 slots at the default 2048-row chunk): 1.7B
+  **176.2 MB** total, 4B **453.0 MB** total — fixed, independent of context length. The chunk term is required: a
+  prefill pass writes all T rows before attention reads them, so a bare 512-slot ring would overwrite the first query's
+  oldest keys. A naive implementation that gives sliding layers a `cap`-sized cache throws away the whole advantage of
+  the architecture.
 
 ## Forward pass, exactly as the reference does it
 

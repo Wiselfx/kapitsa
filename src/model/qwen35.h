@@ -78,6 +78,9 @@ bool qmt6_on();
 // all (enc_qmm_large's q.on). Exported for Qwen4Exp's NI_HC_FUSE mix fold, whose host gate must match the
 // tensor-tile branch it replaces exactly.
 bool qmm_on();
+// Whether Metal 4 tensor_ops dense GEMMs (qmt_m64_n64 and the g32 form) are available: NI_QMT, Apple10
+// and macOS 26. Spark's prefill uses the same gate as Qwen35, so it is exported here rather than duplicated.
+bool qmt_on();
 
 struct Qwen35Config {
   int hidden = 0, layers = 0, vocab = 0;

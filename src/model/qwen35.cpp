@@ -2473,7 +2473,7 @@ static Pipeline pipe(const std::string& n) {
 // NI_QMT (read once; default on, 0 = off): the dense 4-bit prefill GEMMs (M >= 64, group 64) on Metal 4's tensor_ops
 // (qmt.metal: the M5's matrix units; bench_qmm on the M5 Pro, 2048-row chunks of Qwen3.5-4B's projections: 21-23
 // TFLOP/s against qmr's 7.4-7.6, the fused gate/up 22.8 against 7.5). Needs macOS 26 and an Apple10 GPU.
-static bool qmt_on() {
+bool qmt_on() {
   static const bool on = [] {
     if (env_int("NI_QMT", 1) == 0) return false;
     if (Gpu::get().apple_family() < 10) return false;

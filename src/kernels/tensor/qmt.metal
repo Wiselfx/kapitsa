@@ -20,11 +20,14 @@ struct QmtRaw {
   float s, b;
 };
 // (rows of wld words / sld scale groups: K / 8 and K / 64 but for a view of the leading K columns, qmt_m64_n64_ld)
+template <int GS>
 NI_INLINE QmtRaw qmt_raw(const device uint* W, const device bfloat* S, const device bfloat* B, uint wld, uint sld,
                          uint n, uint k) {
   QmtRaw r;
   r.w = *(const device uint2*)(W + size_t(n) * wld + k / 8);
-  const size_t g = size_t(n) * sld + k / 64;
+  // k is a multiple of 16 and GS is 32 or 64, so one 16-code chunk never crosses a group boundary:
+  // for GS 32, k = 16 covers 16..31 (group 0) and k = 48 covers 48..63 (group 1).
+  const size_t g = size_t(n) * sld + k / GS;
   r.s = float(S[g]);
   r.b = float(B[g]);
   return r;
@@ -44,7 +47,7 @@ NI_INLINE void qmt_dec(const QmtRaw r, threadgroup half* dst) {
 // NP = 1: Y; NP = 2: gate / up fused: the tile's first BN / 2 weight rows are gate rows n0h.., the next BN / 2 the up
 // rows of the same columns; simdgroup column 0 holds the gate products, column 1 the up products of the same
 // (row, column) elements (same op shape, same element index), and H = silu(g) * u as half comes out of column 0.
-template <int NP, int BM, int BN, int BK>
+template <int NP, int BM, int BN, int BK, int GS>
 NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W, const device bfloat* const thread* S,
                         const device bfloat* const thread* B, device void* Y, constant QmtParams& p, uint m0, uint n0,
                         uint tid, uint sg, threadgroup half* xs, threadgroup half* ws, uint wld, uint sld) {
@@ -91,7 +94,7 @@ NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W
     _Pragma("clang loop unroll(full)")
     for (int i = 0; i < WP; ++i) {
       const int q = NP == 2 && wr[i] >= BN / 2 ? 1 : 0;
-      wv[i] = qmt_raw(W[q], S[q], B[q], wld, sld, wn[i], k0 + wk[i]);
+      wv[i] = qmt_raw<GS>(W[q], S[q], B[q], wld, sld, wn[i], k0 + wk[i]);
     }
   };
   auto store = [&](uint b) {
@@ -143,7 +146,7 @@ NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W
   }
 }
 
-#define NI_QMT(NAME, BM, BN, BK)                                                                                   \
+#define NI_QMT(NAME, BM, BN, BK, GS)                                                                               \
   [[kernel, max_total_threads_per_threadgroup(128)]] void NAME(                                                    \
       const device half* X [[buffer(0)]], const device uint* Wd [[buffer(1)]], const device bfloat* Sd [[buffer(2)]], \
       const device bfloat* Bd [[buffer(3)]], device float* Y [[buffer(4)]], constant QmtParams& p [[buffer(5)]], \
@@ -154,11 +157,11 @@ NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W
     const device uint* W[1] = {Wd};                                                                                \
     const device bfloat* S[1] = {Sd};                                                                              \
     const device bfloat* B[1] = {Bd};                                                                              \
-    qmt_tile<1, BM, BN, BK>(X, W, S, B, Y, p, tg.y * BM, tg.x * BN,                                                \
-        tid, sg, xs, ws, p.K / 8, p.K / 64);                                                                       \
+    qmt_tile<1, BM, BN, BK, GS>(X, W, S, B, Y, p, tg.y * BM, tg.x * BN,                                            \
+        tid, sg, xs, ws, p.K / 8, p.K / GS);                                                                       \
   }
 
-#define NI_QMTG(NAME, BM, BN, BK)                                                                                  \
+#define NI_QMTG(NAME, BM, BN, BK, GS)                                                                               \
   [[kernel, max_total_threads_per_threadgroup(128)]] void NAME(                                                    \
       const device half* X [[buffer(0)]], const device uint* Wg [[buffer(1)]], const device bfloat* Sg [[buffer(2)]], \
       const device bfloat* Bg [[buffer(3)]], device half* H [[buffer(4)]], constant QmtParams& p [[buffer(5)]],   \
@@ -170,15 +173,19 @@ NI_INLINE void qmt_tile(const device half* X, const device uint* const thread* W
     const device uint* W[2] = {Wg, Wu};                                                                            \
     const device bfloat* S[2] = {Sg, Su};                                                                          \
     const device bfloat* B[2] = {Bg, Bu};                                                                          \
-    qmt_tile<2, BM, BN, BK>(X, W, S, B, H, p, tg.y * BM, tg.x * (BN / 2),                                          \
-        tid, sg, xs, ws, p.K / 8, p.K / 64);                                                                       \
+    qmt_tile<2, BM, BN, BK, GS>(X, W, S, B, H, p, tg.y * BM, tg.x * (BN / 2),                                      \
+        tid, sg, xs, ws, p.K / 8, p.K / GS);                                                                       \
   }
 
 // Only the 64x64 tile is dispatched (src/model/qwen35.cpp); the wider and M-split shapes the tile experiments tried
 // are not instantiated. To sweep one of them again, add its line here: tools/bench_qmm.cpp finds kernels by name in
 // this source, so an absent line is an absent kernel ("kernel %s not found"), not a slower path.
-NI_QMT(qmt_m64_n64, 64, 64, 32)
-NI_QMTG(qmtg_m64_n64, 64, 64, 32)
+// _g32 is Spark-MLX-LLM's INT4 group-32 conversion (Spark::qrf_proj/enc_mlp_prefill select it); the
+// dequant load is the same 16 codes per scale, because 16-value chunks never cross a 32-value group.
+NI_QMT(qmt_m64_n64, 64, 64, 32, 64)
+NI_QMTG(qmtg_m64_n64, 64, 64, 32, 64)
+NI_QMT(qmt_m64_n64_g32, 64, 64, 32, 32)
+NI_QMTG(qmtg_m64_n64_g32, 64, 64, 32, 32)
 
 // qmt_m64_n64 over a view: the leading K columns of rows w_ld words / s_ld scale groups long (QmmLdParams, as
 // qmm_b4_m64_n64_ld): the GPU's share of the down projection in the Neural Engine split (NI_ANE).
@@ -196,5 +203,5 @@ struct QmtLdParams {
   const device uint* W[1] = {Wd};
   const device bfloat* S[1] = {Sd};
   const device bfloat* B[1] = {Bd};
-  qmt_tile<1, 64, 64, 32>(X, W, S, B, Y, pl.q, tg.y * 64, tg.x * 64, tid, sg, xs, ws, pl.w_ld, pl.s_ld);
+  qmt_tile<1, 64, 64, 32, 64>(X, W, S, B, Y, pl.q, tg.y * 64, tg.x * 64, tid, sg, xs, ws, pl.w_ld, pl.s_ld);
 }

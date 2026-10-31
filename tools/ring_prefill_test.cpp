@@ -16,10 +16,15 @@ static unsigned slot_of(unsigned pos, unsigned slot_mask) { return slot_mask ? (
 static unsigned kstart_of(unsigned kend, unsigned window) {
   return window && kend > window ? kend - window : 0u;
 }
-// The keys query `qpos` sees, as the kernel computes them: tiles from kstart/32 to kend/32, each key masked by
-// `key <= qpos` (causal) and `key >= kstart` (ring floor).
-static std::vector<unsigned> kernel_keys(unsigned qpos, unsigned kend, unsigned window, unsigned slot_mask) {
-  const unsigned kstart = kstart_of(kend, window);
+// The keys query `qpos` sees, as the kernels compute them. The loop starts at the block's *first*
+// query's window floor (`qfirst`, not the block's last key), and each row masks its own floor
+// (`qpos + 1 - window`). The ring holds window + a whole prefill chunk, so those keys are present.
+// `ring` is the cache's slot count (0 = linear), and slots are `key & (ring - 1)`.
+static std::vector<unsigned> kernel_keys(unsigned qpos, unsigned kend, unsigned qfirst, unsigned window,
+                                         unsigned ring) {
+  const unsigned kstart = kstart_of(qfirst + 1, window);  // earliest row's live floor
+  const unsigned qfloor = kstart_of(qpos + 1, window);    // this row's live floor
+  const unsigned mask = ring ? ring - 1 : 0;
   const unsigned ntiles = (kend + 31) / 32;
   std::vector<unsigned> out;
   for (unsigned it = kstart / 32; it < ntiles; ++it) {
@@ -27,35 +32,47 @@ static std::vector<unsigned> kernel_keys(unsigned qpos, unsigned kend, unsigned 
     for (unsigned r = 0; r < 32; ++r) {
       const unsigned key = k0 + r;
       if (key >= kend) continue;
-      if (key > qpos) continue;                                  // causal
-      if (k0 < kstart && key < kstart) continue;                 // ring floor
-      out.push_back(slot_of(key, slot_mask));                    // the slot it is read from
+      if (key > qpos) continue;                    // causal
+      if (key < kstart) continue;                  // tile rounded below the block floor
+      if (key < qfloor) continue;                  // this row's own window floor
+      out.push_back(slot_of(key, mask));           // the slot it is read from
     }
   }
   return out;
 }
 // What the reference model attends to: every position in [max(0, qpos+1-window), qpos] for a sliding layer, held in a
-// ring of `window` slots. The slot is computed here as an explicit modulo rather than through slot_of -- when this
+// ring of `ring` slots. The slot is computed here as an explicit modulo rather than through slot_of -- when this
 // called slot_of instead, mutating slot_of to `return pos` broke both sides together and the comparison passed
 // vacuously, which is exactly the bug the check exists to catch.
-static std::vector<unsigned> ref_keys(unsigned qpos, unsigned window, unsigned slot_mask) {
-  (void)slot_mask;
+static std::vector<unsigned> ref_keys(unsigned qpos, unsigned window, unsigned ring) {
   const unsigned lo = qpos + 1 > window ? qpos + 1 - window : 0u;
   std::vector<unsigned> out;
-  for (unsigned p = lo; p <= qpos; ++p) out.push_back(window ? (p % window) : p);
+  for (unsigned p = lo; p <= qpos; ++p) out.push_back(ring ? (p % ring) : p);
   return out;
 }
 
 static int fails = 0;
-static void check(bool ok, const char* what, unsigned qpos, unsigned window, unsigned slot_mask) {
+static void check(bool ok, const char* what, unsigned qpos, unsigned window, unsigned ring) {
   if (ok) return;
-  if (++fails <= 10) printf("FAIL %s (qpos %u, window %u, slot_mask %u)\n", what, qpos, window, slot_mask);
+  if (++fails <= 10) printf("FAIL %s (qpos %u, window %u, ring %u)\n", what, qpos, window, ring);
+}
+static unsigned ring_rows(unsigned window, unsigned chunk) {
+  unsigned r = 1;
+  while (r < window + chunk) r <<= 1;
+  return r;
+}
+static void compare(unsigned qpos, unsigned kend, unsigned qfirst, unsigned window, unsigned ring, const char* what) {
+  auto got = kernel_keys(qpos, kend, qfirst, window, ring);
+  auto want = ref_keys(qpos, window, ring);
+  std::sort(got.begin(), got.end());
+  std::sort(want.begin(), want.end());
+  check(got == want, what, qpos, window, ring);
 }
 
 int main() {
   // A linear cache (every model but Spark) must be bit-identical to the pre-change behaviour: no floor, slot == pos.
   for (unsigned qpos = 0; qpos < 200; ++qpos) {
-    auto k = kernel_keys(qpos, qpos + 1, /*window=*/0, /*slot_mask=*/0);
+    auto k = kernel_keys(qpos, qpos + 1, qpos, /*window=*/0, /*ring=*/0);
     if (k.size() != qpos + 1) {
       printf("FAIL linear: qpos %u saw %zu keys, expected %u\n", qpos, k.size(), qpos + 1);
       ++fails;
@@ -65,57 +82,66 @@ int main() {
       if (k[i] != i) { printf("FAIL linear: qpos %u key %u read slot %u\n", qpos, i, k[i]); ++fails; break; }
   }
 
-  // A ring: the set of slots read must equal the set the reference attends to, for every position across several laps.
+  constexpr unsigned chunk = 2048;  // Spark's default prefill_chunk
+  // A ring: the set of slots read must equal the set the reference attends to, over several laps.
   for (unsigned window : {512u, 1024u}) {
-    const unsigned mask = window - 1;
-    for (unsigned qpos = 0; qpos < 5 * window + 37; ++qpos) {
-      auto got = kernel_keys(qpos, qpos + 1, window, mask);
-      auto want = ref_keys(qpos, window, mask);
-      std::sort(got.begin(), got.end());
-      std::sort(want.begin(), want.end());
-      check(got == want, "ring key set", qpos, window, mask);
+    const unsigned ring = ring_rows(window, chunk);
+    for (unsigned qpos = 0; qpos < 3 * ring + 37; ++qpos) compare(qpos, qpos + 1, qpos, window, ring, "ring key set");
+  }
+
+  // A prefill pass: the whole chunk is written before attention, so the block's floor is its FIRST
+  // query's window; each row's own floor is masked separately. Check samples from start to end of T.
+  for (unsigned window : {512u, 1024u}) {
+    const unsigned ring = ring_rows(window, chunk);
+    for (unsigned pos0 = 0; pos0 < 3 * ring; pos0 += 137) {
+      const unsigned qs[] = {pos0, pos0 + 1, pos0 + 31, pos0 + 32, pos0 + chunk / 2, pos0 + chunk - 1};
+      for (unsigned qpos : qs) compare(qpos, pos0 + chunk, pos0, window, ring, "prefill query");
+      // The old code started at the last key's floor; show that this skips a key the first query needs.
+      if (pos0 > window) {
+        const unsigned old_start = kstart_of(pos0 + chunk, window);
+        const unsigned need = kstart_of(pos0 + 1, window);
+        check(need < old_start, "block-last floor would skip the first query's oldest key", pos0, window, ring);
+      }
     }
   }
 
-  // A prefill pass: several queries at once, the last of which sets kend. Each query's set must still be its own.
-  for (unsigned window : {512u, 1024u}) {
-    const unsigned mask = window - 1;
-    for (unsigned pos0 = 0; pos0 < 3 * window; pos0 += 37) {
-      const unsigned T = 32;
-      const unsigned qpos = pos0 + T - 1;
-      auto got = kernel_keys(qpos, qpos + 1, window, mask);
-      auto want = ref_keys(qpos, window, mask);
-      std::sort(got.begin(), got.end());
-      std::sort(want.begin(), want.end());
-      check(got == want, "prefill last query", qpos, window, mask);
-    }
-  }
-
-  // A key must never be read from a slot holding a different lap's key: for a ring of `window` slots holding `window`
-  // live keys, the slots read must be exactly the whole ring, with no repeats.
+  // The boundary a ring of exactly `window` slots got wrong: the first query of a full chunk at pos0
+  // = window sees keys [1, pos0], but the chunk's last key overwrote them. With window + chunk slots
+  // they are present and the per-query floor keeps them.
   {
-    const unsigned window = 512, mask = window - 1;
-    for (unsigned qpos = window - 1; qpos < 3 * window; ++qpos) {
-      auto got = kernel_keys(qpos, qpos + 1, window, mask);
+    const unsigned window = 512, ring = ring_rows(window, chunk), pos0 = window;
+    for (unsigned q = pos0; q < pos0 + chunk; ++q) compare(q, pos0 + chunk, pos0, window, ring, "full-chunk query");
+  }
+
+  // A key must never be read from a slot holding a different lap's key: for a ring holding `window`
+  // live keys, the slots read must be exactly the live window, with no repeats.
+  {
+    const unsigned window = 512, ring = ring_rows(window, chunk);
+    for (unsigned qpos = window - 1; qpos < 2 * ring; qpos += 17) {
+      auto got = kernel_keys(qpos, qpos + 1, qpos, window, ring);
       std::sort(got.begin(), got.end());
       const bool distinct = std::adjacent_find(got.begin(), got.end()) == got.end();
-      check(got.size() == window && distinct, "ring covers each slot once", qpos, window, mask);
+      check(got.size() == window && distinct, "ring covers each live key once", qpos, window, ring);
     }
   }
 
   // The config facts the whole scheme rests on (spark_config.cpp validates them too, but the kernel has no access):
-  // a power-of-two window makes & the modulus, and a multiple of the 32-key tile means at most one tile straddles the
-  // ring floor, which is the only reason the floor mask can be per tile.
+  // the ring is a power of two and holds window + a whole chunk; window is a multiple of the 32-key tile.
   for (unsigned w : {512u, 1024u}) {
-    const bool pow2 = (w & (w - 1)) == 0;
+    const unsigned ring = ring_rows(w, chunk);
+    const bool pow2 = (ring & (ring - 1)) == 0;
+    const bool holds_chunk = ring >= w + chunk;
     const bool tile_aligned = w % 32 == 0;
-    if (!pow2 || !tile_aligned) printf("FAIL window %u: pow2 %d, 32-aligned %d\n", w, pow2, tile_aligned), ++fails;
+    if (!pow2 || !holds_chunk || !tile_aligned)
+      printf("FAIL window %u: ring %u pow2 %d holds-chunk %d, 32-aligned %d\n", w, ring, pow2, holds_chunk,
+             tile_aligned),
+          ++fails;
   }
 
   if (fails) {
     printf("ring_prefill: %d failure(s)\n", fails);
     return 1;
   }
-  printf("ring_prefill: ok (linear identity, ring key sets over 5 laps, per-query prefill sets, one slot per key)\n");
+  printf("ring_prefill: ok (linear identity, ring sets over laps, per-query chunk sets, one slot per key)\n");
   return 0;
 }

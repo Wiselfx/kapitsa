@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "")
 project(nace_infer LANGUAGES C CXX OBJCXX)
 
-set(KAPITSA_VERSION "0.2.35")
+set(KAPITSA_VERSION "0.2.36")
 if(NOT DEFINED KAPITSA_GIT)  # packaging/release/build.sh passes the commit it exported
   execute_process(COMMAND git -C ${CMAKE_SOURCE_DIR} rev-parse --short HEAD OUTPUT_VARIABLE KAPITSA_GIT
                   OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
@@ -169,6 +169,10 @@ set_tests_properties(ring_slot_test PROPERTIES TIMEOUT 30)
 # must select exactly the keys the reference model attends to, over several laps of the ring.
 add_test(NAME ring_prefill_test COMMAND ring_prefill_test)
 set_tests_properties(ring_prefill_test PROPERTIES TIMEOUT 60)
+# Cross-file NI_INLINE helper arities (no Metal compiler needed): the kernel libraries are one translation unit each,
+# so a helper signature change in attn.metal can break verify8.metal -- a Mac-only compile error no C++ test sees.
+add_test(NAME metal_shared_helpers COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/test_metal_shared_helpers.py)
+set_tests_properties(metal_shared_helpers PROPERTIES TIMEOUT 60)
 add_test(NAME execution_session_test COMMAND execution_session_test)
 set_tests_properties(execution_session_test PROPERTIES TIMEOUT 30)
 

@@ -19,8 +19,8 @@ struct QaParams {  // = AttnPrefParams
 };
 
 // The slot an absolute key position occupies: its position for a cache that only appends, and p & slot_mask for a
-// sliding layer's ring. Mirrors attn.metal's attn11_slot, because both prefill paths have to agree on which keys a
-// sliding layer holds.
+// sliding layer's ring. Mirrors the slot math in attn.metal's attn11_fetch_{k,v}_at, because both prefill paths have
+// to agree on which keys a sliding layer holds.
 NI_INLINE uint qattn_slot(uint pos, constant QaParams& p) { return p.slot_mask ? (pos & p.slot_mask) : pos; }
 
 // The oldest key a ring still holds: position 0 for a linear cache, kend - window for a ring.
@@ -63,6 +63,10 @@ NI_INLINE void qattn_t_impl(const device float* q, const device half* kc, const 
     lim[i] = p.pos0 + min(tk[i], p.T - 1);
   }
   const uint first = p.pos0 + t0;                    // the block's first token: its limit
+  // Per-row window floors: the block's first token sets the loop start, each row masks its own window.
+  uint qlo[2];
+  _Pragma("clang loop unroll(full)")
+  for (short i = 0; i < 2; ++i) qlo[i] = qattn_kstart(lim[i] + 1, p);
     nhf_h8 qf[D / 16];
   _Pragma("clang loop unroll(full)")
   for (short id = 0; id < D / 16; ++id)
@@ -80,7 +84,9 @@ NI_INLINE void qattn_t_impl(const device float* q, const device half* kc, const 
   float m[2] = {-1e30f, -1e30f}, l[2] = {0.0f, 0.0f};
   const device half* kb = kc + size_t(kvh) * p.max_seq * D;
   const device half* vb = vc + size_t(kvh) * p.max_seq * D;
-  for (uint k0 = qattn_kstart(tgl + 1, p) / BK * BK; k0 <= tgl; k0 += BK) {
+  // The ring holds window + a prefill chunk, so the first query's oldest keys are still present even
+  // though the whole block was written ahead of this read. Start there, not at the block's last key.
+  for (uint k0 = qattn_kstart(first + 1, p) / BK * BK; k0 <= tgl; k0 += BK) {
     threadgroup_barrier(mem_flags::mem_threadgroup);   // the previous step is done with the tiles
     for (uint i = tid; i < BK * 32; i += 32 * NS) {   // BK rows x 32 half8
       const uint r = i >> 5, c = (i & 31) * 8;
@@ -111,8 +117,10 @@ NI_INLINE void qattn_t_impl(const device float* q, const device half* kc, const 
       for (short f = 0; f < KT; ++f)
         _Pragma("clang loop unroll(full)")
         for (short j = 0; j < 4; ++j) {
+          const uint key = k0 + 16 * f + fn + j;
           float v = sf[f][4 * i + j] * M_LOG2E_F;
-          if (diag && k0 + 16 * f + fn + j > lim[i]) v = -1e30f;
+          if (diag && key > lim[i]) v = -1e30f;
+          if (qlo[i] && key < qlo[i]) v = -1e30f;
           sf[f][4 * i + j] = v;
           mx = max(mx, v);
         }
@@ -215,6 +223,10 @@ NI_INLINE void qattn_t_d2_impl(const device float* q, const device half* kc, con
     lim[i] = p.pos0 + min(tk[i], p.T - 1);
   }
   const uint first = p.pos0 + t0;
+  // The block floor is the first token's window; each row masks its own (they differ by a few tokens).
+  uint qlo[2];
+  _Pragma("clang loop unroll(full)")
+  for (short i = 0; i < 2; ++i) qlo[i] = qattn_kstart(lim[i] + 1, p);
   nhf_h8 qf[DH / 16];
   _Pragma("clang loop unroll(full)")
   for (short id = 0; id < DH / 16; ++id)
@@ -234,7 +246,8 @@ NI_INLINE void qattn_t_d2_impl(const device float* q, const device half* kc, con
   const device half* vb = vc + size_t(kvh) * p.max_seq * D;
   threadgroup float4* xme = (threadgroup float4*)(xs + sg * 256) + lane * 2;
   const threadgroup float4* xpa = (const threadgroup float4*)(xs + (sg ^ 1) * 256) + lane * 2;
-  for (uint k0 = qattn_kstart(tgl + 1, p) / BK * BK; k0 <= tgl; k0 += BK) {
+  // window + a prefill chunk is live: start at the earliest query's floor, not the block's last key.
+  for (uint k0 = qattn_kstart(first + 1, p) / BK * BK; k0 <= tgl; k0 += BK) {
     threadgroup_barrier(mem_flags::mem_threadgroup);
     for (uint i = tid; i < BK * 32; i += 32 * NS) {
       const uint r = i >> 5, c = (i & 31) * 8;
@@ -266,8 +279,10 @@ NI_INLINE void qattn_t_d2_impl(const device float* q, const device half* kc, con
       float mx = -1e30f;
       _Pragma("clang loop unroll(full)")
       for (short j = 0; j < 4; ++j) {
+        const uint key = k0 + fn + j;
         float v = s[4 * i + j] * M_LOG2E_F;
-        if (diag && k0 + fn + j > lim[i]) v = -1e30f;
+        if (diag && key > lim[i]) v = -1e30f;
+        if (qlo[i] && key < qlo[i]) v = -1e30f;
         s[4 * i + j] = v;
         mx = max(mx, v);
       }

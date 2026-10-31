@@ -122,8 +122,9 @@ class Spark : public Model {
     uint32_t rows = 2, nsg = 8;
   };
   Matvec matvec_pipe(const SparkLinear& W, bool norm, bool add);
-  // A float tensor as bf16, with `offset` added (the 1 + w conversion for Hugging Face zero-centred RMSNorm weights).
-  const Tensor* norm_copy(const Tensor* t, float offset);
+  // A float tensor as bf16, with `offset` added (the 1 + w conversion for Hugging Face zero-centred RMSNorm weights;
+  // offset 0 for Spark-MLX-LLM's F32 lm_head scales/biases).
+  const Tensor* bf16_copy(const Tensor* t, float offset);
   void enc_attn(Encoder& e, Seq& s, int li, int pos);
   void enc_mlp(Encoder& e, const SparkLayer& L);
   // Batched prefill: T rows at once instead of one row through the decode path, so each weight is streamed once per
@@ -143,10 +144,14 @@ class Spark : public Model {
   std::string path_;
   std::unique_ptr<WeightStore> ws_;
   SparkConfig cfg_;
+  // Slots per sliding-layer ring: window + one prefill chunk, rounded to a power of two. All slot
+  // arithmetic (write slot, decode's wrapped read, both prefill kernels) uses ring_rows_ - 1 as the
+  // mask; using window - 1 here made a batched pass overwrite its own history.
+  int ring_rows_ = 0;
   std::vector<SparkLayer> layers_;
   // RMSNorm tensors rewritten as 1 + w when the checkpoint stores Hugging Face's zero-centred layout (see hf_norms).
   std::vector<Buffer> owned_bufs_;
-  // A deque, not a vector: norm_copy returns &owned_.back(), so the element's address must stay put while later calls
+  // A deque, not a vector: bf16_copy returns &owned_.back(), so the element's address must stay put while later calls
   // append. With std::vector every push may reallocate and every pointer already handed out (L.in_norm, L.post_norm,
   // final_norm_ -- 73 of them on the 4B) dangles, and the loader keeps reading freed storage. Qwen35 uses a deque for
   // exactly this reason (qwen35.h); this file copied the pattern and changed the container, which is the kind of

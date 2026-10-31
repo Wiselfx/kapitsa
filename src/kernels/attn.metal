@@ -1703,12 +1703,6 @@ constant constexpr uint kBQ11 = 32;            // queries per threadgroup
 constant constexpr uint kVLD11 = kHD + 8;      // V tile row stride (halves)
 constant constexpr float kNeg11 = -1.0e30f;    // masked score: exp2 underflows to 0, no inf arithmetic
 
-// The slot an absolute key position occupies. A linear cache stores key p at p (every model but Spark); a sliding
-// layer's ring stores it at p & slot_mask, because it only holds the last `window` keys. Read through this at the two
-// places a cache is addressed, and the rest of the kernel keeps working in absolute positions -- which is what makes
-// the ring a two-field change rather than a second code path.
-NI_INLINE uint attn11_slot(uint pos, constant AttnPrefParams& p) { return p.slot_mask ? (pos & p.slot_mask) : pos; }
-
 // The first live key a tile read must consider: 0 for a linear cache, and for a ring the oldest key still in it
 // (`kend - window`). Tiles entirely before it contribute nothing, because the softmax masks their keys anyway -- the
 // lower bound only has to keep them from reading slots a lap out of date.
@@ -1722,14 +1716,28 @@ template <uint BK> constexpr uint attn11_kv() { return kHD * (BK + 8) > BK * kVL
 template <uint BK> constexpr uint attn11_xs() { return 8 * (BK / 8) * 32; }
 
 // K rows of one tile into registers: thread = (key tid % BK, BK-dim slice tid / BK), 2*BK bytes.
+// One implementation, two entry points. The 5-argument form is the linear read (slot == position) that
+// verify8.metal's speculative verification uses -- that kernel is reached by DFlash2/LiLiCorr, which Spark has no
+// drafter for, so it must keep reading exactly as it did before. The 6-argument form takes the ring from the params.
+// Keeping the arithmetic in one place is the point: two copies of it is how a fetch and its call site drift apart.
 template <uint BK>
-NI_INLINE void attn11_fetch_k(thread uint4* r, const device half* kb, uint k0, uint kend, uint tid,
-                              constant AttnPrefParams& p) {
+NI_INLINE void attn11_fetch_k_at(thread uint4* r, const device half* kb, uint k0, uint kend, uint tid,
+                                 uint slot_mask) {
   const uint key = tid % BK;
   const uint pos = k0 + key;
   const bool ok = pos < kend;  // (a tile below the ring's first live key is masked out by the softmax)
-  const device uint4* src = (const device uint4*)(kb + size_t(attn11_slot(pos, p)) * kHD + (tid / BK) * BK);
+  const uint slot = slot_mask ? (pos & slot_mask) : pos;
+  const device uint4* src = (const device uint4*)(kb + size_t(slot) * kHD + (tid / BK) * BK);
   NI_UNROLL for (uint u = 0; u < BK / 8; ++u) r[u] = ok ? src[u] : uint4(0);
+}
+template <uint BK>
+NI_INLINE void attn11_fetch_k(thread uint4* r, const device half* kb, uint k0, uint kend, uint tid) {
+  attn11_fetch_k_at<BK>(r, kb, k0, kend, tid, 0u);
+}
+template <uint BK>
+NI_INLINE void attn11_fetch_k(thread uint4* r, const device half* kb, uint k0, uint kend, uint tid,
+                              constant AttnPrefParams& p) {
+  attn11_fetch_k_at<BK>(r, kb, k0, kend, tid, p.slot_mask);
 }
 
 // K^T store: for each dim, consecutive lanes write consecutive keys.
@@ -1746,13 +1754,23 @@ NI_INLINE void attn11_store_k(threadgroup half* kt, thread const uint4* r, uint 
 
 // V rows of one tile: thread = (key, BK-dim slice); 256 / BK lanes cover one 512-byte row.
 template <uint BK>
-NI_INLINE void attn11_fetch_v(thread uint4* r, const device half* vb, uint k0, uint kend, uint tid,
-                              constant AttnPrefParams& p) {
+NI_INLINE void attn11_fetch_v_at(thread uint4* r, const device half* vb, uint k0, uint kend, uint tid,
+                                 uint slot_mask) {
   const uint key = tid / (kHD / BK);
   const uint pos = k0 + key;
   const bool ok = pos < kend;
-  const device uint4* src = (const device uint4*)(vb + size_t(attn11_slot(pos, p)) * kHD + (tid % (kHD / BK)) * BK);
+  const uint slot = slot_mask ? (pos & slot_mask) : pos;
+  const device uint4* src = (const device uint4*)(vb + size_t(slot) * kHD + (tid % (kHD / BK)) * BK);
   NI_UNROLL for (uint u = 0; u < BK / 8; ++u) r[u] = ok ? src[u] : uint4(0);
+}
+template <uint BK>
+NI_INLINE void attn11_fetch_v(thread uint4* r, const device half* vb, uint k0, uint kend, uint tid) {
+  attn11_fetch_v_at<BK>(r, vb, k0, kend, tid, 0u);
+}
+template <uint BK>
+NI_INLINE void attn11_fetch_v(thread uint4* r, const device half* vb, uint k0, uint kend, uint tid,
+                              constant AttnPrefParams& p) {
+  attn11_fetch_v_at<BK>(r, vb, k0, kend, tid, p.slot_mask);
 }
 
 template <uint BK>
@@ -1789,7 +1807,7 @@ NI_INLINE void attn_prefill11_impl(const device float* q, const device half* kc,
   const uint qd = lane / 4;
   const uint frow = (qd & 4) + (lane / 2) % 4;    // this lane's fragment row and first column
   const uint fcol = (qd & 2) * 2 + (lane % 2) * 2;
-  uint h, kvh, t, qpos_rg, kend, tq0 = 0;
+  uint h, kvh, t, qpos_rg, kend, qfirst, tq0 = 0;
   if (GQ) {
     kvh = tg.y;
     const uint nrb = (p.T * G + kBQ11 - 1) / kBQ11;
@@ -1798,6 +1816,7 @@ NI_INLINE void attn_prefill11_impl(const device float* q, const device half* kc,
     t = r / G;
     h = kvh * G + r % G;
     qpos_rg = p.pos0 + (r0 + rg * 8) / G;
+    qfirst = p.pos0 + r0 / G;
     kend = p.pos0 + (BIDI ? p.T : min((r0 + kBQ11 - 1) / G + 1, p.T));
   } else {
     h = tg.y;
@@ -1807,15 +1826,22 @@ NI_INLINE void attn_prefill11_impl(const device float* q, const device half* kc,
     tq0 = t0;
     t = t0 + rg * 8 + frow;                       // this lane's query
     qpos_rg = p.pos0 + t0 + rg * 8;               // first query position of the row group
+    qfirst = p.pos0 + t0;
     kend = p.pos0 + min(t0 + kBQ11, p.T);         // keys needed by the block
   }
   const uint qpos = p.pos0 + t;
+  // Each row's own window floor (0 for a linear cache). Two rows of one block can differ by up to 31
+  // positions; without this mask an early row would read keys the block floor cut or, worse, skip keys
+  // its window still needs.
+  const uint qfloor = attn11_kstart(qpos + 1, p);
   const uint ntiles = (kend + BK - 1) / BK;
-  // A ring instead starts at its oldest live key. Starting the loop there (rather than masking from 0) keeps a sliding
-  // layer's prefill proportional to its window instead of to the position: with 200k tokens of history in a 512-slot
-  // ring, tiles 0..6200 hold nothing live. `kstart` is on a BK boundary only by luck, so a tile straddling it has its
-  // early keys masked below -- the mask is on absolute positions, so it needs no alignment.
-  const uint kstart = attn11_kstart(kend, p);
+  // A ring starts at the earliest query's oldest live key, not the block's last key's: the rows of a
+  // 32-query block have windows offset by up to 31 positions, and the last row's floor would skip keys
+  // that the first row still attends to. The ring holds window + a whole prefill chunk
+  // (spark_ring_rows), so those keys are present; the per-row floor below masks each row's own window.
+  // `kstart` is on a BK boundary only by luck, so a tile straddling it has its early keys masked below --
+  // the mask is on absolute positions, so it needs no alignment.
+  const uint kstart = attn11_kstart(qfirst + 1, p);
   uint it_begin = kstart / BK, it_end = ntiles;
   if (SPLIT) {
     // seg > 0: split s covers the fixed key tiles [s * seg, (s + 1) * seg), the same whatever T and the block
@@ -1902,8 +1928,10 @@ NI_INLINE void attn_prefill11_impl(const device float* q, const device half* kc,
     NI_UNROLL for (uint c = 0; c < NC; ++c)
       NI_UNROLL for (uint i = 0; i < 2; ++i) {
         float v = s[c].thread_elements()[i] * M_LOG2E_F;
-        if (diag && k0 + c * 8 + fcol + i > (BIDI ? kend - 1 : qpos)) v = kNeg11;
-        if (ring_floor && k0 + c * 8 + fcol + i < kstart) v = kNeg11;
+        const uint key = k0 + c * 8 + fcol + i;
+        if (diag && key > (BIDI ? kend - 1 : qpos)) v = kNeg11;
+        if (ring_floor && key < kstart) v = kNeg11;
+        if (qfloor && key < qfloor) v = kNeg11;
         if (MASK && !((mword >> (c * 8 + fcol + i)) & 1u)) v = kNeg11;
         s[c].thread_elements()[i] = v;
         mx = max(mx, v);

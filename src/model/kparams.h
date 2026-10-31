@@ -91,6 +91,12 @@ struct SparkPrep {  // spark_attn_prep: RoPE + the q|gate packing + the cache ap
   uint32_t T, Hq, Hkv, D, rot, pos, max_seq, g_ld;
   float theta;
   uint32_t slot_mask;  // 0 for a full-attention layer, else window - 1 (ring slot = position & slot_mask)
+  // q/k/v row strides and offsets, in floats. Decode passes the q|k|v slices of stg_ (offsets 0,
+  // q_dim, q_dim + kv_dim with those row strides); prefill passes the one fused GEMM output
+  // [T][qkv_dim] three times (offsets 0/q_dim/q_dim+kv_dim, every row stride qkv_dim). Without
+  // these, prefill's k/v views assumed the GEMM had written three contiguous T-row blocks, which
+  // qrf does not: it writes one row-major [T][N] matrix.
+  uint32_t q_ld, k_ld, v_ld, q_off, k_off, v_off;
 };
 
 struct AttnPref {

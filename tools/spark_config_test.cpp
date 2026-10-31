@@ -97,7 +97,10 @@ void check_17b() {
 
   // the derived memory facts the docs quote
   CHECK(ni::spark_kv_per_pos(s) == 14336, "1.7B kv_per_pos %zu", ni::spark_kv_per_pos(s));
-  CHECK(ni::spark_ring_bytes(s) == 22020096, "1.7B ring bytes %zu", ni::spark_ring_bytes(s));
+  // ring = window 512 + one 2048-row prefill chunk, rounded to 4096 slots (spark_ring_rows). The old
+  // number assumed a bare window and let a batched pass overwrite the first query's history.
+  CHECK(ni::spark_ring_rows(s, 2048) == 4096, "1.7B ring rows %d", ni::spark_ring_rows(s, 2048));
+  CHECK(ni::spark_ring_bytes(s, 2048) == 176160768, "1.7B ring bytes %zu", ni::spark_ring_bytes(s, 2048));
 }
 
 void check_4b() {
@@ -130,7 +133,8 @@ void check_4b() {
   CHECK(s.theta_swa == 10000.0f, "4B theta_swa %g", s.theta_swa);
 
   CHECK(ni::spark_kv_per_pos(s) == 36864, "4B kv_per_pos %zu", ni::spark_kv_per_pos(s));
-  CHECK(ni::spark_ring_bytes(s) == 56623104, "4B ring bytes %zu", ni::spark_ring_bytes(s));
+  CHECK(ni::spark_ring_rows(s, 2048) == 4096, "4B ring rows %d", ni::spark_ring_rows(s, 2048));
+  CHECK(ni::spark_ring_bytes(s, 2048) == 452984832, "4B ring bytes %zu", ni::spark_ring_bytes(s, 2048));
 }
 
 // The layer table without `layer_types` falls back to full attention every `full_attention_interval`, as
@@ -169,7 +173,6 @@ void check_refusals() {
       {"attention_bias", "attention_bias", true},
       {"headwise_attn_output_gate", "headwise_attn_output_gate", false},
       {"gate_attn_act_mode", "gate_attn_act_mode", "silu"},
-      {"tie_word_embeddings", "tie_word_embeddings", false},
       {"num_experts", "num_experts", 64},
       {"sliding_window", "sliding_window", 500},  // not a multiple of 16
       {"indexer_n_heads", "indexer_n_heads", 4},
@@ -207,6 +210,16 @@ void check_flat_rope() {
   const ni::SparkConfig s = ni::spark_read_config(c);
   CHECK(s.rot_full == 256 && s.rot_swa == 256, "flat rope rot dims %d/%d", s.rot_full, s.rot_swa);
   CHECK(s.theta_full == 10000.0f && s.theta_swa == 10000.0f, "flat rope theta %g/%g", s.theta_full, s.theta_swa);
+}
+
+// The reference model reads lm_head whenever the checkpoint says the embeddings are untied. That is a weight
+// choice, not a shape the kernels cannot run, so the config must accept both values and the loader picks the head.
+void check_untied_head() {
+  for (bool tied : {true, false}) {
+    json c = load("spark-x2.6-1.7b.config.json");
+    c["tie_word_embeddings"] = tied;
+    CHECK(ni::spark_unsupported(c).empty(), "tie_word_embeddings=%d must be accepted", int(tied));
+  }
 }
 
 // The activation is exact (erf) GELU, not the tanh approximation. This check exists because getting it wrong is silent:
@@ -300,13 +313,15 @@ void check_matvec_names_exist() {
   CHECK(have.count("qmv2_b4_g64_r2_add_norm") == 0, "no _add_norm instantiation is generated");
 
   // Spark::matvec_pipe's rule, transcribed. Note it never emits _add_norm: no such instantiation exists anywhere.
-  auto pick = [](int bits, int K, int N, bool norm, bool add) {
+  // Group 32 must take qmvg: qmv2_b4_g64, qmv3_b4/b8 and qmv2_b8_g64 hard-code a 64-value scale group, so
+  // routing Spark-MLX-LLM's f4g32/f8g32 there indexes the scale table per 64 while it is per 32.
+  auto pick = [](int bits, int gs, int K, int N, bool norm, bool add) {
     if (add && norm) return std::string("INVALID");
     const std::string rows4 = N >= 65536 ? "4" : "2";
     std::string name, suffix = add ? "_add" : (norm ? "_norm" : "");
-    if (bits == 4) {
+    if (bits == 4 && gs == 64) {
       name = K > 4096 ? "qmv3_b4_r" + std::string(add ? "2" : rows4) : "qmv2_b4_g64_r" + rows4;
-    } else if (bits == 8) {
+    } else if (bits == 8 && gs == 64) {
       if (!norm) {
         name = "qmv3_b8_r2";
         suffix = add ? "_add" : "";
@@ -316,7 +331,7 @@ void check_matvec_names_exist() {
     } else {
       // SparkLinear::fmt(): bf16 is "f16" (wfmt.metal's own suffix), not "f16g64". The first version of this sweep
       // used f16g64, so it never checked the format a bf16 checkpoint actually uses.
-      const std::string fmt = bits == 16 ? "f16" : "f" + std::to_string(bits) + "g64";
+      const std::string fmt = bits == 16 ? "f16" : "f" + std::to_string(bits) + "g" + std::to_string(gs);
       name = "qmvg_" + fmt + "_r" + (add ? std::string("2") : rows4);
     }
     return name + suffix;
@@ -324,20 +339,28 @@ void check_matvec_names_exist() {
 
   int checked = 0;
   for (int bits : {4, 8, 16, 6, 5, 3}) {
-    for (int K : {2048, 2560, 6656, 10240}) {
-      for (int N : {128, 1024, 3072, 6144, 10240, 16384, 65536, 131072}) {
-        for (int mode = 0; mode < 3; ++mode) {  // 0 norm, 1 add, 2 neither
-          const std::string n = pick(bits, K, N, mode == 0, mode == 1);
-          ++checked;
-          CHECK(have.count(n) != 0, "matvec_pipe would ask for %s (bits %d, K %d, N %d), which no kernel defines",
-                n.c_str(), bits, K, N);
+    for (int gs : {32, 64}) {
+      if (bits != 4 && bits != 8 && gs == 32) continue;  // only the reference profile's two group-32 forms exist
+      for (int K : {2048, 2560, 6656, 10240}) {
+        for (int N : {128, 1024, 3072, 6144, 10240, 16384, 65536, 131072}) {
+          for (int mode = 0; mode < 3; ++mode) {  // 0 norm, 1 add, 2 neither
+            const std::string n = pick(bits, gs, K, N, mode == 0, mode == 1);
+            ++checked;
+            CHECK(have.count(n) != 0,
+                  "matvec_pipe would ask for %s (bits %d, gs %d, K %d, N %d), which no kernel defines", n.c_str(),
+                  bits, gs, K, N);
+          }
         }
       }
     }
   }
-  CHECK(checked > 400, "the matvec sweep only covered %d combinations", checked);
+  CHECK(checked > 700, "the matvec sweep only covered %d combinations", checked);
+  // the group-32 forms must not be sent to the group-64 kernels
+  CHECK(pick(4, 32, 2048, 2048, false, false) == "qmvg_f4g32_r2", "f4g32 decode must use qmvg");
+  CHECK(pick(8, 32, 2048, 2048, true, false) == "qmvg_f8g32_r2_norm", "f8g32 decode must use qmvg");
+  CHECK(pick(8, 32, 2048, 131072, false, false) == "qmvg_f8g32_r4", "a wide f8g32 head must use qmvg r4");
   // and the combination that does not exist must be refused rather than emitted
-  CHECK(pick(4, 2560, 2560, true, true) == "INVALID", "_add_norm must be refused: no kernel has both");
+  CHECK(pick(4, 64, 2560, 2560, true, true) == "INVALID", "_add_norm must be refused: no kernel has both");
 }
 
 // MemPlan::activations must equal what alloc_state() actually allocates. It was `prefill_chunk` rows of one row's
@@ -412,6 +435,7 @@ int main() {
   check_layer_fallback();
   check_refusals();
   check_flat_rope();
+  check_untied_head();
   check_gelu_is_exact_not_tanh();
   check_norm_layout_rule();
   check_plan_matches_alloc();

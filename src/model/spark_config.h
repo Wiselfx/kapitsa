@@ -72,7 +72,13 @@ std::string spark_refusal(const nlohmann::json& config, const std::string& what)
 // KV bytes one position of the full-attention layers costs (k and v, half), and the fixed bytes the sliding-window
 // rings take. The sliding layers never need a `cap`-sized cache: that is the whole point of the architecture.
 size_t spark_kv_per_pos(const SparkConfig& c);
-size_t spark_ring_bytes(const SparkConfig& c);
+// Slots per sliding-layer ring. A prefill pass writes all T rows of the chunk before attention reads
+// them, so a ring of exactly `window` slots is overwritten ahead of the pass's first query: that
+// query's oldest keys are replaced by keys from later in the same chunk (past its causal mask), and
+// its attention loses real context. The ring must therefore hold the window plus one whole chunk.
+// Rounded up to a power of two because every kernel uses `pos & (slots - 1)`.
+int spark_ring_rows(const SparkConfig& c, int prefill_chunk);
+size_t spark_ring_bytes(const SparkConfig& c, int prefill_chunk);
 
 // The bytes Spark::alloc_state allocates for one row's activations, which is what MemPlan::activations must report.
 // Here rather than in spark.cpp because it must be checkable without a GPU or a checkpoint: the plan's number reaches

@@ -152,10 +152,6 @@ std::vector<std::string> spark_unsupported(const json& c) {
   if (flag(c, "attention_bias", false)) v.push_back("attention_bias true: no attention biases");
   if (flag(c, "mlp_bias", false)) v.push_back("mlp_bias true: no MLP biases");
 
-  // Untied embeddings need a separate lm_head: the loader takes the tied table, and the head kernels read it as one.
-  if (!flag(c, "tie_word_embeddings", true))
-    v.push_back("tie_word_embeddings false: the output layer is the embedding table");
-
   // Sliding window: the ring cache and the mask both need a real window.
   const auto kinds = spark_layer_kinds(c);
   const bool any_swa = std::count(kinds.begin(), kinds.end(), SparkLayerKind::Sliding) > 0;
@@ -266,9 +262,20 @@ size_t spark_kv_per_pos(const SparkConfig& c) {
   return size_t(c.n_full()) * size_t(c.hkv) * size_t(c.head_dim) * 2 * sizeof(uint16_t);
 }
 
-size_t spark_ring_bytes(const SparkConfig& c) {
-  // the sliding layers' rings, independent of the context length
-  return size_t(c.n_swa()) * size_t(c.hkv) * size_t(c.window) * size_t(c.head_dim) * 2 * sizeof(uint16_t);
+int spark_ring_rows(const SparkConfig& c, int prefill_chunk) {
+  // window + a whole chunk, so writing T rows before attention cannot overwrite any query's window.
+  const int need = std::max(1, c.window) + std::max(1, prefill_chunk);
+  int rows = 1;
+  while (rows < need) rows <<= 1;
+  return rows;
+}
+
+size_t spark_ring_bytes(const SparkConfig& c, int prefill_chunk) {
+  // The sliding layers' rings: the window plus one prefill chunk (spark_ring_rows), not the context
+  // length. The chunk term is what makes a batched prefill correct on a sliding layer; it also means
+  // this number depends on prefill_chunk, so plan() passes it.
+  return size_t(c.n_swa()) * size_t(c.hkv) * size_t(spark_ring_rows(c, prefill_chunk)) * size_t(c.head_dim) * 2 *
+         sizeof(uint16_t);
 }
 
 size_t spark_activation_bytes(const SparkConfig& c, int prefill_chunk, uint32_t cores) {

@@ -49,7 +49,7 @@ Source of truth: `docs/spark/configs/*.json` (verbatim copies of the HF `config.
 | head_dim | 256 | 256 |
 | layer pattern | (S,S,S,F)×7, 21 S + 7 F | (S,S,S,F)×9, 27 S + 9 F |
 | sliding_window | 512 | 512 |
-| MLP act | `gelu` (tanh approx) | `gelu` (tanh approx) |
+| MLP act | `gelu` (exact, erf) | `gelu` (exact, erf) |
 | attn output gate | **per head**, sigmoid | **per head**, sigmoid |
 | RoPE full layers | θ=5e6, `partial_rotary_factor` 0.25 → 64 rot dims | same |
 | RoPE sliding layers | θ=1e4, `partial_rotary_factor` 1.0 → 256 rot dims | same |
@@ -76,8 +76,9 @@ gate vector, so this needs a broadcast mode.
 exactly that per-tensor `{bits, group_size}` map, so pointing Kapitsa at the repo should load without repacking.
 Others: `abenzerps/...-MLX-{4,6,8}bit`, `0x36/...-mlx-{4bit,8bit,bf16}`, `hermitdave/...-SLQ-4.50bpw`,
 `code-and-canvas/...-oQ{4,6,8}e-fp16`, `Jakevin/...-gptq4-mlx`, and the official `XHToken/...-{INT4,INT8,FP8,GGUF}`.
-Kapitsa's supported quant formats (`format_supported`, `src/model/qwen35.cpp`): bf16; group 64 at 3/4/5/6/8 bit;
-group 32 at 4 bit.
+Kapitsa's Spark formats (`format_supported`, `src/model/spark.cpp`): bf16; group 64 at 3/4/5/6/8 bit; group 32 at
+4 and 8 bit (Spark-MLX-LLM's default profile). Group-32 decode goes through the format-generic `qmvg_f4g32`/`f8g32`
+kernels because the `qmv2_b*_g64`/`qmv3_b*` kernels hard-code a 64-value scale group.
 
 ## 4. Architecture decisions (settled — do not re-litigate without evidence)
 
@@ -104,10 +105,11 @@ so its **kernels** are the wrong template. Reuse the structure, write Spark's ow
 - The sampler, tokenizer, KV caches, `Seq`, prefix cache, server, API adapters: untouched.
 
 **D4. New kernel work is limited to three things.**
-1. **GELU-tanh MLP.** Kapitsa is SiLU throughout. Spark needs `gelu` (PyTorch's `gelu`, i.e. tanh approximation) in the
-   fused gate/up+SwiGLU store sites of the GEMM/matvec kernels. Add it as a compile-time template flag (`GELU`) so SiLU
-   instantiation stays bit-identical for every existing model — this is the key numerics-safety property: **existing
-   models must compile to exactly the same kernel code as before.**
+1. **Exact (erf) GELU MLP.** Kapitsa is SiLU throughout. Spark's config says `gelu`, and ACT2FN maps that to
+   `nn.functional.gelu` with its default `approximate='none'` — the exact erf form, not the tanh approximation this
+   section first assumed (that assumption was wrong and is corrected in §13). Add it as a compile-time template flag
+   (`GELU`) so SiLU instantiation stays bit-identical for every existing model — this is the key numerics-safety
+   property: **existing models must compile to exactly the same kernel code as before.**
 2. **Per-head broadcast gate.** A variant of the attention epilogue that broadcasts one scalar per head over 256 dims,
    instead of a per-channel vector. Cheapest correct option is to keep the existing per-channel gate layout and have the
    host *write the same scalar to all 256 slots* — zero kernel change. **Decided: do the host-side broadcast first**
@@ -141,8 +143,9 @@ See `docs/spark/TODO.md` for the live checklist. The phases are:
 - **P1 — Load.** Map Spark tensor names onto `QLinear`/`Tensor`, handle the fused `q_k_v_proj` (slice into q/k/v views,
    which the existing multi-matvec dispatch already supports as 3 segments) and the `g_proj` vector, tied embeddings.
 - **P2 — GELU kernels.** Template flag through the MLP kernels; assert existing instantiations are unchanged.
-- **P3 — Attention path.** Prefill + decode with per-layer `rot`, window masking, all-ones q/k norm, per-head gate
-   broadcast, correct KV cache sizing (sliding layers only need a 512-slot ring).
+- **P3 — Attention path.** Prefill + decode with per-layer `rot`, window masking, no q/k norm, per-head gate
+   broadcast, correct KV cache sizing (a sliding layer's ring holds `window + prefill_chunk`, rounded to a power of
+   two; a bare 512-slot ring is overwritten by a batched pass, see §14).
 - **P4 — Config tests.** Extend the CPU-test surface so `Spark` config parsing is covered without a GPU, in the style of
    `qwen4_config_test` (which is a *pure CPU* test in the CI list — this is our main automated proof).
 - **P5 — Docs + catalog.** `docs/spark/` finalized, README/usage notes, model detection documented.
@@ -206,11 +209,12 @@ their dependencies allow. Treat every local build claim as best-effort and state
     tiny kernel library `src/kernels/spark/`. The change is purely additive. See §10.
 - **Landed:**
   - `src/model/spark_config.{h,cpp}` — pure-CPU config parse, validation, derived tables (rot/window/kv/rings).
-  - `tools/spark_config_test.cpp` — CPU test over both published configs + 13 refusal cases. **Runs and passes on
-    this Linux box.** Verified it has teeth (deliberately broke `rot_dims` → 2 failures).
-  - `src/model/spark.{h,cpp}` — the `Spark` model: load (per-tensor mixed quant, fused `q_k_v_proj` row-slicing, tied
-    embeddings, HF vs MLX norms decided from values), KV caches (512-slot rings for sliding layers, full for the 9/7),
-    the full decode path, and prefill as a loop over decode rows.
+  - `tools/spark_config_test.cpp` — CPU test over both published configs + 12 refusal cases, plus the untied-head and
+    group-32 kernel-name sweeps. **Runs and passes on this Linux box.** Verified it has teeth (deliberately broke
+    `rot_dims` → 2 failures).
+  - `src/model/spark.{h,cpp}` — the `Spark` model: load (per-tensor mixed quant, fused `q_k_v_proj` row-slicing,
+    tied or untied output, HF vs MLX norms decided from values), KV caches (a window + chunk ring for sliding layers,
+    append-only for the 9/7 full layers), the decode path, and batched prefill (`enc_attn_prefill`/`enc_mlp_prefill`).
   - `src/kernels/spark/spark.metal` + `cmake/embed_kernels_spark.cmake` + CMake/CI wiring.
   - Engine dispatch (`engine.cpp`), the "model Kapitsa cannot run" refusal, the memory plan, and the no-drafter gate.
   - `tools/lx_syntax_check.sh` — local Linux syntax check (see §11).
@@ -226,8 +230,9 @@ their dependencies allow. Treat every local build claim as best-effort and state
   - **Snapshots** (`save`/`restore`, `can_snapshot`) now work: only the rings are copied, so the engine can checkpoint
     at a turn boundary and a conversation can have a second turn (§12e).
 - **Known gaps (P3 remainder), all stated in code comments and `TODO.md`:**
-  - Prefill is correct-but-slow (decode path per row); the batched path is not bound. This is the main cost left.
-  - `encode_logits_rows` works but is slow for the same reason.
+  - Batched prefill is bound (`encode_prefill`); `encode_logits_rows` still runs a row at a time and is slow.
+  - The reference's W8A8 activation quantization is not reproduced: its INT8 out_proj/lm_head weights are
+    dequantized to bf16 and multiplied by bf16 activations, so results are close but not bit-identical to that backend.
   - No `copy_prefix` override: a second conversation sharing a system prompt re-reads it rather than copying another
     slot's caches. Correct, slower, off the failing path.
   - Gate and up projections are two dispatches, not one (D4; see `TODO.md` for why it was rejected).
@@ -347,8 +352,8 @@ risks "fixing" something that is already correct. The current state of the branc
   is not "it computes the right thing". Do not describe it as correct. The ring read and the checkpoint copies in
   particular have never produced a token.
 - **Functional state:** the wrapped sliding window works (§12d) and snapshots work (§12e), so a multi-turn
-  conversation is no longer structurally impossible. What remains is **speed**: prefill is one row at a time (§6,
-  `TODO.md`). No batched prefill, no drafter.
+  conversation is no longer structurally impossible. Batched prefill is implemented (§14); the remaining speed work is
+  measurement on the Mac, not another structural rewrite. No drafter.
 
 
 1. Read §2 (constraints), §4 (decisions D1–D7), then the last §9 entry.
@@ -435,12 +440,16 @@ index. That is `AttnDecParams::wrapped` plus `slot_mask` (`(wrapped + t) & slot_
 `{0, 0}` and takes the same linear path as before.
 
 **What it depends on**, now checked by `tools/ring_slot_test.cpp` instead of asserted in a comment:
-- the ring length (window = 512) is a power of two, so `& (window-1)` is the modulus;
+- the ring length (`window + prefill_chunk`, rounded to 4096) is a power of two, so `& (ring_rows_-1)` is the modulus;
 - window is a multiple of the kernel's `kTile` (16), so a tile crosses the seam at most once and can be loaded as two
   contiguous runs (the whole tail first, then the head);
 - the host's `wrapped` equals the write side's slot for the same position -- an off-by-one here would attend over the
   wrong keys and produce *plausible nonsense*, which no smoke test would catch. The test compares the two formulas over
   four windows of positions and checks each live key is read exactly once.
+
+The later batched-prefill bug (§14, R1) showed that a ring of exactly `window` slots is not enough: the pass writes its
+whole chunk before attention reads, so the first query's oldest keys are overwritten. `spark_ring_rows` is now
+`next_pow2(window + prefill_chunk)`; the slot arithmetic is unchanged, only the capacity grew.
 
 One thing I got wrong on the way, in my own test: `read_slot(512, 511) == 512 & slot_mask` parses as
 `(a == 512) & slot_mask`, so it compared a bool against an int and "failed" against correct code. Parenthesised.
@@ -773,15 +782,13 @@ and my first attempt passed `(old, target, hkv)`, which would have copied the wr
 would have written past the end while reading the plain range — a corruption bug that the "we refuse what we do not
 implement" message did not actually cover.
 
-Fixed: `SparkPrepParams.slot_mask` (0 for a full layer, else `window - 1`) and the prologue stores at
-`pos & slot_mask`. Full-attention layers append, so their slot is still the position.
+Fixed: `SparkPrepParams.slot_mask` (0 for a full layer, else the ring's `ring_rows_ - 1`) and the prologue stores at
+`pos & slot_mask`. Full-attention layers append, so their slot is still the position. (The first fix used `window - 1`;
+§14/R1 later showed the ring must be `window + prefill_chunk` for batched prefill.)
 
-The read side still refuses a wrapped window (`lo > 0`), and the refusal now names the three ways to implement it and
-says why one should be chosen after the Mac pass: every option changes the indexing of `attn_decode_partial`, which is
-a kernel six other models depend on and which nothing on this machine can test. I started writing the copy-based
-version, found that `kv_copy_prefix`'s kernel cannot express a rotation of the ring (it copies from slot 0 and has no
-source offset, so it would have written garbage), and reverted rather than ship an untested rotation of a shared
-kernel's contract.
+At that point the read side still refused a wrapped window (`lo > 0`); §12d subsequently implemented the cyclic read
+in `attn_decode_partial` with the two appended fields. The copy-based alternative was rejected because
+`kv_copy_prefix` cannot express a rotation of the ring (it copies from slot 0 and has no source offset).
 
 ### Still unverified, and honestly so
 
@@ -839,8 +846,9 @@ will beat the floor. The only fix is to stop streaming the weights once per row.
 
 `qattn_t` reads the cache as `kb + slot * D` for `k0 = 0 .. tgl`, and its causal limit is `p.pos0 + min(tk, T - 1)`.
 It has **no lower bound and no ring**. A full-attention layer is fine — its cache only appends, so slot == position.
-A sliding layer is a ring of 512 slots holding the last 512 keys *wherever they fell*, so by the time a prompt is
-longer than the window the kernel is reading the wrong slots entirely. On the 1.7B that is 21 of 28 layers.
+A sliding layer is a ring holding the last 512 keys *wherever they fell*, so by the time a prompt is
+longer than the window the kernel is reading the wrong slots entirely. On the 1.7B that is 21 of 28 layers. The ring
+now has `window + prefill_chunk` slots; the slot mapping is still the position modulo that capacity.
 
 The fix is two numbers: the oldest live key, and the slot mapping `(oldest + r) & slot_mask`. Where they go is the
 decision:
@@ -869,9 +877,9 @@ the floor mask (`k0 < kstart`) is `k0 < 0`, which never fires. `tools/ring_prefi
 Two things the change needed that were not obvious from outside the kernels:
 
 * **The tile loop had to start at the ring's first live tile**, not just mask from 0. Masking alone is correct but makes
-  a sliding layer's prefill proportional to the position rather than to the window: 200k tokens of history in a 512-slot
-  ring is 6,200 dead tiles. `it_begin = kstart / BK`, and for the split-K variants (`attn_prefill11gs`)
-  `it_begin = max(it_begin, kstart / BK)`, since a split otherwise picks dead tiles.
+  a sliding layer's prefill proportional to the absolute position rather than to the window: at 200k tokens, starting
+  at 0 would walk ~6,200 tiles that hold no live key. `it_begin = kstart / BK`, and for the split-K variants
+  (`attn_prefill11gs`) `it_begin = max(it_begin, kstart / BK)`, since a split otherwise picks dead tiles.
 * **`QaParams` is a mirror, not an include.** The tensor library is its own translation unit
   (cmake/embed_kernels_tensor.cmake globs `src/kernels/tensor/*.metal` separately), so it cannot see `attn.metal`'s
   struct. Appending a field to one and not the other would leave the tensor_ops prefill reading the wrong offsets
@@ -885,8 +893,9 @@ now fail: 7,099 and 6,304 cases.
 
 ### The batched prefill itself
 `encode_prefill` now runs T rows per pass (`enc_attn_prefill` / `enc_mlp_prefill`), with `rows_to_half` + `qrf_proj`
-(Qwen35::enc_qrf's tile ladder, verbatim) and `attn_prefill11r` for the attention. `AttnPref fp` carries the ring:
-`{window, window - 1}` for a sliding layer, `{0, 0}` for a full one.
+(Qwen35::enc_qrf's tile ladder, verbatim; on M5, 4-bit g32/g64 takes `qmt_m64_n64*`) and `qattn_t_g4d2s8` (or
+`attn_prefill11r` off the tensor-ops path) for the attention. `AttnPref fp` carries the ring:
+`{window, ring_rows_ - 1}` for a sliding layer, `{0, 0}` for a full one.
 
 Details that had to be right, each of which was wrong on the first attempt:
 
@@ -916,3 +925,123 @@ Details that had to be right, each of which was wrong on the first attempt:
   they all need `x T`, and `xh_`/`hh_` (`half`, `H x T`) are new. `spark_activation_bytes` must grow with
   `prefill_chunk` — done: it counts the batched set (see "R1, as landed" above).
   lands"), so this is a coupled change, not an optional one.
+
+## 15. Speed: the reference implementation says we are running the wrong weights
+
+`github.com/XHToken/Spark-MLX-LLM` is XHToken's own inference project for Spark 2.6/2.5 (MLX). Reading it against this
+port answers the speed question, and the answer is not in the kernels — it is in the checkpoint.
+
+### The finding
+
+Their converter's default profile (`spark_mlx_llm/conversion.py`) is:
+
+| module | weights | activations |
+|---|---|---|
+| `q_k_v_proj`, `mlp.{gate,up,down}_proj` | **INT4 group 32**, asymmetric | BF16 |
+| `out_proj` | INT8 per-channel → stored as group 32 | per-token INT8 (W8A8) or BF16 |
+| `lm_head` | INT8 per-channel → group 32 | as above |
+| `g_proj`, `embedding`, RMSNorm | BF16, unquantized | — |
+
+All weights ~4 bits. This port is running **bf16**, because that is the only Spark checkpoint downloaded here. That is
+the entire speed gap, and it is ~7x:
+
+| 1.7B | size | decode ceiling @400 GB/s |
+|---|---|---|
+| bf16 (what we run) | 3.42 GB | 117 tok/s |
+| INT4/g32 (their default) | 0.48 GB | ~840 tok/s |
+
+A batched prefill pass streams the weights once, so the same ratio applies there: 8.6 ms vs 1.7 ms per pass at 400 GB/s.
+
+### What is already runnable, today, with no code change
+
+`mlx-community/Spark-X2.6-4B-OptiQ-4bit` exists and its `config.json` uses **group_size 64 with per-tensor mixed
+4/8-bit** — i.e. `f4g64` / `f8g64` / `f16`, exactly the formats `tools/spark_kernel_names.py` confirms this engine
+instantiates (`qmvg_f{3,4,5,6,8}g64`, `qrf_f{3,4,5,6,8}g64_*`, `qmv2_b8_g64_r*`). 8.08 GB bf16 → 2.76 GB, about 2.9x.
+No kernel work. The 1.7B has no `mlx-community` 4-bit build (404/401); `XHToken/Spark-X2.6-1.7B-INT4` exists but is
+compressed-tensors and would need `spark-mlx-convert`, which needs macOS >= 26.2 and the Metal 4 toolchain.
+
+### What their INT4/g32 profile would need from us
+
+Group 32 is now covered. The engine instantiates `f4g32` and `f8g32` in `NI_WF_LOW`, and `matvec_pipe` sends every
+group-32 linear to `qmvg_f{4,8}g32` rather than to `qmv2_b*_g64`/`qmv3_b*`, which hard-code `GS == 64`. Prefill has
+`qrf_f4g32/f8g32` tiles and `qmt_m64_n64_g32` for 4-bit on M5. The loader also accepts the reference's F32 `lm_head`
+coefficients and rounds them to bf16 once, and reads a separate `lm_head` when `tie_word_embeddings` is false.
+
+### The lesson, stated plainly
+
+§14 concluded that prefill's problem was structural (row-at-a-time → batched) and that was true. But batching a bf16
+checkpoint still streams 3.42 GB per pass. **Quantization multiplies the fix rather than substituting for it**: batched
+INT4 is ~7x on top of batched bf16. The order of work should have been format first, then batching — the format is a
+download, the batching was a week.
+
+## 16. Current state (2026-10-30): the reference checkpoint, batched prefill, and the M5 path
+
+### 16a. Checkpoint support
+
+The loader now accepts the reference converter's default output, not just a bf16 folder:
+
+| tensor group | reference output | this port |
+|---|---|---|
+| `q_k_v_proj`, `gate_proj`, `up_proj`, `down_proj` | INT4 affine, group 32 | `f4g32`; `qmvg` decode, `qrf`/`qmt` prefill |
+| `out_proj`, `lm_head` | INT8 affine, group 32, F32 coefficients | `f8g32`; F32 scales/biases rounded to bf16 once at load |
+| `g_proj`, `embedding`, norms | BF16 | bf16 path |
+| `tie_word_embeddings` | converted to `false` for the mixed profile | separate `lm_head` is loaded; a leftover head on a tied config is ignored |
+
+The public HF checkpoints are bf16 and tied; those still load (the format is chosen from the tensors, not the name).
+The converter's W8A8 **activation** quantization is not reproduced: weights are dequantized and multiplied in bf16.
+
+### 16b. Prefill path
+
+`encode_prefill` processes a whole chunk (`prefill_chunk`, default 2048; `--prefill-chunk` may raise it) per pass:
+
+1. `enc_embed` into the fp32 residual, then per layer `enc_attn_prefill` + `enc_mlp_prefill`.
+2. Normalization once per matrix (`rows_to_half`), then one GEMM per projection. On M5, 4-bit g32/g64 uses
+   `qmt_m64_n64*` (Metal 4 `tensor_ops`); off M5, `qrf` `m32/m16/m8` tiles. W8 and bf16 stay on `qrf`.
+3. Attention: `qattn_t_g4d2s8` on tensor-ops GPUs (16 tokens × 4 heads per threadgroup), else `attn_prefill11r`.
+   Both read the sliding ring with the block's first-query floor and mask each row's own floor.
+4. Down projection adds into the fp32 residual; the pass's last row samples from that fp32 row with the final norm
+   folded into the head matvec.
+
+The ring is `next_pow2(window + prefill_chunk)` slots (4096 at 2048). Both prefill kernels and decode use
+`pos & (ring_rows_ - 1)`, so the write and the three reads agree. Memory: 176.2 MB (1.7B) / 453.0 MB (4B) for all
+sliding layers, independent of context.
+
+### 16c. Defects fixed in this pass
+
+- **Ring capacity**: a batched pass writes T rows before attention reads, so a 512-slot ring overwrote the first
+  query's oldest keys. Capacity is now window + chunk; `ring_slot_test` and `ring_prefill_test` encode the per-query
+  floor, not just the block's last-key floor.
+- **Fused QKV layout**: prefill read `q`, `k`, `v` as three contiguous T-row blocks, but the GEMM writes one
+  `[T][qkv_dim]` matrix. `SparkPrep` now carries row strides and per-tensor offsets.
+- **MLP gate/up overlap**: the up view started at float offset F instead of `T*F`, so up row t overwrote gate row t+1.
+- **Sampling input**: prefill sampled the half normalized row and normalized it again; it now samples the fp32
+  residual row exactly as decode does.
+- **Untied head / F32 coefficients**: accepted and rounded once, instead of refused.
+- **Group-32 decode routing**: `qmv2_b*_g64`/`qmv3_b*` hard-code a 64-value group. Group-32 now goes to `qmvg_f4g32`
+  / `f8g32`; the CPU sweep fails if the rule emits a missing or wrong-group kernel.
+- **Prefill attention selection**: the M5 path uses `qattn_t_g4d2s8` for Spark's 4:1 GQA; `NI_ATTN` still forces the
+  shared fallback.
+
+### 16d. What is verified, and what is not
+
+Run on this Linux box (no GPU, no Metal compiler):
+
+- `python3 tests/test_metal_shared_helpers.py` → 49 cross-file helper arities match.
+- `g++ tools/ring_slot_test.cpp` and `g++ tools/ring_prefill_test.cpp` → pass (ring slots, laps, per-query chunk sets,
+  one slot per live key).
+- `g++ tools/spark_config_test.cpp src/model/spark_config.cpp` against both published configs → pass (config, refusal
+  set, plan vs allocation, matvec kernel names including f4g32/f8g32).
+- `g++ -fsyntax-only src/model/spark.cpp` → pass.
+
+Not verified here: Metal compilation (`xcrun metal` is macOS-only), kernel arithmetic on a GPU, logits against the
+reference, and every speed number. The Mac pass should run, in order:
+
+```bash
+# converted checkpoint (or an MLX 4-bit pack), then:
+kapitsa serve --model <dir> --prefill-chunk 4096
+kapitsa bench --model <dir> --prefill-chunk 4096
+# compare logits with tools/logit_compare.py against the reference implementation
+```
+
+Measure bf16 against the INT4/g32 conversion on the same prompts: the prefill delta should track the 7x weight-byte
+reduction plus the qmt tensor-ops gain; decode should track the same reduction. Do not quote a number until it is run.

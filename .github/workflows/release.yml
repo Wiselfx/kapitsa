@@ -108,8 +108,10 @@ jobs:
           {
             echo "Kapitsa \`$v\` for Apple silicon Macs (arm64, macOS 14 or later), built from \`${GITHUB_SHA:0:7}\`."
             echo
-            echo "**Adds the Spark-X2.6 family** (XHToken's \`spark2_5\`: Spark-X2.6-1.7B and -4B). Not verified on a GPU:"
-            echo "no kernel of this backend has run on a Mac yet. The release is published so that it can be."
+            echo "**Spark-X2.6** (XHToken's \`spark2_5\`: Spark-X2.6-1.7B and -4B) now runs batched prefill with a"
+            echo "ring-aware attention read, so a prompt can pass the 512-token sliding window. MLX 4/8-bit group-32/64"
+            echo "checkpoints load, including the converted models with an untied \`lm_head\` and F32 scales. This workflow"
+            echo "compiles the backend on macOS; it does not run a GPU benchmark or a logit comparison."
             echo
             echo '```sh'
             echo "curl -fsSLO https://github.com/$repo/releases/download/$GITHUB_REF_NAME/kapitsa-$v-darwin-arm64.tar.gz"
@@ -148,12 +150,13 @@ jobs:
             echo "Watching the server's terminal is the useful part: it prints the model it detected, the layer split it"
             echo "planned, and any refusal it made. A \`Spark\` line means the new backend loaded."
             echo
-            echo "Known limits in this build, all of which fail loudly rather than producing wrong tokens:"
+            echo "Known limits in this build:"
             echo
-            echo "- a context longer than the 512-token sliding window is refused at position 512 (the wrapped key range"
-            echo "  needs a ring-aware attention read that is not implemented);"
-            echo "- prefill runs one row at a time — correct, and slow; batched prefill is not bound yet;"
-            echo "- no drafter (Spark ships none), so prompt-lookup only."
+            echo "- no GPU benchmark or logit comparison is part of the release job, so this is a build handoff rather than"
+            echo "  a performance claim; \`bench\` and \`docs/spark/TODO.md\` are the measurement path;"
+            echo "- no drafter (Spark ships none), so prompt-lookup only;"
+            echo "- the Metal 4 fast paths (tensor \`qmt\`, \`qattn_t\`) are selected on M5-class GPUs; older Apple silicon"
+            echo "  uses the portable prefill path. Both are compiled into this binary."
             echo
             echo "\`kapitsa update\` in this build looks at \`nace-ai/kapitsa\` unless \`KAPITSA_UPDATE_URL\` points elsewhere:"
             echo

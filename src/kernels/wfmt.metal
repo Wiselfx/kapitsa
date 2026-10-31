@@ -1455,7 +1455,11 @@ NI_QRF(qrf_f16_m8_n64, 16, 64, 8, 64, 1, 2, false)
 // keeps the specialized kernels everywhere, and 8-bit group 64 wherever one exists (qmv3_b8, qmv2_multi, qmm8_b8,
 // qmms_b8, qmr8), so each family below lists only the formats without one (each format costs ~0.3 s of the
 // first, uncached library compile).
-#define NI_WF_LOW(X) X(f6g64, 6, 64) X(f5g64, 5, 64) X(f3g64, 3, 64) X(f4g32, 4, 32)
+// f8g32 is Spark-MLX-LLM's converted default for out_proj and lm_head (INT8, group 32; its lm_head
+// scales are F32 and are rounded to bf16 at load). It needs the generic qmvg decode, the qrf prefill
+// tiles and the short-row qmmsf forms, all of which are format-generic; the specialized qmv2_b8 /
+// qmv3_b8 paths stay group 64 (Spark::matvec_pipe only selects them for q8(), not f8g32).
+#define NI_WF_LOW(X) X(f6g64, 6, 64) X(f5g64, 5, 64) X(f3g64, 3, 64) X(f4g32, 4, 32) X(f8g32, 8, 32)
 #define NI_WF_NO8(X) X(f16, 16, 64) NI_WF_LOW(X)
 #define NI_WF_ALL(X) NI_WF_NO8(X) X(f8g64, 8, 64)
 #define NI_WF_MOE(X) X(f16, 16, 64) X(f8g64, 8, 64) X(f6g64, 6, 64) X(f5g64, 5, 64) X(f3g64, 3, 64)
@@ -1502,6 +1506,13 @@ NI_QRF_GU(qrf_gu_f16_m32_n64_mf, 16, 64, 32, 64, 1, 4, true)
 // The other formats' large tiles with M tiles along grid x too: the M1's (Apple7) default (enc_qrf)
 #define NI_WF_PREFILL_MF(SFX, F, GS) NI_QRF(qrf_##SFX##_m32_n128_mf, F, GS, 32, 128, 1, 4, true)
 NI_WF_LOW(NI_WF_PREFILL_MF)
+
+// 4-bit group 64 (OptiQ) prefill below 64 rows, and its non-qmt fallback above them. NI_WF_LOW carries
+// f4g32 but not f4g64, whose decode path is qmv2_b4_g64 and does not need qmvg; these qrf tiles are the
+// missing prefill half. They use the format-generic NI_QRF load, so no new arithmetic.
+NI_QRF(qrf_f4g64_m32_n128, 4, 64, 32, 128, 1, 4, false)
+NI_QRF(qrf_f4g64_m16_n64, 4, 64, 16, 64, 1, 4, false)
+NI_QRF(qrf_f4g64_m8_n64, 4, 64, 8, 64, 1, 2, false)
 
 #define NI_WF_SHORT(SFX, F, GS)                                                                             \
   NI_QMMSF(qmmsf_##SFX##_t1, F, GS, 1) NI_QMMSF(qmmsf_##SFX##_t2, F, GS, 2) NI_QMMSF(qmmsf_##SFX##_t3, F, GS, 3) \

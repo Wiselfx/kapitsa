@@ -19,8 +19,11 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 
 ## P1 — loading  ✅ (unverified on a GPU)
 - [x] Tensor mapping: fused `q_k_v_proj` sliced by exact byte offsets into q/k/v; `g_proj` as `[Hq, H]`
-- [x] Tied embeddings; refuse a stray `lm_head`
-- [x] Per-tensor mixed quant (MLX affine 3/4/5/6/8 g64, 4 g32, bf16) from `config.json`'s `quantization`
+- [x] Tied or untied output: `tie_word_embeddings` decides whether `lm_head` or the embedding table is the head; a
+      stray `lm_head` on a tied config is ignored, a missing one on an untied config is fatal
+- [x] Per-tensor mixed quant (MLX affine 3/4/5/6/8 g64, 4/8 g32, bf16) from `config.json`'s `quantization`;
+      group-32 decode routes to `qmvg_f4g32`/`f8g32`, never to the group-64 kernels
+- [x] F32 `lm_head` scales/biases (the reference converter's output) rounded once to bf16 at load
 - [x] HF-vs-MLX RMSNorm decided from the values (`zero_centred`)
 - [ ] **Verify with a real checkpoint** (needs a Mac; `kapitsa doctor --models-dir <dir>` then a short generation)
 
@@ -41,7 +44,7 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
       Passing an all-ones weight does not disable it, and rescaling q and k by a common per-row factor changes
       `softmax(q·k/√D)` — it is not a gauge freedom. The earlier "all-ones buffers" plan was wrong.
 - [x] Per-head sigmoid gate: one scalar broadcast over the head's 256 dims
-- [x] KV: 512-slot rings for sliding layers, full cache for full layers (`reserve` never grows a ring)
+- [x] KV: `window + prefill_chunk` rings for sliding layers, full cache for full layers (`reserve` never grows a ring)
 - [x] Decode path end to end
 - [x] **Wrapped sliding window.** `attn_decode_partial` gained a cyclic read (`AttnDecParams::wrapped`/`slot_mask`),
       so a sliding layer attends over its ring past 512 tokens. The insight that made it small: attention is a
@@ -59,15 +62,15 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
       layer's cache only appends, so truncation reads the same bytes, while a ring must be saved before it is
       overwritten. `encode_prefill` now honours `snap`/`snap_row` (it must, since `can_snapshot()` is true and the
       engine relies on it).
-- [ ] Ring-aware attention kernel (the blocker for any context longer than 512 tokens)
+- [x] Ring-aware attention read in decode (`attn_decode_partial`), prefill (`attn_prefill11r` / `qattn_t_g4d2s8`)
 - [x] **Batched prefill** — `encode_prefill` runs T rows per pass: `rows_to_half` + `qrf_proj` (Qwen35::enc_qrf's tile
-      ladder) for the projections, `attn_prefill11r` for the attention, `spark_gelu_gu` kept for the exact-GELU epilogue.
-      A mid-pass snapshot runs as its own short pass. See SPARK.md §14, "The batched prefill itself".
+      ladder; `qmt_m64_n64*` for 4-bit on M5) for the projections, `qattn_t_g4d2s8`/`attn_prefill11r` for attention,
+      `spark_gelu_gu` kept for the exact-GELU epilogue. A mid-pass snapshot runs as its own short pass.
 - [x] **Ring-aware prefill attention (R1)** — `AttnPrefParams` / `QaParams` gained `window`/`slot_mask` **appended**, so
       the 6-field brace initialisers in `clover.cpp` / `qwen35.cpp` / `qwen4_exp.cpp` still compile and zero-fill them.
       Two `static_assert`s in `kparams.h` pin the layout (32 bytes, `window` at 24) against the hand-kept mirror.
-      `tools/ring_prefill_test.cpp` checks the key set over 5 laps and the linear identity; both mutations of the ring
-      logic fail it. See SPARK.md §14, "R1, as landed".
+      `tools/ring_prefill_test.cpp` checks the key set over laps, the linear identity, and per-query chunk floors
+      (a ring of window + chunk); both mutations of the ring logic fail it. See SPARK.md §14, "R1, as landed".
 - [ ] **Ring-aware prefill attention is not verified on a GPU** — the test proves which keys are selected, not that the
       Metal kernels compile or that the scores match. `metal-compile` in CI is the only check available off a Mac.
 
@@ -115,7 +118,8 @@ layers (7 of 28 on the 1.7B, 9 of 36 on the 4B) need nothing. Two ways:
 Estimated prefill after R1/R2: ~0.35-1.4 s for 2048 tokens instead of ~25 s.
 
 ## P4 — tests  ✅
-- [x] `tools/spark_config_test.cpp`: both configs' shapes/tables, 13 refusal cases, flat-RoPE form, layer fallback
+- [x] `tools/spark_config_test.cpp`: both configs' shapes/tables, 12 refusal cases, flat-RoPE/untied-head forms,
+      layer fallback, plan-vs-allocation, matvec names including group-32 routing
 - [x] Runs green locally; verified it fails when a derived value is deliberately broken
 - [x] In `CMakeLists.txt` (`add_test` + `SPARK_CONFIG_DIR`) and `.github/workflows/ci.yml`
 - [ ] Consider a `spark_load_test` that checks tensor-name mapping against synthetic metadata (CPU only). Nice-to-have.
@@ -159,8 +163,11 @@ run, rather than after, so the baseline is measured on the final code.
       layer. The remaining option is to modify `mlp_gate_up_impl` (index the second matrix at `row0 - N0` and run
       Spark's erf GELU instead of silu), which splits the kernel on a template flag — precisely what D4 rejected
       because it recompiles the hot path of every existing model. It needs a deliberate decision, not a drive-by.
-- [ ] **Batched prefill** (the big one at long context; today prefill loops the decode path).
-- [ ] **A ring-aware attention read** (the 512-token wall).
+- [x] **Batched prefill** (`encode_prefill`; see P3 above).
+- [x] **A ring-aware attention read** (decode, both prefill kernels; ring = window + chunk).
+- [x] **4-bit tensor-ops prefill on M5** (`qmt_m64_n64`, group 32/64) and `qattn_t_g4d2s8` selection.
+- [ ] **Measure on a Mac** — bf16 vs the INT4/g32 conversion, `--prefill-chunk 2048` vs `4096`, and logits against
+      the reference. No speed number is claimed before this.
 
 **Withdrawn claim:** I earlier reported that `attn_decode_partial` could produce NaN from `num/den` on a chunk with no
 valid keys. It cannot: `nchunks` is derived from `L`, so every chunk has `start < p.L` and therefore `n >= 1`, so `m`
@@ -169,40 +176,43 @@ chunk is smaller than the tile, which the core-count fix reduces. No NaN.
 
 ### The Mac commands for the verification pass
 
-**Easiest: download the prebuilt release** (`.github/workflows/release.yml`, tag `v0.2.25`). No compiler needed.
-
-```bash
-# 1. download, check, place on PATH
-curl -fsSLO https://github.com/Wiselfx/kapitsa/releases/download/v0.2.25/kapitsa-0.2.25-darwin-arm64.tar.gz
-curl -fsSLO https://github.com/Wiselfx/kapitsa/releases/download/v0.2.25/kapitsa-0.2.25-darwin-arm64.tar.gz.sha256
-shasum -a 256 -c kapitsa-0.2.25-darwin-arm64.tar.gz.sha256
-tar xzf kapitsa-0.2.25-darwin-arm64.tar.gz
-xattr -d com.apple.quarantine kapitsa-0.2.25-darwin-arm64/kapitsa   # ad hoc signed, not notarized
-sudo cp kapitsa-0.2.25-darwin-arm64/kapitsa /usr/local/bin/
-
-# 2. fetch a pack (the 4B first: better-tuned shape, pre-quantized MLX packs, no conversion)
-#    mlx-community/Spark-X2.6-4B-OptiQ-4bit is 3.04 GB, per-tensor mixed 4/8-bit group 64
-huggingface-cli download mlx-community/Spark-X2.6-4B-OptiQ-4bit --local-dir ~/models/spark-4b
-
-# 3. does it load and plan?
-kapitsa doctor --models-dir ~/models
-
-# 4. does it speak? (no one-shot command: serve, then ask the API)
-kapitsa serve --model ~/models/spark-4b
-#    in another terminal:
-curl http://127.0.0.1:8000/v1/chat/completions -H 'Content-Type: application/json' \
-  -d '{"model": "spark", "max_tokens": 32, "messages": [{"role": "user", "content": "What is the capital of Anhui Province?"}]}'
-#    expect something coherent. The server's terminal is the useful part: it prints the detected model and the plan.
-#    Past 512 tokens of context the encode path stops with a clear "ring-aware attention read" fatal rather than
-#    producing wrong tokens — the known gap, not a crash.
-```
-
-**Or build from source** (same behaviour, needs the Command Line Tools and CMake 3.24+):
+Build the branch (needs the Command Line Tools and CMake 3.24+; an older prebuilt release does not carry these
+changes):
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(sysctl -n hw.ncpu)" --target kapitsa logit_dump
-ctest --test-dir build -R spark_config_test --output-on-failure
+ctest --test-dir build -R 'spark|ring' --output-on-failure
+```
+
+Fetch a pack. `mlx-community/Spark-X2.6-4B-OptiQ-4bit` is 3.04 GB, per-tensor mixed 4/8-bit group 64 (the OptiQ
+path). The reference converter's default INT4/g32 + INT8/g32 output is the other path and exercises the new group-32
+kernels; run both if you can:
+
+```bash
+huggingface-cli download mlx-community/Spark-X2.6-4B-OptiQ-4bit --local-dir ~/models/spark-4b-optiq
+# reference profile (needs spark-mlx-convert on macOS >= 26.2):
+#   python -m spark_mlx_llm.convert XHToken/Spark-X2.6-4B ~/models/spark-4b-g32
+```
+
+Does it load and plan? Does it speak?
+
+```bash
+build/kapitsa doctor --models-dir ~/models
+build/kapitsa serve --model ~/models/spark-4b-optiq --prefill-chunk 4096
+#    in another terminal:
+curl http://127.0.0.1:8000/v1/chat/completions -H 'Content-Type: application/json' \
+  -d '{"model": "spark", "max_tokens": 32, "messages": [{"role": "user", "content": "What is the capital of Anhui Province?"}]}'
+#    expect something coherent. The server's terminal prints the detected model, the ring size and the plan.
+#    A 2K+ token prompt now exercises the wrapped ring and the batched prefill; it must not stop at 512.
+```
+
+Measure, then compare logits:
+
+```bash
+build/kapitsa bench --model ~/models/spark-4b-optiq --prefill-chunk 2048
+build/kapitsa bench --model ~/models/spark-4b-optiq --prefill-chunk 4096
+# and the same for spark-4b-g32, if converted
 ```
 
 **Then, if step 4 works**, the reference comparison (this is what turns "it speaks" into "it computes the right thing"):
@@ -214,8 +224,10 @@ MTL_SHADER_VALIDATION=1 MTL_DEBUG_LAYER=1 \
 #    tools/logit_compare.py -- see CONTRIBUTING.md "Output check". Nothing there is claimed until it runs.
 ```
 
-## Open questions for the user
-- [ ] Push to fork `main`, or a `spark-port` branch with a PR against fork `main`?
-- [ ] Should `docs/spark/` stay in the pushed branch? (It is deliberate project documentation, not agent scratch.)
-- [ ] Do you want the ring-aware attention + batched prefill done now, or ship this decode-correct skeleton first and
-      iterate on your Mac?
+## Next
+
+- [ ] Mac pass: build, load bf16 and the INT4/g32 conversion, run 2K+ prompts, compare logits with the reference,
+      and run `kapitsa bench` at chunk 2048 and 4096. No speed number is claimed before this.
+
+The earlier open questions (branch layout, docs in the branch, and whether to do the ring read + batched prefill now)
+are settled: both are implemented and the docs stay with the code.

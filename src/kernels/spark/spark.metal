@@ -89,6 +89,10 @@ struct SparkPrepParams {
   uint32_t g_ld;   // floats between rows of the per-head gate scalars
   float theta;     // RoPE theta for this layer (5e6 full / 1e4 sliding)
   uint32_t slot_mask;  // 0 for a full-attention layer, else window - 1: the ring slot of position p is p & slot_mask
+  // Row strides/offsets of q_in, k_in and v_in, in floats. Decode: the three slices of stg_ (stride
+  // qd/kd/kd, offsets 0/qd/qd+kd). Prefill: the fused qrf output [T][qkvd], all three buffers the
+  // same base with offsets 0/qd/qd+kd and row stride qkvd. qrf writes row-major, not q-only then k.
+  uint32_t q_ld, k_ld, v_ld, q_off, k_off, v_off;
 };
 
 [[kernel]] void spark_attn_prep(const device float* q_in [[buffer(0)]], const device float* k_in [[buffer(1)]],
@@ -112,12 +116,14 @@ struct SparkPrepParams {
   // value heads: plain copy into the cache
   if (h >= p.Hq + p.Hkv) {
     const uint hv = h - p.Hq - p.Hkv;
-    vc[(hv * p.max_seq + slot) * p.D + tid] = half(v_in[(t * p.Hkv + hv) * p.D + tid]);
+    vc[(hv * p.max_seq + slot) * p.D + tid] = half(v_in[p.v_off + t * p.v_ld + hv * p.D + tid]);
     return;
   }
 
   const bool is_q = h < p.Hq;
-  const float x = is_q ? q_in[(t * p.Hq + h) * p.D + tid] : k_in[(t * p.Hkv + (h - p.Hq)) * p.D + tid];
+  const uint hv = h - p.Hq;
+  const float x = is_q ? q_in[p.q_off + t * p.q_ld + h * p.D + tid]
+                       : k_in[p.k_off + t * p.k_ld + hv * p.D + tid];
 
   // RoPE over the first `rot` dims, GPT-NeoX (half-split) convention: pair tid with tid +- rot/2, as the reference's
   // rotate_half does (cos = cat(f, f), x*cos + rotate_half(x)*sin). Dims >= rot pass through untouched.
@@ -133,7 +139,8 @@ struct SparkPrepParams {
     // thread only; re-read the partner from the source instead of a barrier, which is cheap for one row and keeps this
     // kernel stateless for the batched prefill case later.
     const uint partner = tid < half_rot ? tid + half_rot : tid - half_rot;
-    const float xp = is_q ? q_in[(t * p.Hq + h) * p.D + partner] : k_in[(t * p.Hkv + (h - p.Hq)) * p.D + partner];
+    const float xp = is_q ? q_in[p.q_off + t * p.q_ld + h * p.D + partner]
+                          : k_in[p.k_off + t * p.k_ld + hv * p.D + partner];
     y = tid < half_rot ? x * cs - xp * sn : x * cs + xp * sn;
   }
 
@@ -146,7 +153,7 @@ struct SparkPrepParams {
     qg_out[o + tid] = y;
     qg_out[o + p.D + tid] = g_in[size_t(t) * p.g_ld + h];
   } else {
-    kc[((h - p.Hq) * p.max_seq + slot) * p.D + tid] = half(y);
+    kc[(hv * p.max_seq + slot) * p.D + tid] = half(y);
   }
 }
 

@@ -16,6 +16,8 @@
 
 namespace ni {
 
+extern const char* const kTensorKernelSource;
+bool qmt_on();  // qwen35.h: Metal 4 tensor_ops GEMMs available (same gate Qwen35 uses)
 using json = nlohmann::json;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -36,7 +38,9 @@ namespace {
 bool format_supported(int bits, int gs) {
   if (bits == 16) return true;
   if (gs == 64) return bits == 3 || bits == 4 || bits == 5 || bits == 6 || bits == 8;
-  return gs == 32 && bits == 4;
+  // Spark-MLX-LLM's default Spark conversion: INT4 group 32 for QKV/MLP, INT8 group 32 for
+  // out_proj and lm_head. f8g32's kernels are format-generic (qmvg/qrf/qmmsf), not qmv2_b8.
+  return gs == 32 && (bits == 4 || bits == 8);
 }
 
 // config.json's "quantization": a default {bits, group_size} plus per-module overrides, as mlx-lm writes it (OptiQ
@@ -119,6 +123,10 @@ Pipeline pipe(const std::string& n) {
   auto it = cache.find(n);
   if (it == cache.end()) {
     if (n.rfind("spark_", 0) == 0) Gpu::get().compile_extra("spark", kSparkKernelSource);
+    // The prefill GEMM and attention kernels on the M5's matrix units live in the tensor library; like
+    // Qwen35::pipe, compile it on first use so a process that never loaded another model still finds them.
+    else if (n.rfind("qmt", 0) == 0 || n.rfind("qattn_t", 0) == 0)
+      Gpu::get().compile_extra("tensor", kTensorKernelSource, true);
     it = cache.emplace(n, Gpu::get().pipeline(n)).first;
   }
   return it->second;
@@ -128,14 +136,15 @@ Pipeline pipe(const std::string& n) {
 
 // A float tensor as bf16 (t itself when it is bf16, else an owned bf16 copy); `offset` is added first — the
 // zero-centred RMSNorm weights of a Hugging Face checkpoint are applied as 1 + w. Mirrors Qwen35::bf16_copy, so both
-// families convert a norm to the same values (rounded once, to bf16).
-const Tensor* Spark::norm_copy(const Tensor* t, float offset) {
+// families convert a value to the same bf16 result (rounded once). Also used for Spark-MLX-LLM's F32 lm_head
+// scales/biases: every kernel takes bf16 coefficients, and the conversion is done once at load rather than per token.
+const Tensor* Spark::bf16_copy(const Tensor* t, float offset) {
   if (!t) return t;
   if (t->dtype == DType::BF16 && offset == 0.0f) return t;
   if (t->dtype != DType::BF16 && t->dtype != DType::F32 && t->dtype != DType::F16)
-    fatal("RMSNorm: unsupported dtype %d", int(t->dtype));
+    fatal("tensor: unsupported dtype %d for a bf16 conversion", int(t->dtype));
   const size_t n = size_t(t->numel());
-  Buffer b = Gpu::get().alloc(n * 2 + 16, "spark_norm_copy", /*tracked=*/false);
+  Buffer b = Gpu::get().alloc(n * 2 + 16, "spark_bf16_copy", /*tracked=*/false);
   uint16_t* d = b.as<uint16_t>();
   for (size_t i = 0; i < n; ++i) {
     const float v = t->dtype == DType::F32 ? t->buf.as<float>()[i]
@@ -188,7 +197,9 @@ void Spark::load(int chunk) {
   const std::string bad = spark_refusal(*root, path_);
   if (!bad.empty()) fatal("%s", bad.c_str());
   cfg_ = spark_read_config(*root);
-  logi("Spark: %s", cfg_.formats().c_str());
+  ring_rows_ = spark_ring_rows(cfg_, tmax_);
+  logi("Spark: %s; sliding rings %d slots (window %d + prefill chunk %d)", cfg_.formats().c_str(), ring_rows_,
+       cfg_.window, tmax_);
 
   QuantCfg quant;
   quant.read(*root);
@@ -220,10 +231,13 @@ void Spark::load(int chunk) {
     int bits = 0, gs = 0;
     quant.of(name, bits, gs);
     if (!format_supported(bits, gs))
-      fatal("%s: %d-bit group %d weights are not supported (bf16, 3/4/5/6/8-bit group 64, 4-bit group 32)", name.c_str(),
+      fatal("%s: %d-bit group %d weights are not supported (bf16, 3/4/5/6/8-bit group 64, 4/8-bit group 32)", name.c_str(),
             bits, gs);
-    if (L.s->dtype != DType::BF16 || L.b->dtype != DType::BF16)
-      fatal("%s: quantized weights with non-bf16 scales/biases are not supported", name.c_str());
+    // Spark-MLX-LLM's converted lm_head stores F32 scales and biases (the reference's W8A16 per-channel
+    // path). Every kernel here takes bf16 coefficients, so round once at load. Other converted modules use
+    // BF16 and are returned unchanged. This must happen before the L.s/L.b shape checks below.
+    L.s = bf16_copy(L.s, 0.0f);
+    L.b = bf16_copy(L.b, 0.0f);
     L.bits = bits;
     L.gs = gs;
     L.K = uint32_t(L.w->shape.back() * 32 / bits);
@@ -234,9 +248,12 @@ void Spark::load(int chunk) {
   };
 
   embed_ = qlin("model.embedding");
-  if (ws_->has("lm_head.weight"))
-    fatal("%s: an lm_head with tied embeddings (remove the duplicate or untie the config)", path_.c_str());
-  head_ = embed_;
+  // Spark-MLX-LLM's default conversion unties the output layer (`tie_word_embeddings: false`) and writes a
+  // separately quantized lm_head: INT8 group 32, F32 scales. The config is the authority, as in the
+  // reference; a leftover lm_head on a tied checkpoint is ignored rather than fatal.
+  head_ = cfg_.tie_embeddings ? embed_ : qlin("lm_head");
+  if (!cfg_.tie_embeddings && !ws_->has("lm_head.weight"))
+    fatal("%s: tie_word_embeddings is false but lm_head.weight is missing", path_.c_str());
   final_norm_ = &ws_->get("model.norm.weight");
 
   const Tensor* n0 = ws_->find("model.layers.0.input_layernorm.weight");
@@ -264,10 +281,10 @@ void Spark::load(int chunk) {
     // reads weights centred on 0 instead of 1 and every activation collapses — the weights are not "close enough", so
     // this is a load-time conversion, not a comment.
     for (SparkLayer& L : layers_) {
-      L.in_norm = norm_copy(L.in_norm, 1.0f);
-      L.post_norm = norm_copy(L.post_norm, 1.0f);
+      L.in_norm = bf16_copy(L.in_norm, 1.0f);
+      L.post_norm = bf16_copy(L.post_norm, 1.0f);
     }
-    final_norm_ = norm_copy(final_norm_, 1.0f);
+    final_norm_ = bf16_copy(final_norm_, 1.0f);
   }
   check_shapes();
 
@@ -285,6 +302,11 @@ void Spark::check_shapes() const {
   if (cfg_.group() != 4)
     fatal("%d query heads per KV head (Hq %d / Hkv %d): the decode kernel is written for 4", cfg_.group(), cfg_.hq,
           cfg_.hkv);
+  if (embed_.N != uint32_t(cfg_.vocab) || embed_.K != uint32_t(cfg_.hidden))
+    fatal("model.embedding is [%u, %u], expected [%d, %d]", embed_.N, embed_.K, cfg_.vocab, cfg_.hidden);
+  if (head_.N != uint32_t(cfg_.vocab) || head_.K != uint32_t(cfg_.hidden))
+    fatal("%s is [%u, %u], expected [%d, %d]", cfg_.tie_embeddings ? "tied lm_head" : "lm_head", head_.N, head_.K,
+          cfg_.vocab, cfg_.hidden);
   for (int i = 0; i < cfg_.layers; ++i) {
     const SparkLayer& L = layers_[size_t(i)];
     if (L.qkv.N != uint32_t(cfg_.qkv_dim()) || L.qkv.K != uint32_t(cfg_.hidden))
@@ -310,9 +332,10 @@ void Spark::check_shapes() const {
 size_t Spark::kv_bytes_per_pos() const { return spark_kv_per_pos(cfg_); }
 
 int Spark::cache_rows(const Seq& s, int li) const {
-  // a sliding layer's cache is a ring of `window` slots (+ spare, so a chunk's rows never wrap inside one pass); a
-  // full layer's grows with the conversation.
-  return ring_layer(li) ? cfg_.window + 8 : s.cap;
+  // A sliding layer's cache is a ring of ring_rows_ (window + the prefill chunk, a power of two); a
+  // full layer's grows with the conversation. The chunk term is required, not spare: prefill writes
+  // the whole chunk before attention reads it.
+  return ring_layer(li) ? ring_rows_ : s.cap;
 }
 
 std::unique_ptr<Seq> Spark::new_seq(int limit, int initial) {
@@ -455,8 +478,8 @@ void Spark::restore(Encoder& e, Seq& s, const Checkpoint& c) {
 
 std::string Spark::disk_format() const {
   char b[160];
-  snprintf(b, sizeof b, "spark h%d l%d hq%d hkv%d d%d w%d", cfg_.hidden, cfg_.layers, cfg_.hq, cfg_.hkv, cfg_.head_dim,
-           cfg_.window);
+  snprintf(b, sizeof b, "spark h%d l%d hq%d hkv%d d%d w%d r%d", cfg_.hidden, cfg_.layers, cfg_.hq, cfg_.hkv,
+           cfg_.head_dim, cfg_.window, ring_rows_);
   return b;
 }
 
@@ -558,13 +581,13 @@ Spark::Matvec Spark::matvec_pipe(const SparkLinear& W, bool norm, bool add) {
   const bool huge = W.N >= 65536;
   const std::string rows4 = huge ? "4" : "2";
   std::string name;
-  if (W.q4()) {
+  if (W.q4() && W.gs == 64) {
     if (W.K > 4096) {
       name = "qmv3_b4_r" + (add ? std::string("2") : rows4);
     } else {
       name = "qmv2_b4_g64_r" + rows4;
     }
-  } else if (W.q8()) {
+  } else if (W.q8() && W.gs == 64) {
     if (!norm) {
       name = "qmv3_b8_r2";  // the only 8-bit form without a folded norm
       if (add) name += "_add";
@@ -574,7 +597,9 @@ Spark::Matvec Spark::matvec_pipe(const SparkLinear& W, bool norm, bool add) {
       name = "qmv2_b8_g64_r" + rows4;
     }
   } else {
-    // qmvg carries the bf16 and 3/5/6-bit formats. Its _add form exists only at r2, so a wide matrix takes r2 too.
+    // qmvg carries bf16, the 3/5/6-bit formats, and both group-32 formats. qmv2_b4_g64/qmv3_* and
+    // qmv2_b8_g64 hard-code GS == 64; sending Spark-MLX-LLM's f4g32/f8g32 there reads a scale per 64
+    // values from a table indexed per 32, which is silently wrong, not a slower path.
     name = "qmvg_" + W.fmt() + "_r" + (add ? std::string("2") : rows4);
   }
   if (add) name += "_add";
@@ -748,11 +773,24 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
   // prologue, whose checkpoints have q_norm/k_norm), and Spark has neither -- its reference ropes the raw q_k_v_proj
   // output. See spark_attn_prep in src/kernels/spark/spark.metal for the citation.
   const bool ring = ring_layer(li);
-  const int rows_n = ring ? cfg_.window + 8 : s.cap;
+  const int rows_n = ring ? ring_rows_ : s.cap;
   {
-    kp::SparkPrep pp{1,          uint32_t(cfg_.hq), uint32_t(cfg_.hkv), D, uint32_t(L.rot),
-                     uint32_t(pos), uint32_t(rows_n), uint32_t(cfg_.hq), L.theta,
-                     ring ? uint32_t(cfg_.window - 1) : 0u};
+    kp::SparkPrep pp{};
+    pp.T = 1;
+    pp.Hq = uint32_t(cfg_.hq);
+    pp.Hkv = uint32_t(cfg_.hkv);
+    pp.D = D;
+    pp.rot = uint32_t(L.rot);
+    pp.pos = uint32_t(pos);
+    pp.max_seq = uint32_t(rows_n);
+    pp.g_ld = uint32_t(cfg_.hq);
+    pp.theta = L.theta;
+    pp.slot_mask = ring ? uint32_t(ring_rows_ - 1) : 0u;
+    // decode: q|k|v are the three contiguous slices of stg_, one row each
+    pp.q_ld = uint32_t(qd);
+    pp.k_ld = uint32_t(kd);
+    pp.v_ld = uint32_t(kd);
+    pp.q_off = pp.k_off = pp.v_off = 0;
     e.use(pipe("spark_attn_prep"));
     e.buf(0, stg_);  // dense q at the front, as the fused matvec left it
     e.buf(1, kr_);
@@ -779,16 +817,15 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
   // Once a sliding layer's ring has wrapped, the live keys sit at (pos+1-lo) & (window-1) onwards, wrapping around: not
   // contiguous from slot 0 any more. attn_decode_partial reads such a cache `wrapped` slots further round (see
   // AttnDecParams), which is the same sum over the same keys in ring order -- attention is a weighted sum, so the
-  // order comes from the softmax weights, not the slots. The write side stores at `pos & (window-1)`
-  // (spark_attn_prep's slot_mask), so the ring holds exactly the window's keys already; nothing to move or copy.
+  // order comes from the softmax weights, not the slots. The write side stores at `pos & (ring_rows_-1)`
+  // (spark_attn_prep's slot_mask), so the ring holds at least the window's keys already; nothing to move or copy.
   //
-  // Two things this depends on, both true of Spark's configs and checked there: window is a power of two (512, so
-  // the ring is slot_mask+1 slots and `&` is the modulus), and window is a multiple of the kernel's kTile (16), so a
-  // tile crosses the seam at most once.
-  const uint32_t wrapped = lo > 0 ? (lo & (uint32_t(cfg_.window) - 1)) : 0u;
+  // ring_rows_ is a power of two (window + the prefill chunk, rounded up), so `&` is the modulus, and
+  // it is a multiple of the kernel's kTile (16); a tile crosses the seam at most once.
+  const uint32_t wrapped = lo > 0 ? (lo & (uint32_t(ring_rows_) - 1)) : 0u;
   // L is the number of live keys: span, which is hi for a full layer (and for a sliding one before it wraps).
   kp::AttnDec dp{uint32_t(cfg_.hq), uint32_t(cfg_.hkv), span, chunk, uint32_t(rows_n),
-                 1.0f / std::sqrt(float(cfg_.head_dim)), nch, wrapped, ring ? uint32_t(cfg_.window - 1) : 0u};
+                 1.0f / std::sqrt(float(cfg_.head_dim)), nch, wrapped, ring ? uint32_t(ring_rows_ - 1) : 0u};
   e.use(pipe("attn_decode_partial"));
   e.buf(0, qr_);
   e.buf(1, s.kc[size_t(li)]);
@@ -878,6 +915,24 @@ void Spark::enc_rows_half(Encoder& e, const Buffer& x, const Tensor* norm, const
 // (qrf_f16_m32_n128_mf / qrf_f16_m16_n64 / qrf_f16_m8_n64), and the M-tiles-along-grid-x form is what keeps bf16's 4x
 // larger weights from being streamed once per M tile.
 void Spark::qrf_proj(Encoder& e, const SparkLinear& W, const Buffer& xh, const Buffer& y, int T, bool add) {
+  // On an M5 (Apple10, macOS 26) 4-bit group 32/64 prefill runs on the matrix units (qmt_m64_n64*),
+  // the same tile Qwen35 uses: 21-23 TFLOP/s against qmr's 7.4-7.6, and the generic qrf tiles are
+  // slower still. Group 32 is the reference converter's default for QKV/MLP; group 64 is OptiQ's.
+  // qmt's 16-code weight chunks never cross a 32-value group, so one template instantiation covers both.
+  // Below 64 rows the 64-row tile wastes more than it gains; qrf's m16/m8 tiles take those.
+  if (W.bits == 4 && (W.gs == 32 || W.gs == 64) && T >= 64 && W.K % 32 == 0 && qmt_on()) {
+    const std::string n = W.gs == 32 ? "qmt_m64_n64_g32" : "qmt_m64_n64";
+    e.use(pipe(n));
+    kp::Qmm p{uint32_t(T), W.N, W.K, W.K, W.N, add ? 1u : 0u, uint32_t(W.gs), 0, 0};
+    e.buf(0, xh);
+    e.buf(1, W.w->buf);
+    e.buf(2, W.s->buf);
+    e.buf(3, W.b->buf);
+    e.buf(4, y);
+    e.val(5, p);
+    e.dispatch((W.N + 63) / 64, (uint32_t(T) + 63) / 64, 1, 128);
+    return;
+  }
   // bf16's large tile has a form that runs its M tiles along grid x (_mf), so the threadgroups executing together share a
   // weight tile through the cache instead of each streaming the whole matrix -- bf16 weights are 4x the bytes of 4-bit
   // ones, which is why only the bf16 tile is built that way. Qwen35 gates that on NI_QRF16_MF (default on, qwen35.cpp);
@@ -914,21 +969,27 @@ void Spark::qrf_proj(Encoder& e, const SparkLinear& W, const Buffer& xh, const B
 void Spark::enc_mlp_prefill(Encoder& e, const SparkLayer& L, int T) {
   const int F = cfg_.ffn;
   enc_rows_half(e, xb_, L.post_norm, xh_, T, cfg_.hidden);
-  qrf_proj(e, L.mg, xh_, gub_, T, false);  // gate -> gub_[0, F)
-  Buffer u = gub_.view(size_t(F) * sizeof(float), size_t(F) * sizeof(float));
-  qrf_proj(e, L.mu, xh_, u, T, false);    // up   -> gub_[F, 2F)
-  // gate*up stays per row: the epilogue reads both halves of the row and writes the fp32 product, then down_proj reads it
-  // as half (hh_), which is the same rounding Qwen35's swiglu_half -> qrf path has.
+  // Two contiguous [T][F] products, not [T][2F] rows split at F: qrf writes row-major with y_ld = F.
+  // The earlier "u = gub_.view(F, F)" started up at float F and let its row t overlap gate row t+1, so
+  // every gate row after the first was overwritten by an up row before spark_gelu_gu read it. The
+  // buffer is still 2*T*F floats; it is partitioned once, after the pass's row count is known.
+  Buffer gate = gub_.view(0, size_t(T) * size_t(F) * sizeof(float));
+  Buffer up = gub_.view(size_t(T) * size_t(F) * sizeof(float), size_t(T) * size_t(F) * sizeof(float));
+  qrf_proj(e, L.mg, xh_, gate, T, false);  // gate -> gate[t][c]
+  qrf_proj(e, L.mu, xh_, up, T, false);    // up   -> up[t][c]
+  // gate*up stays per row: the epilogue reads both buffers at [t][c] and writes the fp32 product into
+  // the gate half, then down_proj reads it as half (hh_), the same rounding Qwen35's swiglu_half -> qrf
+  // path has.
   {
     kp::SparkGu gp{uint32_t(F), uint32_t(F)};
     e.use(pipe("spark_gelu_gu"));
-    e.buf(0, gub_);
-    e.buf(1, u);
-    e.buf(2, gub_);
+    e.buf(0, gate);
+    e.buf(1, up);
+    e.buf(2, gate);
     e.val(3, gp);
     e.dispatch((uint32_t(F) + 255u) / 256u, uint32_t(T), 1, 256);
   }
-  enc_rows_half(e, gub_, nullptr, hh_, T, F);
+  enc_rows_half(e, gate, nullptr, hh_, T, F);
   qrf_proj(e, L.md, hh_, xb_, T, /*add=*/true);
 }
 
@@ -943,21 +1004,32 @@ void Spark::enc_attn_prefill(Encoder& e, Seq& s, int li, int pos0, int T) {
   enc_rows_half(e, xb_, L.in_norm, xh_, T, cfg_.hidden);
   qrf_proj(e, L.qkv, xh_, stgb_, T, false);
   qrf_proj(e, L.gate, xh_, gub_, T, false);  // the per-head scalar gate (T x Hq), packed by spark_attn_prep below
-  // k/v staging over T rows: spark_attn_prep reads [t][Hkv][D] from buffers 1 and 2, so they cannot be the per-row kr_ /
-  // vr_ the decode path uses (those hold one row). Layer a view over the T-row staging of stgb_, past the q rows: the
-  // fused projection wrote q at [0, T*qd), k at [T*qd, T*(qd+kd)) and v after it, so both slices are already there.
-  const size_t row_f = size_t(sizeof(float));
-  Buffer kb = stgb_.view(size_t(T) * size_t(qd) * row_f, size_t(T) * size_t(kd) * row_f);
-  Buffer vb = stgb_.view(size_t(T) * size_t(qd + kd) * row_f, size_t(T) * size_t(kd) * row_f);
+  // qrf writes a row-major [T][qkvd] matrix. spark_attn_prep therefore reads q, k and v from the same
+  // buffer with per-row strides qkvd and offsets 0 / qd / qd + kd. The earlier version assumed the
+  // projection had written three contiguous T-row blocks (q at [0, T*qd), then k, then v), which is not
+  // what any GEMM here emits: every row after the first then read another row's q as k.
   // spark_attn_prep: RoPE (per-layer rot/theta), the interleaved q|gate, and the cache append at the ring slot
   {
-    const int rows_n = ring ? cfg_.window + 8 : s.cap;
-    kp::SparkPrep pp{uint32_t(T), Hq, Hkv, D, uint32_t(L.rot), uint32_t(pos0), uint32_t(rows_n), Hq, L.theta,
-                     ring ? uint32_t(cfg_.window - 1) : 0u};
+    const int rows_n = ring ? ring_rows_ : s.cap;
+    kp::SparkPrep pp{};
+    pp.T = uint32_t(T);
+    pp.Hq = Hq;
+    pp.Hkv = Hkv;
+    pp.D = D;
+    pp.rot = uint32_t(L.rot);
+    pp.pos = uint32_t(pos0);
+    pp.max_seq = uint32_t(rows_n);
+    pp.g_ld = Hq;
+    pp.theta = L.theta;
+    pp.slot_mask = ring ? uint32_t(ring_rows_ - 1) : 0u;
+    pp.q_ld = pp.k_ld = pp.v_ld = uint32_t(qkvd);
+    pp.q_off = 0;
+    pp.k_off = uint32_t(qd);
+    pp.v_off = uint32_t(qd + kd);
     e.use(pipe("spark_attn_prep"));
-    e.buf(0, stgb_);  // dense q at the front of the fused output
-    e.buf(1, kb);
-    e.buf(2, vb);
+    e.buf(0, stgb_);  // q, k and v: one fused [T][qkvd] matrix, read with the strides above
+    e.buf(1, stgb_);
+    e.buf(2, stgb_);
     // buffer 3 is read (T x Hq gate scalars) while buffer 5 is written (the packed [T][Hq][2][D]), so they must be
     // different buffers -- in one dispatch an in-place pack would race the gate reads of the rows still to come.
     e.buf(3, gub_);
@@ -971,19 +1043,30 @@ void Spark::enc_attn_prefill(Encoder& e, Seq& s, int li, int pos0, int T) {
   // The attention. Window/slot_mask are the ring (0 / 0 for a full-attention layer, which is also what every other
   // model passes, so the shared kernel reads exactly as before for them).
   {
-    const int rows_n = ring ? cfg_.window + 8 : s.cap;
+    const int rows_n = ring ? ring_rows_ : s.cap;
     kp::AttnPref fp{uint32_t(T), Hq, Hkv, uint32_t(pos0), uint32_t(rows_n), 1.0f / std::sqrt(float(cfg_.head_dim)),
-                    ring ? uint32_t(cfg_.window) : 0u, ring ? uint32_t(cfg_.window - 1) : 0u};
-    // attn_prefill11r: 32 queries of one query head per threadgroup, and "any G works" (Spark's is 4), which is why this
-    // kernel and not one of the G-specialised ones. Its output is fp32 [T][Hq][D].
-    e.use(pipe("attn_prefill11r"));
+                    ring ? uint32_t(cfg_.window) : 0u, ring ? uint32_t(ring_rows_ - 1) : 0u};
+    // On the M5, G = 4 runs qattn_t_g4d2s8: 16 tokens x one KV head's 4 heads per threadgroup, the head
+    // dim split over a pair of simdgroups. Qwen35's measurement of exactly these heads (T 2048 against
+    // 4096/8192/16384 keys): 3.09 / 7.34 / 15.95 ms against attn_prefill11r's 5.15 / 11.48 / 24.21.
+    // NI_ATTN (any value) forces 11r, as Qwen35's does; NI_QATTN=0 and NI_QATTN_G4D2=0 turn it off.
+    // The ring parameters are the same AttnPref layout both kernels share.
+    auto env = [](const char* n, int def) {
+      const char* v = getenv(n);
+      return v && *v ? atoi(v) : def;
+    };
+    static const bool attn_env = getenv("NI_ATTN") && *getenv("NI_ATTN");
+    const bool qattn = !attn_env && qmt_on() && cfg_.head_dim == 256 && cfg_.hq == 4 * cfg_.hkv &&
+                       env("NI_QATTN", 1) != 0 && env("NI_QATTN_G4D2", 1) != 0;
+    e.use(pipe(qattn ? "qattn_t_g4d2s8" : "attn_prefill11r"));
     e.buf(0, qrb_);
     e.buf(1, s.kc[size_t(li)]);
     e.buf(2, s.vc[size_t(li)]);
     e.buf(3, qgb_);
     e.buf(4, aob_);
     e.val(5, fp);
-    e.dispatch((uint32_t(T) + 31) / 32, Hq, 1, 256);
+    if (qattn) e.dispatch((uint32_t(T) * 4u + 63u) / 64u, Hkv, 1, 256);  // 4 pairs x 16 rows
+    else e.dispatch((uint32_t(T) + 31) / 32, Hq, 1, 256);
   }
   // out_proj, added into the fp32 residual
   enc_rows_half(e, aob_, nullptr, xh_, T, qd);
@@ -1028,10 +1111,15 @@ void Spark::encode_prefill(Encoder& e, Seq& s, int pos0, int T, const SamplingPa
     enc_embed(e, s.tok, p0, n, xb_);  // the residual starts as the embeddings; every later write into xb_ is `add`
     for (int i = 0; i < cfg_.layers; ++i) enc_attn_prefill(e, s, i, p0, n), enc_mlp_prefill(e, layers_[size_t(i)], n);
     if (want_sample) {
-      // the pass's last row produces the token after it (pos0 + n), as encode_step's does
-      enc_rows_half(e, xb_.view(size_t(n - 1) * size_t(cfg_.hidden) * sizeof(float), size_t(cfg_.hidden) * sizeof(float)),
-                    final_norm_, xh_, 1, cfg_.hidden);
-      enc_sample(e, s, xh_, p0 + n, sp, step);
+      // The pass's last row produces the token after it (pos0 + n), as encode_step's does. enc_head folds
+      // the final norm into its matvec and reads a fp32 row; the earlier code passed the half xh_ after
+      // rows_to_half had already applied the final norm, so the head kernel read half data as floats and
+      // normalized it a second time. Use the residual row exactly as encode_step does (encode_step passes
+      // x_ with no separate norm pass).
+      enc_sample(e, s,
+                 xb_.view(size_t(n - 1) * size_t(cfg_.hidden) * sizeof(float),
+                          size_t(cfg_.hidden) * sizeof(float)),
+                 p0 + n, sp, step);
     }
   };
   if (split < 0) {
@@ -1064,7 +1152,7 @@ MemPlan Spark::plan(const std::string& path, int prefill_chunk) {
   m.ffn_mma = false;
   m.formats = c.formats();
   m.kv_per_pos = spark_kv_per_pos(c);
-  m.slot_state = spark_ring_bytes(c);
+  m.slot_state = spark_ring_bytes(c, prefill_chunk);
   // One row's activations, and exactly alloc_state()'s buffers. Two errors lived here, both fixed:
   //   - it multiplied one row by `prefill_chunk`, reserving ~310 MB on the 4B that nothing allocates. The number
   //     reaches the engine's fit checks and doctor's report, so Spark looked far larger than it is;

@@ -24,14 +24,16 @@ void check(bool ok, const char* what) {
 }
 
 constexpr uint32_t window = 512;                // Spark's sliding_window, both sizes
-constexpr uint32_t slot_mask = window - 1;
+constexpr uint32_t chunk = 2048;                // default prefill_chunk
+constexpr uint32_t ring = 4096;                 // next power of two >= window + chunk (spark_ring_rows)
+constexpr uint32_t slot_mask = ring - 1;
 constexpr uint32_t kTile = 16;                  // src/kernels/attn.metal
 
 // The write side: spark_attn_prep's `slot = p.slot_mask ? (pos & p.slot_mask) : pos`.
 uint32_t write_slot(uint32_t pos) { return pos & slot_mask; }
 
 // The read side: attn_slot(p, t) with `p.wrapped` as src/model/spark.cpp computes it
-// (lo & (window-1), lo = pos+1-window once wrapped).
+// (lo & (ring_rows_-1), lo = pos+1-window once wrapped).
 uint32_t read_slot(uint32_t pos, uint32_t t) {
   const uint32_t lo = pos + 1 > window ? pos + 1 - window : 0u;
   const uint32_t wrapped = lo & slot_mask;
@@ -41,8 +43,10 @@ uint32_t read_slot(uint32_t pos, uint32_t t) {
 }  // namespace
 
 int main() {
-  // Spark's configs make two assumptions the kernel relies on; check them rather than trusting the comment.
-  check((window & (window - 1)) == 0, "window is a power of two, so & is the modulus");
+  // The ring is a power of two and holds a full window plus one prefill chunk. Without the chunk
+  // term, writing the chunk before attention overwrites the first query's oldest keys.
+  check((ring & (ring - 1)) == 0, "ring is a power of two, so & is the modulus");
+  check(ring >= window + chunk, "ring holds the window plus one whole prefill chunk");
   check(window % kTile == 0, "window is a multiple of kTile, so a tile crosses the seam at most once");
 
   // For every position, the live window read in ring order must hit exactly the slots the write side filled -- no
@@ -65,14 +69,16 @@ int main() {
   check(order_ok, "the t-th live key reads the slot its position was written to, for 4 windows of positions");
   check(set_ok, "each live key is read once and the whole window is covered");
 
-  // The specific boundary the failure happened at: 512 -> 513 tokens.
+  // The specific boundary the old failure happened at: 512 -> 513 tokens. The ring is larger now,
+  // so these keys are still at their own slots; the seam has moved to the ring's end.
   check(read_slot(511, 511) == 511, "at position 511 (window full, not wrapped) the last key is slot 511");
   check(read_slot(512, 0) == 1, "at 513 tokens the oldest live key is slot 1, not slot 0");
-  check(read_slot(512, 511) == (512 & slot_mask), "at 513 tokens the newest key (position 512) is slot 0");
+  check(read_slot(512, 511) == 512, "at 513 tokens the newest key (position 512) is slot 512");
 
-  // A tile straddling the seam, as the kernel splits it: the run to the end of the ring, then the run from its start.
+  // A tile straddling the seam at the ring's end (position ring-1 -> ring): the run to the end, then
+  // the run from its start.
   {
-    const uint32_t pos = 512, t0 = 496;  // slots 497..511 then 0..0
+    const uint32_t pos = ring, t0 = 496;  // slots ring-15..ring-1 then 0
     const uint32_t s0 = read_slot(pos, t0);
     const uint32_t rows_to_end = (slot_mask + 1u) - s0;
     check(s0 + rows_to_end == slot_mask + 1u, "a straddling tile's first run ends exactly at the ring's end");
