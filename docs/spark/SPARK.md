@@ -771,8 +771,11 @@ places at once.
 reallocation became uninitialised memory, and nothing errors — the model simply "forgets". It would trigger on the first
 prompt longer than the initial capacity, and again on every growth. Rewritten to allocate, copy, commit, release (and to
 respect `mem_budget_`, which it also ignored), reusing the base library's `kv_regrow` kernel — the same one
-`Qwen35::grow_kv` uses. Note the parameter packing: `kv_regrow` takes `(positions, src cap, dst cap)` in 16-byte words,
-and my first attempt passed `(old, target, hkv)`, which would have copied the wrong strides.
+`Qwen35::grow_kv` uses. Its `uint3` is `(source stride, destination stride, Hkv)` in 16-byte words, as
+`Qwen35::enc_kv_regrow` passes it. The landed Spark call passed `(old, old, target)` — the shape `kv_copy_prefix`
+takes — so after the first growth every KV head after the first was copied at the old offset, and attention read zeros
+from the new rows. That made the long-context path wrong even though the cache now preserved its bytes; fixed to
+`(old, target, hkv)` and pinned by `check_kv_regrow` in `tests/test_spark_sampling_offset.py`.
 
 ### Defect 11 (would have corrupted memory): the ring caches were written at absolute positions
 
@@ -1045,3 +1048,111 @@ kapitsa bench --model <dir> --prefill-chunk 4096
 
 Measure bf16 against the INT4/g32 conversion on the same prompts: the prefill delta should track the 7x weight-byte
 reduction plus the qmt tensor-ops gain; decode should track the same reduction. Do not quote a number until it is run.
+
+## 17. Decode dispatch fusion, and the half activation (2026-10-31)
+
+Two changes, both in the decode path; neither changes prefill math beyond deleting a pass.
+
+### 17a. Four projection dispatches per layer became two
+
+Spark's decode attention already described q/k/v as three row ranges of one `q_k_v_proj`, but only took a
+multi-segment matvec for 4/8-bit group-64 weights and then ran `g_proj` separately. `Spark::multi_proj` now chooses
+the same two host-side pathways as `Qwen35::enc_qmv_multi`: `qmvg_multi_<fmt>` when every segment has one format, and
+`qmv2/qmv3_multi_r2` for 4/8-bit group 64 (per-segment bits). It fuses:
+
+- q/k/v/gate into one dispatch when `g_proj` shares the format (bf16 in both live checkpoints, or all-quantized), and
+  q/k/v into one plus a separate gate otherwise (the reference converter leaves `g_proj` bf16 under a quantized qkv);
+- `gate_proj` and `up_proj` into one dispatch when they share a format.
+
+The old q/k/v multi path also bound the whole `q_k_v_proj` tensor for all three segments. `qmv2_multi` addresses each
+segment from row 0, so k and v were computed from the q rows. The new path binds `w`/`s`/`b` at row 0, `qd`, and
+`qd + kd`; the static test checks those three offsets rather than trusting the filler.
+
+### 17b. One fewer prefill pass over `T*ffn`
+
+Decode matvecs read fp32 x (`qmv2`, `qmv3` and `qmvg` all take `const device float* x`), so the decode epilogue's
+fp32 output into `mh_` is correct and stays. The prefill down projection is a `qrf` GEMM and reads half; that path
+wrote the product to an fp32 buffer and then ran `rows_to_half` over it. `spark_gelu_gu_half` now writes half straight
+into `hh_`, so the separate pass is gone (the cast is the pass, at the only place the value is produced). Decode and
+prefill therefore run two instantiations of the same four-line epilogue, each writing the type its consumer reads.
+
+### 17c. What this does and does not fix
+
+Decode is weight-bandwidth bound in bf16: the 1.7B streams 3.42 GB per token, which at ~80 tok/s is ~274 GB/s, the
+ceiling of the machine that produced that number. Fusing four dispatch launches per layer (one fewer when `g_proj`'s
+format differs) removes launch overhead, not bytes; each segment still normalizes x in its own threadgroups, so the norm
+work is unchanged. Expect a few percent, not a multiplier. The 2.9x smaller MLX 4-bit pack is still the only large
+decode win, and it now goes through the corrected multi path. Prefill remains limited by the GEMMs; this pass removes
+one `T*F` read/write per layer, it does not change their FLOPs.
+
+Verified on Linux (no Metal compiler): `tools/lx_syntax_check.sh`, `tests/test_spark_sampling_offset.py`,
+`tests/test_metal_shared_helpers.py`, and `spark_config_test` against both published configs. GPU arithmetic, logits,
+and speed still need the Mac pass.
+
+## 18. Live context scaling (v0.2.36 endpoint, 1.7B bf16)
+
+The running endpoint (`Spark-X2.6-1.7B`, one slot, default chunk; these changes are not in it yet) was probed with
+greedy requests and measured from `usage.kapitsa.prefill_ms` plus wall time. Decode is `(wall - prefill_ms)` over the
+completion tokens, so the 16-token rows carry scheduling noise; the shape is the point.
+
+| prompt tokens | prefill ms | prefill tok/s | decode tok/s |
+|---:|---:|---:|---:|
+| 1,604 | 830 | 1,933 | 74.4 |
+| 6,879 | 3,310 | 2,078 | 73.8 |
+| 13,689 | 7,340 | 1,865 | 70.2 |
+| 21,860 | 13,160 | 1,661 | 64.8 |
+| 25,604 | 16,110 | 1,589 | 64.5 |
+| 42,627 | 32,470 | 1,313 | 56.3 |
+
+The 25.6k and 42.6k rows used 32- and 16-token completions respectively. The 42.6k row was taken with the server
+otherwise idle; a 51k row measured while an interrupted 73k prefill was still finishing read 2.2 tok/s and is not a
+valid data point.
+
+Decode loses ~27% from 1.6k to 42.6k. That is the full-attention KV: 7 of 28 layers read `span * 2 * 256 * 2 * 2`
+bytes each token (611 MB at 42.6k), while the other 21 read a fixed 512-key ring. Qwen3.5's GDN layers have a constant
+state, so they do not pay this; a sliding-window transformer cannot match that without changing the model. The fixes
+that do not change the architecture are quantized weights (fewer weight bytes), quantized KV (fewer cache bytes), or
+speculative decoding (fewer passes over both); Spark has no MTP head for the last.
+
+`--prefill-chunk 4096` changes neither the GEMM FLOPs nor the weight bytes. For a prompt longer than the chunk it only
+reduces the number of chunks and the repeated attention over the prefix: with `C` chunks of `s` rows the extra pair
+count is about `T*s/2` against a causal floor of `T^2/2` (8% at T = 25k, s = 2048). A/B it on the Mac before making it
+a default; it doubles the ring (`next_pow2(window + chunk)`) and the prefill activation set.
+
+## 19. KV q8_0: yes on memory, second on speed
+
+Q8_0 is one fp16 scale per 32 values plus 32 int8 values: `34/32 = 1.0625` bytes per value, **53.1% of half**, a
+46.9% reduction. Spark's `head_dim` is 256, so a row has eight blocks; 256 B of int8 followed by 16 B of fp16 scales
+is 272 B and 16-byte aligned, which keeps every copy/regrow operation in whole `uint4`s. Per position, K and V
+together cost `hkv * 2 * 272` bytes instead of `hkv * 2 * 512`:
+
+| | half | q8_0 | saving |
+|---|---:|---:|---:|
+| 1.7B (hkv 2), full layers, B/pos | 14,336 | 7,616 | 46.9% |
+| 1.7B, full KV at 42.6k | 611 MB | 325 MB | 286 MB |
+| 1.7B, full KV at 73k | 1.05 GB | 0.56 GB | 0.49 GB |
+| 4B (hkv 4), full layers, B/pos | 36,864 | 19,584 | 46.9% |
+
+That is real memory, and it doubles the context a fixed budget can hold. It is **not** a proportional decode win while
+the weights are bf16: at 42.6k the per-token stream is 3.42 GB of weights + 0.61 GB of KV; q8_0 makes it 3.42 + 0.33,
+about 7% fewer bytes. With the 4-bit pack (~0.9 GB of weights) the same comparison is 1.51 -> 1.23 GB, ~19%; at 73k,
+1.95 -> 1.46 GB, ~25%. Prefill is GEMM-bound, so expect less there; the attention kernels read the cache, but their
+share is smaller than the projections'.
+
+The implementation is a cache-format change, not a flag:
+
+- `new_seq` / `reserve` / `kv_regrow`: 272 B per (head, row), `n16 = 17`, full layers only for the growing cache; the
+  sliding rings can use the same row (they are fixed 4,096 slots at chunk 2048, so this saves memory, not time).
+- `spark_kv_per_pos`, `MemPlan`, and `disk_format` (bump the version: stored caches change layout).
+- `spark_attn_prep`: quantize each 32-value block after RMSNorm/RoPE. A threadgroup per (row, head) reduces the block
+  max, writes the scale, then the int8 values.
+- Every consumer needs a q8 variant: `attn_decode_partial` (decode), `attn_prefill11r` (prefill), and
+  `qattn_t_g4d2s8` (M5 prefill). Dequantizing a tile into threadgroup half before the existing dot is the least
+  invasive form; doing the dot in int8/`dp4a` is a second optimization, not required for the bandwidth win.
+- Accuracy: Q8_0 K/V is usually close to lossless, but K enters the softmax directly, so compare logits and a
+  long-context needle before trusting it. V can stay at a higher precision if K is the only problem.
+
+Order of work: the regrow-stride fix above (correctness), then the 4-bit weight pack (the largest decode lever), then
+q8_0 KV (memory and the long-context slope). Speculative decoding is fourth: Spark has no MTP head, so it needs a
+separate 1.7B drafter or prompt-lookup, and at 42k both paths still read the same KV unless the draft is verified in a
+batch.

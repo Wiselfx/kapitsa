@@ -25,6 +25,23 @@ def check(ok, what):
 
 
 
+def check_kv_regrow():
+    """A grown full-attention cache must copy each KV head to the NEW row stride.
+
+    Spark passed kv_regrow `{old_words, old_words, target_words}`, the layout kv_copy_prefix takes. kv_regrow reads
+    (source stride, destination stride), so head 1 landed at the old offset and every later head read zeros after the
+    first reallocation -- i.e. any conversation longer than the initial 1024-token allocation.
+    """
+    spark = (ROOT / "src/model/spark.cpp").read_text()
+    m = re.search(r"const uint32_t p\[4\] = \{([^}]*)\}", spark)
+    check(m is not None, "Spark::reserve builds the kv_regrow params")
+    if not m:
+        return
+    args = [a.strip() for a in m.group(1).split(",")]
+    check(len(args) >= 2 and "target" in args[1],
+          "kv_regrow's destination stride is the new capacity, not the old one: p[1] = %r" % (args[1] if len(args) > 1 else ""))
+
+
 def check_mlp_inputs():
     """gate/up read x_ (and normalize it); down_proj must read the gate*up activation, not the residual.
 
@@ -38,13 +55,49 @@ def check_mlp_inputs():
     if not body:
         return
     b = body.group(0)
+    check("multi_proj(e, gu, 2, x_, L.post_norm)" in b,
+          "gate/up share one multi-segment dispatch (falls back to two matvecs on mixed formats)")
     calls = re.findall(r"matvec\((L\.m[gud]),\s*([A-Za-z0-9_]+),", b)
-    check(len(calls) == 3, "enc_mlp issues three matvecs (found %d: %s)" % (len(calls), calls))
+    check(len(calls) == 3, "the fallback still reads all three matrices (found %d: %s)" % (len(calls), calls))
     inputs = dict(calls)
     check(inputs.get("L.mg") == "x_", "gate_proj reads x_ (got %s)" % inputs.get("L.mg"))
     check(inputs.get("L.mu") == "x_", "up_proj reads x_ (got %s)" % inputs.get("L.mu"))
     check(inputs.get("L.md") == "mh_", "down_proj reads mh_, the gate*up activation (got %s)" % inputs.get("L.md"))
-    check("mh_" in b, "the GELU's output buffer (mh_) is written")
+    check("e.buf(2, mh_)" in b, "the GELU writes mh_")
+    # Decode matvecs read fp32 x, so the decode epilogue must write fp32. Prefill's down_proj is a qrf GEMM and reads
+    # half; that path uses spark_gelu_gu_half and no longer needs a separate rows_to_half pass. Checked statically because
+    # no test here runs a GPU.
+    metal = (ROOT / "src/kernels/spark/spark.metal").read_text()
+    check("device float* out" in metal, "spark_gelu_gu writes fp32 for the decode matvec")
+    check("spark_gelu_gu_half" in metal, "prefill has a half epilogue for qrf")
+    check("spark_gelu_gu_half" in spark and "enc_rows_half(e, gate" not in spark,
+          "enc_mlp_prefill writes hh_ directly instead of converting gate")
+
+
+def check_qkv_segments():
+    """q/k/v are three row ranges of one fused matrix, so each multi-segment view starts at its own row.
+
+    The first version bound q_k_v_proj's w/s/b unchanged for all three segments. The multi kernel then multiplied the
+    q rows three times, labelled the results k and v, and produced wrong attention with no crash. Only the offset views
+    at 0, qd, qd+kd make the segments the matrices they claim to be.
+    """
+    spark = (ROOT / "src/model/spark.cpp").read_text()
+    m = re.search(r"ProjSeg proj\[4\] = \{(.*?)\};", spark, re.S)
+    check(m is not None, "enc_attn builds the q/k/v/gate segment table")
+    if not m:
+        return
+    segs = m.group(1)
+    for what, rows in (("{&L.qkv, stg_, 0, uint32_t(qd)}", "q rows"),
+                       ("{&L.qkv, kr_, uint32_t(qd), uint32_t(kd)}", "k rows"),
+                       ("{&L.qkv, vr_, uint32_t(qd + kd), uint32_t(kd)}", "v rows")):
+        check(what in segs, "qkv segment at its own row and length (%s): %s" % (rows, what))
+    check("{&L.gate, gate_, 0, uint32_t(L.gate.N)}" in segs, "g_proj is a whole matrix sharing the input")
+    check("e.buf(i * 4 + 0, W.w->buf, size_t(segs[i].row) * w_row)" in spark,
+          "multi_proj binds each segment at its row offset, not the matrix start")
+    check("const uint32_t nrows = segs[i].n ? segs[i].n : W.N" in spark,
+          "multi_proj dispatches the segment's own row count, not W.N for every slice")
+    check("if (!multi_proj(e, proj, 4" in spark and "if (!multi_proj(e, proj, 3" in spark,
+          "four segments when gate shares a format, three otherwise")
 
 
 def main():
@@ -83,7 +136,7 @@ def main():
         # must land one past it. Test the property, not the arithmetic's spelling -- matching the string made this check
         # fail on a correct rewrite, and would have passed on an incorrect one that kept the words.
         for c in calls:
-            m = re.search(r"enc_sample\(e, s, \w+,\s*(.+?),\s*sp,", c)
+            m = re.search(r"enc_sample\(e, s,\s*(.+?),\s*sp,", c, re.S)
             arg = m.group(1).strip() if m else ""
             check(arg not in ("pos", "p0", "pos0"),
                   "Spark::encode_prefill samples past its last row, not into it: enc_sample arg is %r" % arg)
@@ -100,6 +153,8 @@ def main():
         check(guard is not None and guard.group(1) == "2",
               "Spark::encode_step's capacity guard allows the pos + 1 slot it writes (if (pos + 2 > s.cap))")
 
+    check_kv_regrow()
+    check_qkv_segments()
     check_mlp_inputs()
 
     print()

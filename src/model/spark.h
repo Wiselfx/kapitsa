@@ -122,6 +122,16 @@ class Spark : public Model {
     uint32_t rows = 2, nsg = 8;
   };
   Matvec matvec_pipe(const SparkLinear& W, bool norm, bool add);
+  // Up to four matrices sharing one input row, in one dispatch: qmvg_multi_<fmt> when they share a format, else the
+  // qmv2/qmv3_multi_r2 path for 4/8-bit group 64. `row` is the first weight row of a slice of a fused matrix (q_k_v_proj);
+  // separate matrices start at 0. Each segment still normalizes x in its own threadgroups; the saving is the dispatch.
+  struct ProjSeg {
+    const SparkLinear* L;
+    Buffer y;
+    uint32_t row = 0;  // first weight row (a slice of a fused matrix), 0 for a whole matrix
+    uint32_t n = 0;    // rows in this segment; 0 means W.N
+  };
+  bool multi_proj(Encoder& e, const ProjSeg* segs, int n, const Buffer& x, const Tensor* norm, const Buffer* xn_out = nullptr);
   // A float tensor as bf16, with `offset` added (the 1 + w conversion for Hugging Face zero-centred RMSNorm weights;
   // offset 0 for Spark-MLX-LLM's F32 lm_head scales/biases).
   const Tensor* bf16_copy(const Tensor* t, float offset);

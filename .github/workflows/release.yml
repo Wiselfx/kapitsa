@@ -108,10 +108,22 @@ jobs:
           {
             echo "Kapitsa \`$v\` for Apple silicon Macs (arm64, macOS 14 or later), built from \`${GITHUB_SHA:0:7}\`."
             echo
-            echo "**Spark-X2.6** (XHToken's \`spark2_5\`: Spark-X2.6-1.7B and -4B) now runs batched prefill with a"
-            echo "ring-aware attention read, so a prompt can pass the 512-token sliding window. MLX 4/8-bit group-32/64"
-            echo "checkpoints load, including the converted models with an untied \`lm_head\` and F32 scales. This workflow"
-            echo "compiles the backend on macOS; it does not run a GPU benchmark or a logit comparison."
+            echo "**Spark-X2.6 test build.** This is a prerelease: the workflow compiles the backend on macOS but does"
+            echo "not run a GPU benchmark or a logit comparison, so treat it as a build handoff, not a performance claim."
+            echo
+            echo "Changes in this build:"
+            echo
+            echo "- **KV cache growth fixed for multi-turn context.** \`kv_regrow\` was given the \`kv_copy_prefix\`"
+            echo "  parameter order, so after the first reallocation every KV head after the first was copied at the old"
+            echo "  row offset. A fresh long prompt rewrote every row and hid it; a second turn crossing the initial"
+            echo "  1024-token allocation read zeros. It now copies to the new stride."
+            echo "- **Decode projection fusion:** q/k/v+gate and gate+up each take one dispatch instead of separate"
+            echo "  matvecs; the decode MLP epilogue and the prefill half epilogue remove a pass over the activation."
+            echo "- **KV q8_0 is documented, not implemented** (\`docs/spark/SPARK.md\` §19): it cuts KV bytes to 53% of"
+            echo "  half, but it is a cache-format change and is deliberately after this correctness fix."
+            echo
+            echo "The Spark-X2.6-1.7B and -4B configs, MLX 4/8-bit group-32/64 loading, batched prefill with a ring-aware"
+            echo "attention read, and the wrapped sliding window are unchanged from v0.2.36."
             echo
             echo '```sh'
             echo "curl -fsSLO https://github.com/$repo/releases/download/$GITHUB_REF_NAME/kapitsa-$v-darwin-arm64.tar.gz"

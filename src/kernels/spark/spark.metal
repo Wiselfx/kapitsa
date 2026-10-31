@@ -36,6 +36,9 @@ NI_INLINE float spark_gelu(float x) { return 0.5f * x * (1.0f + spark_erf(x * 0.
 // gate|up -> activation. Both inputs are the raw GEMM results of the MLP's gate_proj and up_proj, fp32, laid out
 // with `ld` floats per row and `rows` rows of `n` columns.
 //   out[r, c] = spark_gelu(gate[r, c]) * up[r, c]
+// The decode matvecs all take `const device float* x` (qmv2/qmv3 and qmvg alike), so the decode epilogue writes fp32.
+// The prefill down_proj is a qrf GEMM and takes half; spark_gelu_gu_half writes that form directly, which is the same
+// rounding as the rows_to_half pass it replaces but one dispatch and one read/write shorter.
 // grid: ceil(n / 256) x rows; threadgroup 256.
 struct SparkGuParams {
   uint32_t n;   // columns (the FFN's intermediate size)
@@ -50,6 +53,16 @@ struct SparkGuParams {
   if (c >= p.n) return;
   const size_t i = size_t(tg.y) * p.ld + c;
   out[i] = spark_gelu(gate[i]) * up[i];
+}
+
+[[kernel]] void spark_gelu_gu_half(const device float* gate [[buffer(0)]], const device float* up [[buffer(1)]],
+                                   device half* out [[buffer(2)]], constant SparkGuParams& p [[buffer(3)]],
+                                   uint2 tg [[threadgroup_position_in_grid]],
+                                   uint2 tid [[thread_position_in_threadgroup]]) {
+  const uint32_t c = tg.x * 256u + tid.x;
+  if (c >= p.n) return;
+  const size_t i = size_t(tg.y) * p.ld + c;
+  out[i] = half(spark_gelu(gate[i]) * up[i]);
 }
 
 // ---- assembling the gate layout attn_prep and its epilogue expect ----

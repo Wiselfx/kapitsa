@@ -390,9 +390,10 @@ bool Spark::reserve(Seq& s, int need) {
     if (old > 0 && *b) {
       if (!e) e = g.begin();
       const uint32_t n16 = uint32_t(cfg_.head_dim) * 2 / 16;  // 16-byte words per position
-      // kv_regrow: p = (positions to copy in 16-byte words, source cap in words, destination cap in words), and the
-      // grid is y = Hkv. Compare qwen35's enc_kv_regrow, which packs it the same way.
-      const uint32_t p[4] = {uint32_t(old) * n16, uint32_t(old) * n16, uint32_t(target) * n16, 0};
+      // kv_regrow: p = (positions to copy in 16-byte words, destination cap in words, Hkv); the source stride is p.x
+      // and the destination stride p.y. This passed {old, old, target} instead, as kv_copy_prefix takes, so after the
+      // first reallocation every KV head but the first was copied to the wrong offset and attention read zeros.
+      const uint32_t p[4] = {uint32_t(old) * n16, uint32_t(target) * n16, uint32_t(cfg_.hkv), 0};
       e->use(pipe("kv_regrow"));
       e->buf(0, *b);
       e->buf(1, nbuf);
@@ -530,7 +531,7 @@ void Spark::alloc_state() {
   ao_ = A(Q * sizeof(float), "spark_ao");
   gate_ = A(size_t(cfg_.hq) * sizeof(float), "spark_gate");
   gu_ = A(size_t(cfg_.ffn) * sizeof(float) * 2, "spark_gu");
-  mh_ = A(size_t(cfg_.ffn) * sizeof(float), "spark_mh");
+  mh_ = A(size_t(cfg_.ffn) * sizeof(float), "spark_mh");  // gate*up; decode's matvec reads fp32
   logits_ = A(size_t(cfg_.vocab) * sizeof(float), "spark_logits");
   // Indexed by chunk, and enc_attn's nchunks is bounded by this same count (it sizes a chunk to at least span/cores),
   // so the buffers must be sized by the number that splits the work -- not a literal 32 beside a dynamic core count.
@@ -609,6 +610,67 @@ Spark::Matvec Spark::matvec_pipe(const SparkLinear& W, bool norm, bool add) {
   return Matvec{pipe(name), rows, nsg};
 }
 
+// One dispatch for 2..4 matrices that share x. This is the host side of wfmt's qmvg_multi (any format) and qmv.metal's
+// qmv2/qmv3_multi_r2 (4/8-bit group 64, per-segment bits), i.e. the same two pathways Qwen35::enc_qmv_multi chooses
+// between. Each segment is a row range of one matrix or a whole separate matrix; a fused q_k_v_proj is the former, so
+// its w/s/b views start at `row`, not at 0. Getting that wrong is not a slow path: it multiplies the q weights three
+// times and calls the results k and v.
+bool Spark::multi_proj(Encoder& e, const ProjSeg* segs, int n, const Buffer& x, const Tensor* norm,
+                       const Buffer* xn_out) {
+  if (n < 2 || n > 4) return false;
+  const SparkLinear& A = *segs[0].L;
+  bool g64q = true, same_fmt = true;
+  for (int i = 0; i < n; ++i) {
+    const SparkLinear& W = *segs[i].L;
+    if (!W.w || W.K != A.K) return false;
+    g64q = g64q && (W.bits == 4 || W.bits == 8) && W.gs == 64;
+    same_fmt = same_fmt && W.fmt() == A.fmt();
+  }
+  // qmv2/qmv3_multi_r2 hard-code GS 64; qmvg_multi carries every other format (bf16, group 32, 3/5/6-bit).
+  std::string name;
+  if (g64q)
+    name = A.K > 4096 ? "qmv3_multi_r2" : "qmv2_multi_r2";
+  else if (same_fmt)
+    name = "qmvg_multi_" + A.fmt();
+  else
+    return false;  // mixed formats have no multi-segment kernel; the caller falls back to separate matvecs
+
+  kp::QmvMulti2 p{};
+  p.K = A.K;
+  p.nseg = uint32_t(n);
+  p.eps = cfg_.eps;
+  p.norm = norm ? 1u : 0u;
+  p.write_xn = xn_out ? 1u : 0u;
+  uint32_t tg = 0;
+  for (int i = 0; i < n; ++i) {
+    const SparkLinear& W = *segs[i].L;
+    const size_t w_row = size_t(W.K) * size_t(W.bits) / 8;
+    const size_t s_row = W.dense() ? w_row : size_t(W.K) / size_t(W.gs) * 2;
+    const uint32_t nrows = segs[i].n ? segs[i].n : W.N;
+    // Segments of a fused matrix are byte-offset views, so a row must stay 16-byte aligned (the kernels load vectors).
+    if (segs[i].row && (w_row % 16 || s_row % 16))
+      fatal("Spark: %s row stride (%zu bytes of w, %zu of scales) cannot be bound as a 16-byte-aligned segment",
+            W.name().c_str(), w_row, s_row);
+    if (segs[i].row > W.N || nrows > W.N - segs[i].row)
+      fatal("Spark: %s segment [%u, +%u) is outside the matrix's %u rows", W.name().c_str(), segs[i].row, nrows, W.N);
+    p.N[i] = nrows;
+    p.bits[i] = uint32_t(W.bits);
+    p.tg_begin[i] = tg;
+    tg += (nrows + 2 * 8 - 1) / (2 * 8);
+    e.buf(i * 4 + 0, W.w->buf, size_t(segs[i].row) * w_row);
+    e.buf(i * 4 + 1, W.s->buf, size_t(segs[i].row) * s_row);
+    e.buf(i * 4 + 2, W.b->buf, size_t(segs[i].row) * s_row);
+    e.buf(i * 4 + 3, segs[i].y);
+  }
+  e.use(pipe(name));
+  e.buf(16, x);
+  e.val(17, p);
+  e.buf(18, norm ? norm->buf : x);
+  e.buf(19, xn_out ? *xn_out : x);
+  e.dispatch(tg, 1, 1, 32 * 8);
+  return true;
+}
+
 void Spark::enc_embed(Encoder& e, const Buffer& tokens, int tok_off, int R, const Buffer& out) {
   const uint32_t D = uint32_t(cfg_.hidden);
   kp::Embed ep{D, uint32_t(embed_.gs), uint32_t(tok_off)};
@@ -668,8 +730,13 @@ void Spark::enc_mlp(Encoder& e, const SparkLayer& L) {
   };
 
   Buffer g = gu_, u = gu_.view(size_t(cfg_.ffn) * sizeof(float), size_t(cfg_.ffn) * sizeof(float));
-  matvec(L.mg, x_, g, L.post_norm, nullptr);
-  matvec(L.mu, x_, u, L.post_norm, nullptr);
+  // One dispatch for both matrices when they share a format (they do in both live checkpoints). The generic multi kernel
+  // writes the raw products, so Spark's exact-GELU epilogue still runs below; each segment's threadgroups normalize x.
+  ProjSeg gu[2] = {{&L.mg, g, 0}, {&L.mu, u, 0}};
+  if (!multi_proj(e, gu, 2, x_, L.post_norm)) {
+    matvec(L.mg, x_, g, L.post_norm, nullptr);
+    matvec(L.mu, x_, u, L.post_norm, nullptr);
+  }
   {
     kp::SparkGu gp{uint32_t(cfg_.ffn), uint32_t(cfg_.ffn)};
     e.use(pipe("spark_gelu_gu"));
@@ -716,44 +783,20 @@ void Spark::enc_attn(Encoder& e, Seq& s, int li, int pos) {
     e.buf(7, L.in_norm->buf);
     e.dispatch((uint32_t(n) + r * nsg - 1) / (r * nsg), 1, 1, 32 * nsg);
   };
-  // The multi-segment kernels address the whole matrix (segment i owns tg.x in [tg_begin[i], tg_begin[i+1])), so unlike
-  // the row-sliced path above they need no byte-offset views: buffers 0..2 take q_k_v_proj in full.
-  const bool multi = (L.qkv.q4() || L.qkv.q8()) && L.qkv.K <= 4096;
-  if (multi) {
-    constexpr uint32_t rows_per = 2, nsg = 8;
-    kp::QmvMulti2 p{};
-    p.K = L.qkv.K;
-    p.nseg = 3;
-    p.eps = cfg_.eps;
-    p.norm = 1;
-    p.write_xn = 0;  // the normalized row is not wanted as a separate buffer (attn_prep re-derives it)
-    const uint32_t segs[3] = {uint32_t(qd), uint32_t(kd), uint32_t(kd)};
-    const Buffer* ys[3] = {&stg_, &kr_, &vr_};
-    uint32_t tg = 0;
-    for (int i = 0; i < 3; ++i) {
-      p.N[i] = segs[i];
-      p.bits[i] = uint32_t(L.qkv.bits);
-      p.tg_begin[i] = tg;
-      tg += (segs[i] + rows_per * nsg - 1) / (rows_per * nsg);
-      e.buf(i * 4 + 0, L.qkv.w->buf);
-      e.buf(i * 4 + 1, L.qkv.s->buf);
-      e.buf(i * 4 + 2, L.qkv.b->buf);
-      e.buf(i * 4 + 3, *ys[i]);
+  // The multi-segment kernels take one weight view per segment, so a fused q_k_v_proj passes q/k/v as row-offset views
+  // of the same tensor (row 0, qd, qd+kd); the gate is a fourth segment of its own matrix. Four segments when all five
+  // matrices share a format, three when g_proj does not (the live MLX conversion leaves g_proj bf16 while q_k_v_proj is
+  // quantized), and the row-at-a-time path only when even q/k/v cannot share a multi kernel.
+  ProjSeg proj[4] = {{&L.qkv, stg_, 0, uint32_t(qd)},
+                     {&L.qkv, kr_, uint32_t(qd), uint32_t(kd)},
+                     {&L.qkv, vr_, uint32_t(qd + kd), uint32_t(kd)},
+                     {&L.gate, gate_, 0, uint32_t(L.gate.N)}};
+  if (!multi_proj(e, proj, 4, x_, L.in_norm)) {
+    if (!multi_proj(e, proj, 3, x_, L.in_norm)) {
+      rows(stg_, qd, 0);
+      rows(kr_, kd, qd);
+      rows(vr_, kd, qd + kd);
     }
-    p.tg_begin[3] = tg;
-    e.use(pipe(L.qkv.K > 4096 ? "qmv3_multi_r2" : "qmv2_multi_r2"));
-    e.buf(16, x_);
-    e.val(17, p);
-    e.buf(18, L.in_norm->buf);
-    e.buf(19, stg_);
-    e.dispatch(tg, 1, 1, 32 * nsg);
-  } else {
-    rows(stg_, qd, 0);
-    rows(kr_, kd, qd);
-    rows(vr_, kd, qd + kd);
-  }
-  // the per-head gate rows, which share the same normalized input
-  {
     const Matvec m = matvec_pipe(L.gate, /*norm=*/true, /*add=*/false);
     const uint32_t r = m.rows, nsg = m.nsg;
     e.use(m.p);
@@ -977,19 +1020,17 @@ void Spark::enc_mlp_prefill(Encoder& e, const SparkLayer& L, int T) {
   Buffer up = gub_.view(size_t(T) * size_t(F) * sizeof(float), size_t(T) * size_t(F) * sizeof(float));
   qrf_proj(e, L.mg, xh_, gate, T, false);  // gate -> gate[t][c]
   qrf_proj(e, L.mu, xh_, up, T, false);    // up   -> up[t][c]
-  // gate*up stays per row: the epilogue reads both buffers at [t][c] and writes the fp32 product into
-  // the gate half, then down_proj reads it as half (hh_), the same rounding Qwen35's swiglu_half -> qrf
-  // path has.
+  // The epilogue writes half straight into hh_ (the down_proj GEMM's input), so there is no fp32 product buffer and no
+  // rows_to_half pass over T*F between the two GEMMs. Same rounding as that pass (a plain half cast), one fewer dispatch.
   {
     kp::SparkGu gp{uint32_t(F), uint32_t(F)};
-    e.use(pipe("spark_gelu_gu"));
+    e.use(pipe("spark_gelu_gu_half"));
     e.buf(0, gate);
     e.buf(1, up);
-    e.buf(2, gate);
+    e.buf(2, hh_);
     e.val(3, gp);
     e.dispatch((uint32_t(F) + 255u) / 256u, uint32_t(T), 1, 256);
   }
-  enc_rows_half(e, gate, nullptr, hh_, T, F);
   qrf_proj(e, L.md, hh_, xb_, T, /*add=*/true);
 }
 

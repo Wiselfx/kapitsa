@@ -31,8 +31,10 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 - [x] Own kernel library `src/kernels/spark/` (decision: additive, do **not** touch shipping MLP kernels, SPARK.md §10)
 - [x] `spark_gelu_gu` — **exact** gelu (`x * Phi(x)`, erf form), gate*up fold, not the tanh approximation:
       `hidden_act: "gelu"` is ACT2FN's `GELUActivation` (`nn.functional.gelu(approximate='none')`), and
-      `gelu_pytorch_tanh` is a *separate* ACT2CLS key Spark does not ask for. This checklist said "tanh" until QA
-      pass 1 caught it, so the code and the docs disagreed — see SPARK.md §13 defect 1. Metal has no erf, so
+      `gelu_pytorch_tanh` is a *separate* ACT2CLS key Spark does not ask for. Two output forms: fp32 for decode
+      (all decode matvecs read fp32 x) and half for prefill's qrf down projection, which removes the separate
+      `rows_to_half` pass (SPARK.md §17b). This checklist said "tanh" until QA pass 1 caught it, so the code and the
+      docs disagreed — see SPARK.md §13 defect 1. Metal has no erf, so
       spark_erf is A&S 7.1.26 (max error ~1.4e-7)
 - [x] Existing models' kernel libraries byte-identical (nothing in them changed)
 
@@ -65,7 +67,8 @@ The plan and rationale live in `SPARK.md` (read §2, §4, §12 after a compactio
 - [x] Ring-aware attention read in decode (`attn_decode_partial`), prefill (`attn_prefill11r` / `qattn_t_g4d2s8`)
 - [x] **Batched prefill** — `encode_prefill` runs T rows per pass: `rows_to_half` + `qrf_proj` (Qwen35::enc_qrf's tile
       ladder; `qmt_m64_n64*` for 4-bit on M5) for the projections, `qattn_t_g4d2s8`/`attn_prefill11r` for attention,
-      `spark_gelu_gu` kept for the exact-GELU epilogue. A mid-pass snapshot runs as its own short pass.
+      `spark_gelu_gu_half` writes the exact-GELU product straight into `hh_` (no `rows_to_half` after it). A mid-pass
+      snapshot runs as its own short pass.
 - [x] **Ring-aware prefill attention (R1)** — `AttnPrefParams` / `QaParams` gained `window`/`slot_mask` **appended**, so
       the 6-field brace initialisers in `clover.cpp` / `qwen35.cpp` / `qwen4_exp.cpp` still compile and zero-fill them.
       Two `static_assert`s in `kparams.h` pin the layout (32 bytes, `window` at 24) against the hand-kept mirror.
@@ -100,8 +103,8 @@ bug to fix; it needs the batched form (19-30x).
    head_dim 256, benchmarked on an M5 Max at 3.09 / 7.34 / 15.95 ms against 4096 / 8192 / 16384 keys vs
    `qattn_t_s8k16`'s 5.15 / 11.48 / 24.21 (1.52-1.67x), error 2.70-3.29e-4 against an fp64 reference. Only on
    `apple_family() >= 9` (tensor_ops, `qmt_on()`); older Macs need a `qattn_t`-free fallback.
-3. **GELU fold** — keep `spark_gelu_gu` as-is (an elementwise pass over `T*ffn`, ~0.1% of the layer). No change to the
-   shipping GEMM's epilogue, so D4 holds.
+3. **GELU fold** — `spark_gelu_gu` stays an elementwise pass over `T*ffn` (now writing half straight into `hh_`, so
+   the separate `rows_to_half` pass is gone). No change to the shipping GEMM's epilogue, so D4 holds.
 
 **The one real gap — ring addressing.** `qattn_t` reads `kb + slot*D` for `k0 = 0..tgl` with no lower bound, and its
 causal limit is `p.pos0 + min(tk, T-1)`. A sliding layer's ring holds only the last 512 keys anywhere it may have
@@ -150,19 +153,29 @@ run, rather than after, so the baseline is measured on the final code.
       (`qwen35.cpp`). 1.6x too many chunks on a 20-core M4 Pro, too few on a 40-core M4 Max. The attention split
       buffers (`part_o_`, `part_ml_`) were sized from that same literal, so they now use the same count — sizing them
       from 32 while chunking over 40 cores would have written past the end.
-- [x] **q | k | v in one dispatch.** They are three row ranges of one fused matrix sharing one normalized input, which
-      is exactly upstream's `qmv2_multi` / `qmv3_multi` case (`Qwen35::enc_qmv_multi`). 3 dispatches → 1, and the
-      RMSNorm is computed once instead of three times. Falls back to the three row-sliced matvecs when the format is
-      not 4/8-bit group 64 or K exceeds the untiled variant's 4096.
-- Net: 12 → 11 dispatches per decoder layer on decode (336 → 308 per token for the 1.7B, 432 → 396 for the 4B).
+- [x] **q | k | v | gate in one dispatch.** They are three row ranges of one fused matrix plus `g_proj`, all sharing
+      one normalized input. `Spark::multi_proj` uses `qmvg_multi_<fmt>` for one format or `qmv2/qmv3_multi_r2` for
+      4/8-bit group 64, as `Qwen35::enc_qmv_multi` does. Segment views are row-offset views (0, qd, qd+kd), which is
+      what the earlier q/k/v multi attempt got wrong: it bound the whole tensor three times, so k and v were q.
+- [x] **Gate+up in one dispatch.** Same helper, no new kernel and no change to any shipping GEMM: `qmvg_multi` takes
+      the two matrices and writes their raw products; Spark's exact-GELU epilogue still runs after it. Falls back to
+      two matvecs only when their formats differ.
+- Net: three projection dispatches per decoder layer (qkv+gate, gate+up, down) instead of five. Each segment still
+      normalizes its own x in its threadgroups, so the norm work is unchanged; the attention dispatches are unchanged.
+- [x] **KV regrow copies into the new row stride.** `reserve` passed `(old, old, target)` to `kv_regrow`, which takes
+      `(source stride, destination stride, Hkv)`; after the first growth every KV head after the first landed at the
+      old offset and attention read zeros. A fresh long prompt did not expose it (all rows are rewritten), but a
+      second turn crossing the initial 1024-token allocation did. Fixed and pinned by `check_kv_regrow`.
 
 **Not done, deliberately — with the reason:**
-- [ ] **Gate+up as one dispatch.** Upstream's `mlp_gate_up` takes two matrices in one kernel; Spark issues two matvecs.
-      I tried to fix this by deferring the GELU closure by one layer so two pairs could close together, and found it
-      **cannot work**: `down_proj` consumes the closed row immediately, so `mh_` must be complete by the end of the
-      layer. The remaining option is to modify `mlp_gate_up_impl` (index the second matrix at `row0 - N0` and run
-      Spark's erf GELU instead of silu), which splits the kernel on a template flag — precisely what D4 rejected
-      because it recompiles the hot path of every existing model. It needs a deliberate decision, not a drive-by.
+- [ ] **q8_0 KV cache** (docs/spark/SPARK.md §19). Cuts KV bytes to 53% of half and halves the long-context memory;
+      at bf16 weights the decode gain is only ~7% at 42k because the weights dominate, rising to ~19-25% once the 4-bit
+      pack is used. Needs a 272-byte row (256 int8 + 8 fp16 scales, 16-aligned), new `kv_regrow` stride, a bump to
+      `disk_format`, and q8 variants of the three attention consumers. Correctness first: the regrow fix above is a
+      prerequisite for trusting any multi-turn cache measurement.
+- [ ] **Fused GELU prefill GEMM.** Upstream's `qrf_gu` fuses gate+up and silu into one kernel. Using it for Spark needs
+      an erf epilogue in the shared GEMM (the same D4 trade-off), and the two GEMMs' FLOPs do not change; this pass
+      only deletes the intermediate fp32 product and its `rows_to_half`. Left for a measured need.
 - [x] **Batched prefill** (`encode_prefill`; see P3 above).
 - [x] **A ring-aware attention read** (decode, both prefill kernels; ring = window + chunk).
 - [x] **4-bit tensor-ops prefill on M5** (`qmt_m64_n64`, group 32/64) and `qattn_t_g4d2s8` selection.
